@@ -73,12 +73,12 @@ jobs:
           - label: macOS Intel x64
             os: macos-15-intel
             artifact: macos-x64
-            builder_args: "--mac dmg zip --x64"
+            builder_args: "--mac dmg --x64"
 
           - label: macOS Apple Silicon
             os: macos-15
             artifact: macos-arm64
-            builder_args: "--mac dmg zip --arm64"
+            builder_args: "--mac dmg --arm64"
 
     defaults:
       run:
@@ -115,9 +115,7 @@ jobs:
           path: |
             desktop/release/**/ohmytoken-*-windows-x64-setup.exe
             desktop/release/**/ohmytoken-*-macos-x64.dmg
-            desktop/release/**/ohmytoken-*-macos-x64.zip
             desktop/release/**/ohmytoken-*-macos-arm64.dmg
-            desktop/release/**/ohmytoken-*-macos-arm64.zip
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
@@ -148,14 +146,12 @@ jobs:
             find release-assets -type f \
               \( -name 'ohmytoken-*-windows-x64-setup.exe' \
               -o -name 'ohmytoken-*-macos-x64.dmg' \
-              -o -name 'ohmytoken-*-macos-x64.zip' \
-              -o -name 'ohmytoken-*-macos-arm64.dmg' \
-              -o -name 'ohmytoken-*-macos-arm64.zip' \) \
+              -o -name 'ohmytoken-*-macos-arm64.dmg' \) \
               -print0
           )
 
-          if [ "${#RELEASE_ASSETS[@]}" -ne 5 ]; then
-            echo "::error::Expected 5 release assets, found ${#RELEASE_ASSETS[@]}"
+          if [ "${#RELEASE_ASSETS[@]}" -ne 3 ]; then
+            echo "::error::Expected 3 release assets, found ${#RELEASE_ASSETS[@]}"
             exit 1
           fi
 
