@@ -113,9 +113,11 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
-            desktop/release/**/*.exe
-            desktop/release/**/*.dmg
-            desktop/release/**/*.zip
+            desktop/release/**/ohmytoken-*-windows-x64-setup.exe
+            desktop/release/**/ohmytoken-*-macos-x64.dmg
+            desktop/release/**/ohmytoken-*-macos-x64.zip
+            desktop/release/**/ohmytoken-*-macos-arm64.dmg
+            desktop/release/**/ohmytoken-*-macos-arm64.zip
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
