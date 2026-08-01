@@ -1,0 +1,69 @@
+appId: com.ohmytoken.desktop
+productName: ohmytoken
+copyright: Copyright © 2026
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,.prettierignore,.prettierrc.yaml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml,package-lock.json}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!tests/**'
+  - '!out-test/**'
+  - '!devlocal/**'
+  - '!tsconfig.test-node.json'
+  # 必须排除 release/，否则会把之前的打包产物递归塞进 asar，导致越打越大
+  - '!release/**'
+  - '!updates/**'
+  - '!.omo/**'
+  - '!.opencode/**'
+  - '!.playwright-mcp/**'
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+extraResources:
+  - from: ../LICENSE
+    to: licenses/ohmytoken-MIT.txt
+  - from: third-party-licenses
+    to: licenses
+  - from: src/renderer/public/brand
+    to: brand
+win:
+  icon: src/renderer/public/brand/app-icon.ico
+  executableName: ohmytoken
+  signAndEditExecutable: true
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  include: installer/installer.nsh
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: ohmytoken
+  uninstallDisplayName: ohmytoken
+  # 与 com 后端 ReleaseArtifactContract 保持一致；version 与应用内嵌版本同源。
+  artifactName: ${name}-${version}-windows-${arch}-setup.${ext}
+mac:
+  icon: src/renderer/public/brand/app-icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    # electron-updater 的 MacUpdater 只接受 ZIP；DMG 仅用于官网手动安装。
+    - target: zip
+      arch: [x64, arm64]
+  notarize: false
+  artifactName: ${name}-${version}-macos-${arch}.${ext}
+dmg:
+  artifactName: ${name}-${version}-macos-${arch}.${ext}
+npmRebuild: true
+publish:
+  provider: generic
+  # 运行时会被 com /desktop/bootstrap 下发值覆盖；使用保留域名避免误连真实服务。
+  url: https://updater.invalid/
+  channel: latest

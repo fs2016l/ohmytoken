@@ -1,0 +1,935 @@
+/*
+ * Unified spacing system
+ *
+ * This file intentionally loads after the visual theme layers. It owns layout rhythm only:
+ * primitive spacing follows a 4px scale, with 2px reserved for compact segmented controls.
+ * Primary page siblings use --page-section-gap, grids use --grid-gap, nested content uses
+ * --content-stack-gap, and controls use --control-gap. Sibling spacing belongs to the parent
+ * gap; page children must not add their own vertical margins.
+ */
+
+/* App shell */
+
+#app .side-nav {
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+#app .brand {
+  gap: var(--space-3);
+  margin: var(--space-0) var(--space-1) var(--space-8);
+}
+
+#app .nav-tabs {
+  gap: var(--space-1);
+}
+
+#app .nav-item {
+  gap: var(--space-3);
+  padding-inline: var(--space-3);
+}
+
+#app .side-footer {
+  padding: var(--space-4) var(--space-0) var(--space-0);
+}
+
+#app .version-row,
+#app .update-pill {
+  gap: var(--space-2);
+}
+
+#app .update-pill {
+  padding-inline: var(--space-3);
+}
+
+#app .top-bar {
+  gap: var(--space-4);
+  padding-inline: var(--space-6);
+}
+
+#app .top-actions {
+  gap: var(--space-2);
+}
+
+#app .lang-switch {
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+}
+
+#app .lang-switch button {
+  padding-inline: var(--space-3);
+}
+
+#app .user-popover,
+#app .notify-panel {
+  padding: var(--space-2);
+}
+
+#app .popover-header {
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+#app .popover-divider {
+  margin-block: var(--space-1);
+}
+
+#app .menu-item {
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+#app .notify-header {
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+}
+
+#app .notify-item {
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+#app .notify-item + .notify-item {
+  margin-top: var(--space-0-5);
+}
+
+/* Page framing and shared controls */
+
+#app
+  :is(
+    .dashboard-content,
+    .token-page,
+    .coding-plan-page,
+    .agent-download-page,
+    .insight-page,
+    .settings-page
+  ) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--page-section-gap);
+  padding: var(--page-gutter-block) var(--page-gutter-inline) var(--page-bottom-space);
+}
+
+#app :is(.hero-actions, .header-stats) {
+  gap: var(--control-gap);
+}
+
+#app
+  :is(
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline,
+    .header-refresh-btn,
+    .insight-refresh-btn,
+    .retry-btn,
+    .scan-primary,
+    .purchase-btn,
+    .btn-refresh,
+    .btn-details,
+    .code-btn
+  ) {
+  gap: var(--control-gap);
+  padding-inline: var(--control-padding-inline);
+}
+
+#app .btn-sm,
+#app .settings-page .btn {
+  padding-inline: var(--space-3);
+}
+
+#app .form-textarea {
+  padding: var(--space-3) var(--space-4);
+}
+
+#app .message-banner {
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+#app .message-main {
+  gap: var(--space-2);
+}
+
+#app .message-action {
+  padding-inline: var(--space-3);
+}
+
+/* Agent dashboard */
+
+#app .stats-grid,
+#app .chart-grid {
+  gap: var(--grid-gap);
+}
+
+#app .stats-grid .stat-card {
+  gap: var(--space-2);
+  padding: var(--panel-padding);
+}
+
+#app .stats-grid .live-pill {
+  gap: var(--space-1);
+  padding: var(--space-0-5) var(--space-2);
+}
+
+#app .control-bar {
+  gap: var(--control-group-gap);
+  padding: var(--space-3);
+}
+
+#app .control-left {
+  gap: var(--control-gap);
+}
+
+#app .control-right {
+  gap: var(--space-4);
+}
+
+#app .date-tile-new {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+#app .base-date-picker .dp__input {
+  padding-top: var(--space-2);
+  padding-right: var(--space-8);
+  padding-bottom: var(--space-2);
+}
+
+#app .base-date-picker .dp--input-icons {
+  padding-block: var(--space-2);
+}
+
+#app .date-tile-new .date-copy {
+  gap: var(--space-0);
+}
+
+#app .quick-tabs {
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+}
+
+#app .quick-tabs button {
+  padding-inline: var(--space-3);
+}
+
+#app .scan-meta {
+  gap: var(--space-1);
+}
+
+#app .scan-state {
+  gap: var(--space-3);
+}
+
+#app .state-item {
+  gap: var(--space-2);
+}
+
+#app .scan-primary {
+  padding-inline: var(--space-4);
+}
+
+#app .scan-full-panel {
+  padding-bottom: var(--space-2);
+}
+
+#app .scan-full {
+  padding-inline: var(--space-3);
+}
+
+#app .scan-result {
+  padding: var(--space-3) var(--space-4);
+}
+
+#app .chart-panel {
+  padding: var(--panel-padding);
+}
+
+#app .panel-header {
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+}
+
+#app .panel-actions {
+  gap: var(--space-2);
+}
+
+#app .panel-action-btn,
+#app .legend-item {
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+#app .chart-legend {
+  gap: var(--space-2);
+  margin: var(--space-0) var(--space-0) var(--space-2);
+}
+
+#app .distribution-legend {
+  margin-top: var(--space-1);
+}
+
+#app .chart-hint {
+  margin-bottom: var(--space-2);
+}
+
+#app .table-tools {
+  gap: var(--space-4);
+  padding: var(--panel-padding);
+}
+
+#app .table-tools p {
+  margin-top: var(--space-1);
+}
+
+#app .filter-chips {
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+}
+
+#app .filter-chips button {
+  padding-inline: var(--space-3);
+}
+
+#app .table-wrapper :is(th, td) {
+  padding: var(--space-3) var(--space-4);
+}
+
+#app .agent-badge {
+  padding-inline: var(--space-2);
+}
+
+#app .no-data-tag {
+  padding: var(--space-0-5) var(--space-2);
+}
+
+#app .pagination-bar {
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+#app .pagination-controls {
+  gap: var(--space-1);
+}
+
+/* Token provider page */
+
+#app .stats-section,
+#app .vendor-grid {
+  gap: var(--grid-gap);
+}
+
+#app .stats-section .stat-card {
+  gap: var(--space-3);
+  padding: var(--panel-padding);
+}
+
+#app .key-section {
+  padding: var(--panel-padding-lg);
+}
+
+#app .section-header {
+  margin-bottom: var(--space-4);
+}
+
+#app .section-title-wrap {
+  gap: var(--space-2);
+}
+
+#app .key-grid {
+  gap: var(--grid-gap);
+}
+
+#app .key-input-card {
+  padding: var(--panel-padding);
+}
+
+#app .key-input-field {
+  gap: var(--control-gap);
+}
+
+#app .key-input-field input {
+  padding-inline: var(--space-3);
+}
+
+#app .key-endpoint {
+  margin-top: var(--space-2);
+}
+
+#app .filter-section {
+  gap: var(--control-group-gap);
+  padding: var(--space-2);
+}
+
+#app .filter-tabs {
+  gap: var(--space-1);
+}
+
+#app .filter-tab {
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+#app .vendor-card-header {
+  gap: var(--space-3);
+  padding: var(--panel-padding);
+}
+
+#app .status-badge {
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+}
+
+#app .usage-content {
+  padding: var(--panel-padding);
+}
+
+#app .quota-bar {
+  margin-bottom: var(--space-4);
+}
+
+#app .quota-info {
+  margin-bottom: var(--space-2);
+}
+
+#app .usage-stats {
+  gap: var(--space-3);
+}
+
+#app .usage-item {
+  padding: var(--space-3);
+}
+
+#app .card-actions {
+  gap: var(--control-gap);
+  padding-top: var(--space-4);
+}
+
+#app .card-actions :is(.btn-refresh, .btn-details) {
+  padding-inline: var(--space-3);
+}
+
+#app .vendors-section > .empty-state {
+  padding: var(--space-10);
+}
+
+/* Plan catalog */
+
+#app .coding-plan-page .page-header {
+  gap: var(--page-section-gap);
+  margin-bottom: var(--space-0);
+}
+
+#app .catalog-toolbar {
+  gap: var(--control-gap);
+  margin-bottom: var(--space-0);
+  padding: var(--space-2);
+}
+
+#app .catalog-toolbar .search-input {
+  padding-inline: var(--space-10);
+}
+
+#app .catalog-refresh {
+  gap: var(--control-gap);
+  padding-inline: var(--space-4);
+}
+
+#app .category-tabs {
+  gap: var(--space-1);
+  margin-bottom: var(--space-0);
+  padding: var(--space-1);
+}
+
+#app .category-tab {
+  gap: var(--control-gap);
+  padding-inline: var(--space-3);
+}
+
+#app .vendor-filter-bar {
+  gap: var(--space-2);
+  margin: var(--space-0);
+  padding: var(--space-2);
+}
+
+#app .vendor-filter-btn {
+  gap: var(--space-1);
+  padding-inline: var(--space-3);
+}
+
+#app .results-info {
+  margin-bottom: var(--space-0);
+}
+
+#app .providers-grid {
+  gap: var(--grid-gap);
+}
+
+#app .provider-card {
+  padding: var(--panel-padding-lg);
+}
+
+#app .provider-header {
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+#app .provider-tagline,
+#app .models-section {
+  margin-bottom: var(--space-3);
+}
+
+#app .models-label {
+  margin-bottom: var(--space-2);
+}
+
+#app .billing-info {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+}
+
+#app .plans-section {
+  gap: var(--space-3);
+}
+
+#app .plan-card {
+  padding: var(--panel-padding);
+}
+
+#app .plan-features,
+#app .plan-features li {
+  gap: var(--space-2);
+}
+
+#app .catalog-note {
+  gap: var(--space-2);
+  margin: var(--space-0);
+  padding: var(--space-3) var(--space-4);
+}
+
+#app
+  :is(.coding-plan-page, .agent-download-page, .insight-page)
+  > :is(.loading-state, .error-state, .empty-state, .state-card) {
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-6);
+}
+
+#app .error-icon {
+  margin-bottom: var(--space-0);
+}
+
+#app .error-state .retry-btn {
+  margin-top: var(--space-0);
+}
+
+/* Insights */
+
+#app .featured-card {
+  margin-bottom: var(--space-0);
+}
+
+#app .featured-badge {
+  top: var(--space-4);
+  left: var(--space-4);
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+#app .featured-content {
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+
+#app .card-tags {
+  gap: var(--space-2);
+}
+
+#app .tag-chip {
+  padding: var(--space-1) var(--space-2);
+}
+
+#app .tag-sm {
+  padding: var(--space-0-5) var(--space-2);
+}
+
+#app .insight-grid {
+  gap: var(--grid-gap);
+}
+
+#app .insight-page .card-body {
+  gap: var(--space-2);
+  padding: var(--panel-padding);
+}
+
+#app .date-pill {
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+#app .card-footer {
+  padding-top: var(--space-3);
+}
+
+#app .pagination {
+  gap: var(--space-2);
+  margin-top: var(--space-0);
+}
+
+#app .page-btn {
+  gap: var(--space-1);
+  padding-inline: var(--space-3);
+}
+
+#app .page-num {
+  padding-inline: var(--space-2);
+}
+
+/* Settings */
+
+#app .settings-body {
+  gap: var(--grid-gap);
+}
+
+#app .settings-page .section-title {
+  min-height: var(--space-12);
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+}
+
+#app .setting-row {
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+#app .setting-name {
+  margin-bottom: var(--space-0-5);
+}
+
+#app :is(.setting-control, .account-actions) {
+  gap: var(--control-gap);
+}
+
+#app .user-display {
+  gap: var(--space-3);
+}
+
+#app :is(.update-detail-row, .update-progress-row, .update-ready-row, .update-error-row) {
+  padding: var(--space-3) var(--space-4);
+}
+
+#app .update-changelog {
+  padding: var(--space-3);
+}
+
+#app .feedback-block {
+  padding: var(--panel-padding);
+}
+
+#app .feedback-header {
+  margin-bottom: var(--space-3);
+}
+
+#app .feedback-form {
+  gap: var(--content-stack-gap);
+}
+
+#app .form-group label {
+  margin-bottom: var(--space-2);
+}
+
+#app .form-input {
+  padding-inline: var(--space-3);
+}
+
+#app .segmented-group {
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+#app .seg-btn {
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+#app .feedback-success {
+  padding: var(--space-4);
+}
+
+#app .feedback-error {
+  padding: var(--space-3);
+}
+
+/* Dialogs */
+
+body .modal-overlay.modal-overlay,
+body .message-modal-backdrop.message-modal-backdrop {
+  padding: var(--space-6);
+}
+
+body .modal-overlay.modal-overlay .modal-header {
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+body .modal-overlay.modal-overlay :is(.modal-action-btn, .back-btn) {
+  gap: var(--space-2);
+  padding-inline: var(--space-3);
+}
+
+body .modal-overlay.modal-overlay .detail-card {
+  padding: var(--space-4);
+}
+
+body .modal-overlay.modal-overlay .metric {
+  padding: var(--space-3);
+}
+
+body .modal-overlay.modal-overlay .modal-container > .modal-content {
+  padding: var(--space-6);
+}
+
+body .modal-overlay.modal-overlay .modal-title {
+  margin-block: var(--space-3);
+}
+
+body .modal-overlay.modal-overlay .modal-summary {
+  padding: var(--space-4);
+}
+
+body .message-modal-backdrop.message-modal-backdrop .modal-content {
+  padding: var(--space-6);
+}
+
+body .message-modal-backdrop.message-modal-backdrop .modal-actions {
+  gap: var(--space-2);
+}
+
+body .message-modal-backdrop.message-modal-backdrop .modal-actions button {
+  padding-inline: var(--space-3);
+}
+
+/* Floating window. Keep compact rhythm, and isolate names shared with Settings. */
+
+html[data-window-kind='floating'],
+html[data-window-kind='floating'] body {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body.floating-window-body {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px;
+}
+
+body.floating-window-body #app {
+  min-height: 0;
+  height: calc(100vh - 16px);
+}
+
+#app .floating-window .window-drag-handle {
+  min-height: var(--space-8);
+  flex-basis: var(--space-8);
+}
+
+#app .floating-window .window-bar {
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+#app .floating-window .window-drag-title {
+  gap: var(--space-2);
+}
+
+#app .floating-window .window-controls {
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+}
+
+#app .floating-window .refresh-control {
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+#app .floating-window .floating-content {
+  padding: var(--space-2);
+}
+
+#app .floating-window .trend-card {
+  padding: var(--space-3);
+}
+
+#app .floating-window .trend-heading {
+  gap: var(--space-3);
+}
+
+#app .floating-window .trend-heading h1 {
+  margin-top: var(--space-1);
+}
+
+#app .floating-window :is(.range-tabs, .dimension-tabs, .count-tabs) {
+  gap: var(--space-0-5);
+  padding: var(--space-0-5);
+}
+
+#app .floating-window :is(.range-tabs, .dimension-tabs, .count-tabs) button {
+  padding-inline: var(--space-2);
+}
+
+#app .floating-window .metric-grid {
+  gap: var(--space-2);
+  margin: var(--space-3) var(--space-0) var(--space-2);
+}
+
+#app .floating-window .metric {
+  padding: var(--space-2);
+}
+
+#app .floating-window .trend-toolbar {
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+#app .floating-window .load-banner {
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+#app .floating-window .load-banner button {
+  padding: var(--space-0-5) var(--space-2);
+}
+
+#app .floating-window .sessions-panel {
+  margin-top: var(--space-2);
+}
+
+#app .floating-window .sessions-toggle {
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+#app .floating-window .sessions-content {
+  padding: var(--space-0) var(--space-3) var(--space-3);
+}
+
+#app .floating-window .session-options {
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+}
+
+#app .floating-window .session-section + .session-section {
+  margin-top: var(--space-3);
+}
+
+#app .floating-window .section-title {
+  min-height: 0;
+  gap: var(--space-2);
+  margin: var(--space-0) var(--space-0) var(--space-2);
+  padding: var(--space-0);
+  background: transparent;
+  border: 0;
+}
+
+#app .floating-window .session-stack {
+  gap: var(--space-2);
+}
+
+#app .floating-window .empty-state {
+  padding: var(--space-5);
+}
+
+#app .floating-window .session-card {
+  padding: var(--space-3);
+}
+
+#app .floating-window :is(.session-heading, .session-title-wrap) {
+  gap: var(--space-2);
+}
+
+#app .floating-window .pin-button {
+  padding-inline: var(--space-2);
+}
+
+#app .floating-window .session-meta {
+  gap: var(--space-1);
+  margin: var(--space-1) var(--space-0) var(--space-2) var(--space-5);
+}
+
+#app .floating-window .token-grid {
+  gap: var(--space-2);
+}
+
+#app .floating-window .token-cell {
+  padding: var(--space-2);
+}
+
+#app .floating-window .session-footer {
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-2);
+}
+
+#app .floating-window .trend-legend-row {
+  gap: var(--space-2);
+}
+
+#app .floating-window .trend-legend {
+  gap: var(--space-2);
+  padding: var(--space-0) var(--space-0) var(--space-2);
+}
+
+#app .floating-window .legend-chip {
+  gap: var(--space-1);
+  padding-inline: var(--space-2);
+}
+
+#app .floating-window .legend-details {
+  padding: var(--space-2) var(--space-3);
+}
+
+#app .floating-window .legend-details strong {
+  margin-bottom: var(--space-1);
+}
+
+#app .floating-window .chart-state {
+  gap: var(--space-2);
+}
+
+#app .floating-window .zoom-footer {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-0) var(--space-0);
+}
+
+#app .floating-window .viewport-copy {
+  gap: var(--space-2);
+}
+
+#app .floating-window .zoom-actions {
+  gap: var(--space-1);
+}
+
+/* Responsive rhythm */
+
+@media (max-width: 1100px) {
+  html:root {
+    --page-gutter-inline: var(--space-6);
+  }
+}
+
+@media (max-width: 820px) {
+  html:root {
+    --page-gutter-inline: var(--space-4);
+    --page-gutter-block: var(--space-4);
+    --page-bottom-space: var(--space-10);
+    --page-section-gap: var(--space-4);
+  }
+
+  #app .top-bar {
+    padding-inline: var(--space-4);
+  }
+}

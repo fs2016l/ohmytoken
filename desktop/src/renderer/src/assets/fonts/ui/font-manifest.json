@@ -1,0 +1,611 @@
+{
+  "scope": "Simplified Chinese and English UI font bundle",
+  "files": [
+    {
+      "output": "inter/InterVariable.woff2",
+      "bytes": 352240,
+      "source": "https://raw.githubusercontent.com/rsms/inter/v4.1/docs/font-files/InterVariable.woff2"
+    },
+    {
+      "output": "inter/InterVariable-Italic.woff2",
+      "bytes": 387976,
+      "source": "https://raw.githubusercontent.com/rsms/inter/v4.1/docs/font-files/InterVariable-Italic.woff2"
+    },
+    {
+      "output": "jetbrains-mono/JetBrainsMono-Regular.woff2",
+      "bytes": 92164,
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/v2.304/fonts/webfonts/JetBrainsMono-Regular.woff2"
+    },
+    {
+      "output": "jetbrains-mono/JetBrainsMono-Medium.woff2",
+      "bytes": 93824,
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/v2.304/fonts/webfonts/JetBrainsMono-Medium.woff2"
+    },
+    {
+      "output": "jetbrains-mono/JetBrainsMono-SemiBold.woff2",
+      "bytes": 94472,
+      "source": "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/v2.304/fonts/webfonts/JetBrainsMono-SemiBold.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-Regular.woff2",
+      "bytes": 63020,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-Regular.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-Medium.woff2",
+      "bytes": 66740,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-Medium.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-SemiBold.woff2",
+      "bytes": 67060,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-SemiBold.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-Italic.woff2",
+      "bytes": 67220,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-Italic.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-MediumItalic.woff2",
+      "bytes": 71204,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-MediumItalic.woff2"
+    },
+    {
+      "output": "ibm-plex-sans/IBMPlexSans-SemiBoldItalic.woff2",
+      "bytes": 70664,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-sans/fonts/complete/woff2/IBMPlexSans-SemiBoldItalic.woff2"
+    },
+    {
+      "output": "ibm-plex-mono/IBMPlexMono-Regular.woff2",
+      "bytes": 49248,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-mono/fonts/complete/woff2/IBMPlexMono-Regular.woff2"
+    },
+    {
+      "output": "ibm-plex-mono/IBMPlexMono-Medium.woff2",
+      "bytes": 50400,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-mono/fonts/complete/woff2/IBMPlexMono-Medium.woff2"
+    },
+    {
+      "output": "ibm-plex-mono/IBMPlexMono-SemiBold.woff2",
+      "bytes": 50600,
+      "source": "https://raw.githubusercontent.com/IBM/plex/2f9ba1b25957d958db71a849e85d72e3ecfb845a/packages/plex-mono/fonts/complete/woff2/IBMPlexMono-SemiBold.woff2"
+    },
+    {
+      "output": "source/source-sans-3-upright.woff2",
+      "bytes": 164736,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-sans/3.052R/WOFF2/VF/SourceSans3VF-Upright.otf.woff2"
+    },
+    {
+      "output": "source/source-sans-3-italic.woff2",
+      "bytes": 132332,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-sans/3.052R/WOFF2/VF/SourceSans3VF-Italic.otf.woff2"
+    },
+    {
+      "output": "source/source-han-sans-cn.woff2",
+      "bytes": 7711988,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-sans/2.005R/Variable/WOFF2/TTF/Subset/SourceHanSansCN-VF.ttf.woff2"
+    },
+    {
+      "output": "source/source-han-serif-cn.woff2",
+      "bytes": 11035128,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-han-serif/2.003R/Variable/WOFF2/TTF/Subset/SourceHanSerifCN-VF.ttf.woff2"
+    },
+    {
+      "output": "source/source-serif-4-roman.woff2",
+      "bytes": 426716,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-serif/4.005R/WOFF2/VAR/SourceSerif4Variable-Roman.otf.woff2"
+    },
+    {
+      "output": "source/source-code-pro-upright.woff2",
+      "bytes": 89520,
+      "source": "https://raw.githubusercontent.com/adobe-fonts/source-code-pro/803b7e23ec97ae58b6232ea76519a76d428ba268/WOFF2/VF/SourceCodeVF-Upright.otf.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-000.woff2",
+      "bytes": 3796,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.4.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-001.woff2",
+      "bytes": 20176,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.5.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-002.woff2",
+      "bytes": 11464,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.6.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-003.woff2",
+      "bytes": 11356,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.21.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-004.woff2",
+      "bytes": 65384,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.22.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-005.woff2",
+      "bytes": 56792,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.23.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-006.woff2",
+      "bytes": 62580,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.24.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-007.woff2",
+      "bytes": 58320,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.25.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-008.woff2",
+      "bytes": 50888,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.26.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-009.woff2",
+      "bytes": 47488,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.27.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-010.woff2",
+      "bytes": 50200,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.28.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-011.woff2",
+      "bytes": 54008,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.29.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-012.woff2",
+      "bytes": 54656,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.30.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-013.woff2",
+      "bytes": 47220,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.31.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-014.woff2",
+      "bytes": 52548,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.32.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-015.woff2",
+      "bytes": 47452,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.33.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-016.woff2",
+      "bytes": 46888,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.34.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-017.woff2",
+      "bytes": 50688,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.35.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-018.woff2",
+      "bytes": 41832,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.36.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-019.woff2",
+      "bytes": 53528,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.37.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-020.woff2",
+      "bytes": 54592,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.38.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-021.woff2",
+      "bytes": 51784,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.39.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-022.woff2",
+      "bytes": 46628,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.40.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-023.woff2",
+      "bytes": 36416,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.41.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-024.woff2",
+      "bytes": 45540,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.42.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-025.woff2",
+      "bytes": 46624,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.43.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-026.woff2",
+      "bytes": 54244,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.44.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-027.woff2",
+      "bytes": 67620,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.45.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-028.woff2",
+      "bytes": 57668,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.46.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-029.woff2",
+      "bytes": 56156,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.47.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-030.woff2",
+      "bytes": 50764,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.48.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-031.woff2",
+      "bytes": 52844,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.49.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-032.woff2",
+      "bytes": 45876,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.50.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-033.woff2",
+      "bytes": 41616,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.51.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-034.woff2",
+      "bytes": 51840,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.52.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-035.woff2",
+      "bytes": 43528,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.53.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-036.woff2",
+      "bytes": 52000,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.54.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-037.woff2",
+      "bytes": 48132,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.55.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-038.woff2",
+      "bytes": 53500,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.56.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-039.woff2",
+      "bytes": 55496,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.57.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-040.woff2",
+      "bytes": 57648,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.58.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-041.woff2",
+      "bytes": 47676,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.59.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-042.woff2",
+      "bytes": 41432,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.60.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-043.woff2",
+      "bytes": 45276,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.61.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-044.woff2",
+      "bytes": 59112,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.62.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-045.woff2",
+      "bytes": 49180,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.63.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-046.woff2",
+      "bytes": 41540,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.64.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-047.woff2",
+      "bytes": 41608,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.65.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-048.woff2",
+      "bytes": 52868,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.66.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-049.woff2",
+      "bytes": 52584,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.67.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-050.woff2",
+      "bytes": 41568,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.68.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-051.woff2",
+      "bytes": 55604,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.69.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-052.woff2",
+      "bytes": 42236,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.70.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-053.woff2",
+      "bytes": 47904,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.71.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-054.woff2",
+      "bytes": 47032,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.72.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-055.woff2",
+      "bytes": 39312,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.73.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-056.woff2",
+      "bytes": 56424,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.74.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-057.woff2",
+      "bytes": 43940,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.75.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-058.woff2",
+      "bytes": 48420,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.76.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-059.woff2",
+      "bytes": 36788,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.77.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-060.woff2",
+      "bytes": 49156,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.78.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-061.woff2",
+      "bytes": 41232,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.79.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-062.woff2",
+      "bytes": 32632,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.80.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-063.woff2",
+      "bytes": 47548,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.81.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-064.woff2",
+      "bytes": 46176,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.82.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-065.woff2",
+      "bytes": 43504,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.83.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-066.woff2",
+      "bytes": 32612,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.84.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-067.woff2",
+      "bytes": 26900,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.85.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-068.woff2",
+      "bytes": 33576,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.86.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-069.woff2",
+      "bytes": 8012,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.87.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-070.woff2",
+      "bytes": 7336,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.88.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-071.woff2",
+      "bytes": 10984,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.89.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-072.woff2",
+      "bytes": 9344,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.90.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-073.woff2",
+      "bytes": 8704,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.91.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-074.woff2",
+      "bytes": 2080,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.97.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-075.woff2",
+      "bytes": 3416,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.98.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-076.woff2",
+      "bytes": 9704,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.99.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-077.woff2",
+      "bytes": 64548,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.100.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-078.woff2",
+      "bytes": 58204,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.101.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-079.woff2",
+      "bytes": 60708,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.102.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-080.woff2",
+      "bytes": 63864,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.103.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-081.woff2",
+      "bytes": 61588,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.104.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-082.woff2",
+      "bytes": 61828,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.105.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-083.woff2",
+      "bytes": 62636,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.106.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-084.woff2",
+      "bytes": 61076,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.107.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-085.woff2",
+      "bytes": 64552,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.108.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-086.woff2",
+      "bytes": 60372,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.109.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-087.woff2",
+      "bytes": 61472,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.110.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-088.woff2",
+      "bytes": 62664,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.111.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-089.woff2",
+      "bytes": 57648,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.112.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-090.woff2",
+      "bytes": 58648,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.113.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-091.woff2",
+      "bytes": 57964,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.114.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-092.woff2",
+      "bytes": 56508,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.115.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-093.woff2",
+      "bytes": 52984,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.116.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-094.woff2",
+      "bytes": 52464,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.117.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-095.woff2",
+      "bytes": 46192,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.118.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-096.woff2",
+      "bytes": 76800,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALhLOCT-xWNm8Hqd37g1OkDRZe7lR4sg1IzSy-MNbE9VH8V.119.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-097.woff2",
+      "bytes": 10008,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALRKoKIyQ4.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-098.woff2",
+      "bytes": 9096,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALRIYKIyQ4.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-099.woff2",
+      "bytes": 8244,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALRIIKIyQ4.woff2"
+    },
+    {
+      "output": "noto-sans-sc/noto-sans-sc-100.woff2",
+      "bytes": 25240,
+      "source": "https://fonts.gstatic.com/s/notosanssc/v40/k3kXo84MPvpLmixcA63oeALRLoKI.woff2"
+    }
+  ],
+  "totalBytes": 25653760
+}

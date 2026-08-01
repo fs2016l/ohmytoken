@@ -1,0 +1,161 @@
+@import '../assets/fonts/ui/noto-sans-sc/font.css';
+
+@font-face {
+  font-family: 'OMT Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/inter/InterVariable.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Inter';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/inter/InterVariable-Italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/ui/jetbrains-mono/JetBrainsMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/ui/jetbrains-mono/JetBrainsMono-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/ui/jetbrains-mono/JetBrainsMono-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-Italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-MediumItalic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Sans';
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-sans/IBMPlexSans-SemiBoldItalic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-mono/IBMPlexMono-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-mono/IBMPlexMono-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/ui/ibm-plex-mono/IBMPlexMono-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Sans 3';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-sans-3-upright.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Sans 3';
+  font-style: italic;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-sans-3-italic.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Han Sans CN';
+  font-style: normal;
+  font-weight: 250 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-han-sans-cn.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Han Serif CN';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-han-serif-cn.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Serif 4';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-serif-4-roman.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'OMT Source Code Pro';
+  font-style: normal;
+  font-weight: 200 900;
+  font-display: swap;
+  src: url('../assets/fonts/ui/source/source-code-pro-upright.woff2') format('woff2');
+}

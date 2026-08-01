@@ -1,0 +1,30 @@
+#app .typography-section {
+  grid-column: 1 / -1;
+}
+
+#app .typography-section .section-title,
+#app .typography-section .setting-row,
+#app .typography-section .setting-control {
+  display: flex;
+  align-items: center;
+}
+
+#app .typography-section .row-icon {
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+}
+
+#app .typography-section .setting-info {
+  flex: 1;
+  min-width: 0;
+}
+
+#app .typography-section .setting-name,
+#app .typography-section .setting-desc {
+  display: block;
+}
+
+#app .typography-section .setting-control {
+  flex: 0 0 auto;
+}

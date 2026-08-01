@@ -1,0 +1,387 @@
+/*
+ * Desktop typography and control baseline
+ *
+ * Text follows a 12/16 caption and 14/20 body baseline. Interactive controls retain a
+ * compact desktop density while meeting the 32px main-window and 28px floating-window
+ * minimums used by modern Windows and macOS interfaces.
+ */
+
+#app {
+  font-family: var(--font-sans);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+}
+
+#app :is(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+#app button,
+#app :is(h1, h2, h3, h4, h5, h6, th, .setting-name) {
+  font-weight: var(--weight-semibold);
+}
+
+#app :is(h1, h2, h3, h4, h5, h6) {
+  letter-spacing: var(--tracking-heading);
+}
+
+#app :is(.brand h1, .page-intro h1, .featured-content h2, .card-title, .modal-title) {
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-display);
+}
+
+:is(code, pre, kbd, samp) {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-mono-regular);
+  letter-spacing: var(--tracking-mono);
+}
+
+#app
+  :is(
+    .stat-value,
+    .stat-number,
+    .stats-grid .stat-card strong,
+    .metric strong,
+    .metric-value,
+    .token-value,
+    .token-cell strong,
+    .quota-value,
+    .model-tokens,
+    .usage-value,
+    .usage-item-value,
+    .price-value,
+    .alt-price,
+    .percentage,
+    .page-num,
+    .chart-legend .legend-item,
+    .trend-legend .legend-chip,
+    .chart-hint,
+    .chart-empty,
+    .chart-state,
+    .viewport-copy,
+    .date-tile-new small,
+    .base-date-picker .dp__input,
+    .quota-window__value,
+    .quota-window__detail,
+    .quota-window__reset,
+    .summary-card strong,
+    .provider-card__extra-copy strong,
+    .child-token-total,
+    .session-time,
+    time
+  ) {
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings:
+    'tnum' 1,
+    'lnum' 1;
+}
+
+#app :is(small, .eyebrow, .stat-label, .stat-sub, .chart-hint, .catalog-note) {
+  line-height: var(--leading-caption);
+}
+
+#app :is(input, select, textarea)::placeholder {
+  color: var(--text-soft);
+  opacity: 1;
+}
+
+html[data-window-kind='main']
+  #app
+  :is(
+    button,
+    [role='button'],
+    input:not([type='range']):not([type='checkbox']):not([type='radio']),
+    select
+  ) {
+  min-height: var(--control-sm);
+}
+
+html[data-window-kind='main']
+  #app
+  :is(
+    .form-input,
+    .setting-select,
+    .search-input,
+    .key-input-field input,
+    .base-date-picker .dp__input
+  ) {
+  min-height: var(--control-md);
+}
+
+html[data-window-kind='floating']
+  #app
+  :is(
+    button,
+    [role='button'],
+    input:not([type='range']):not([type='checkbox']):not([type='radio']),
+    select
+  ) {
+  min-height: var(--control-xs);
+}
+/*
+ * Chinese typography refinement
+ *
+ * CLReq recommends solid Han-character composition instead of blanket tracking.
+ * This layer therefore removes negative tracking from Chinese headings, opens vertical
+ * rhythm, and follows the proven 14px / 22px UI baseline for Simplified Chinese.
+ */
+
+html:lang(zh-CN) {
+  --leading-zh-ui: 1.5714285714;
+  --leading-zh-title: 1.4;
+  --leading-zh-body: 1.65;
+  --leading-zh-caption: 1.6;
+  --leading-zh-control: 1.45;
+}
+
+html:lang(zh-CN) body {
+  line-height: var(--leading-zh-ui);
+}
+
+/* Do not tighten square Han glyphs with Latin-style negative tracking. */
+
+html:lang(zh-CN)
+  #app
+  :is(
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    .brand h1,
+    .page-intro h1,
+    .panel-header h3,
+    .table-tools h3,
+    .featured-content h2,
+    .card-title,
+    .setting-name
+  ),
+html:lang(zh-CN) body .modal-overlay.modal-overlay :is(.modal-header h3, .modal-title) {
+  letter-spacing: normal;
+}
+
+/* Page and card hierarchy */
+
+html:lang(zh-CN) #app .page-intro__eyebrow {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .page-intro h1 {
+  line-height: 1.35;
+}
+
+html:lang(zh-CN) #app .page-intro p {
+  line-height: var(--leading-zh-body);
+}
+
+html:lang(zh-CN) #app .stats-grid .stat-card small,
+html:lang(zh-CN) #app .date-tile-new small {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .date-tile-new .date-copy {
+  gap: var(--space-0-5);
+}
+
+html:lang(zh-CN) #app :is(.panel-header h3, .table-tools h3) {
+  line-height: 1.5;
+}
+
+html:lang(zh-CN) #app :is(.header-username, .header-desc, .notify-body) {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .message-copy {
+  row-gap: var(--space-0-5);
+}
+
+html:lang(zh-CN) #app .message-copy strong {
+  line-height: 1.5;
+}
+
+html:lang(zh-CN) #app .message-copy small {
+  line-height: var(--leading-zh-caption);
+}
+
+/* Controls keep their fixed height, but text receives a readable glyph box. */
+
+html:lang(zh-CN)
+  #app
+  :is(
+    .btn,
+    .btn-primary,
+    .btn-secondary,
+    .btn-outline,
+    .header-refresh-btn,
+    .insight-refresh-btn,
+    .retry-btn,
+    .scan-primary,
+    .purchase-btn,
+    .btn-refresh,
+    .btn-details,
+    .code-btn,
+    .panel-action-btn,
+    .filter-tab,
+    .category-tab,
+    .vendor-filter-btn,
+    .quick-tabs button,
+    .filter-chips button,
+    .pagination-controls button,
+    .page-btn,
+    .page-num,
+    .seg-btn
+  ) {
+  line-height: var(--leading-zh-control);
+}
+
+/* Token and plan cards */
+
+html:lang(zh-CN) #app .stats-section .stat-label {
+  margin-bottom: var(--space-1);
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .stats-section .stat-sub {
+  margin-top: var(--space-0-5);
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app :is(.provider-tagline, .catalog-note) {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .plan-features li {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app .error-state p,
+html:lang(zh-CN) #app .empty-state p,
+html:lang(zh-CN) #app .loading-state p {
+  line-height: var(--leading-zh-caption);
+}
+
+/* Insight reading surfaces */
+
+html:lang(zh-CN) #app .featured-content h2 {
+  line-height: var(--leading-zh-title);
+}
+
+html:lang(zh-CN) #app .card-title {
+  line-height: 1.5;
+}
+
+html:lang(zh-CN) #app :is(.featured-summary, .card-summary) {
+  line-height: var(--leading-zh-body);
+}
+
+html:lang(zh-CN) body .modal-overlay.modal-overlay .modal-title {
+  line-height: var(--leading-zh-title);
+}
+
+html:lang(zh-CN) body .modal-overlay.modal-overlay :is(.modal-summary, .modal-text) {
+  line-height: 1.75;
+}
+
+/* Settings pair labels as deliberate two-line groups. */
+
+html:lang(zh-CN) #app .setting-name {
+  margin-bottom: var(--space-1);
+  line-height: 1.55;
+}
+
+html:lang(zh-CN) #app .setting-desc {
+  line-height: var(--leading-zh-caption);
+}
+
+html:lang(zh-CN) #app :is(.register-hint, .form-group label, .update-changelog) {
+  line-height: var(--leading-zh-caption);
+}
+
+/* Compact floating window: relaxed Chinese leading without losing density. */
+
+html:lang(zh-CN) #app .floating-window .window-drag-title strong {
+  line-height: 18px;
+}
+
+html:lang(zh-CN) #app .floating-window .window-drag-title small {
+  margin-top: var(--space-1);
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .eyebrow {
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .trend-heading h1 {
+  line-height: 24px;
+}
+
+html:lang(zh-CN) #app .floating-window .trend-heading small {
+  margin-top: var(--space-1);
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .metric span {
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .metric strong {
+  margin-top: var(--space-1);
+  line-height: 18px;
+}
+
+html:lang(zh-CN)
+  #app
+  .floating-window
+  :is(
+    .dimension-tabs button,
+    .range-tabs button,
+    .count-tabs button,
+    .trend-toolbar > span,
+    .legend-chip,
+    .viewport-copy strong,
+    .viewport-copy span,
+    .session-options > span,
+    .section-title span,
+    .section-title small
+  ) {
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .sessions-copy strong {
+  line-height: 18px;
+}
+
+html:lang(zh-CN) #app .floating-window .sessions-copy small {
+  margin-top: var(--space-1);
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .session-title {
+  line-height: 20px;
+}
+
+html:lang(zh-CN) #app .floating-window .activity {
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .session-meta {
+  line-height: 18px;
+}
+
+html:lang(zh-CN) #app .floating-window .token-cell span {
+  margin-bottom: var(--space-1);
+  line-height: 16px;
+}
+
+html:lang(zh-CN) #app .floating-window .token-cell strong {
+  line-height: 20px;
+}
+
+html:lang(zh-CN) #app .floating-window .token-cell em,
+html:lang(zh-CN) #app .floating-window .session-footer {
+  line-height: 16px;
+}
