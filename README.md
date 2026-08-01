@@ -69,16 +69,15 @@ Oh My Token 可以统计多种Agent的token用量。
   <img src="docs/screenshots/agent-insight-zh-light.png" width="800" alt="AI 信息差">
 </p>
 
-## 支持的 Agent 需要其更多支持请告诉我们
+## 支持的 Agent
 
-| Agent        | 当前能力       |
-| ------------ | -------------- |
-| Claude Code  | Token 用量统计 |
-| Codex        | Token 用量统计 |
-| OpenCode     | Token 用量统计 |
-| Z Code       | Token 用量统计 |
-| MiniMax Code | Token 用量统计 |
-| KimiWork     | Token 用量统计 |
-| WorkBuddy    | Token 用量统计 |
-
-不同版本的 Agent 可能采用不同的数据格式。我们会持续完善兼容性，并逐步支持更多工具。
+<p align="center">
+  <kbd>Claude Code</kbd>&nbsp;&nbsp;
+  <kbd>Codex</kbd>&nbsp;&nbsp;
+  <kbd>OpenCode</kbd>&nbsp;&nbsp;
+  <kbd>Z Code</kbd>
+  <br><br>
+  <kbd>MiniMax Code</kbd>&nbsp;&nbsp;
+  <kbd>KimiWork</kbd>&nbsp;&nbsp;
+  <kbd>WorkBuddy</kbd>
+</p>

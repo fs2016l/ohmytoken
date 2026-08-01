@@ -69,16 +69,15 @@ Oh My Token tracks token usage across multiple AI agents.
   <img src="docs/screenshots/agent-insight-en-light.png" width="800" alt="AI insights">
 </p>
 
-## Supported agents — tell us what to support next
+## Supported agents
 
-| Agent        | Current support        |
-| ------------ | ---------------------- |
-| Claude Code  | Token usage statistics |
-| Codex        | Token usage statistics |
-| OpenCode     | Token usage statistics |
-| Z Code       | Token usage statistics |
-| MiniMax Code | Token usage statistics |
-| KimiWork     | Token usage statistics |
-| WorkBuddy    | Token usage statistics |
-
-Agent data formats may vary between versions. We will continue improving compatibility and adding support for more tools.
+<p align="center">
+  <kbd>Claude Code</kbd>&nbsp;&nbsp;
+  <kbd>Codex</kbd>&nbsp;&nbsp;
+  <kbd>OpenCode</kbd>&nbsp;&nbsp;
+  <kbd>Z Code</kbd>
+  <br><br>
+  <kbd>MiniMax Code</kbd>&nbsp;&nbsp;
+  <kbd>KimiWork</kbd>&nbsp;&nbsp;
+  <kbd>WorkBuddy</kbd>
+</p>
