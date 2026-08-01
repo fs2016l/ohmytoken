@@ -4,9 +4,7 @@ export const agentOrder = [
   'minimax-code',
   'opencode',
   'zcode',
-  'trae',
   'workbuddy',
-  'qoder',
   'kimiwork',
 ] as const
 
@@ -18,9 +16,7 @@ export const agentColors: Record<string, string> = {
   'minimax-code': '#fb7185',
   opencode: '#34d399',
   zcode: '#22c55e',
-  trae: '#22d3ee',
   workbuddy: '#f472b6',
-  qoder: '#94a3b8',
   kimiwork: '#60a5fa',
 }
 
@@ -42,9 +38,7 @@ export const agentNames: Record<string, string> = {
   'minimax-code': 'MiniMax Code',
   opencode: 'OpenCode',
   zcode: 'Z Code',
-  trae: 'Trae',
   workbuddy: 'WorkBuddy',
-  qoder: 'Qoder',
   kimiwork: 'KimiWork',
 }
 

@@ -11,8 +11,6 @@ import { ZCodeScanner } from './zcode.scanner'
 import { MiniMaxCodeScanner } from './minimax-code.scanner'
 import { KimiWorkScanner } from './kimiwork.scanner'
 import { WorkBuddyScanner } from './workbuddy.scanner'
-import { TraeScanner } from './trae.scanner'
-import { QoderScanner } from './qoder.scanner'
 
 export { ClaudeCodeScanner } from './claude-code.scanner'
 export { CodexScanner } from './codex.scanner'
@@ -21,8 +19,6 @@ export { ZCodeScanner } from './zcode.scanner'
 export { MiniMaxCodeScanner } from './minimax-code.scanner'
 export { KimiWorkScanner } from './kimiwork.scanner'
 export { WorkBuddyScanner } from './workbuddy.scanner'
-export { TraeScanner } from './trae.scanner'
-export { QoderScanner } from './qoder.scanner'
 export type { AgentScanner, TokenUsageRecord } from './types'
 
 /** 全部 Scanner 实例（单例），ScanService 遍历此数组执行扫描 */
@@ -34,6 +30,4 @@ export const allScanners: AgentScanner[] = [
   new MiniMaxCodeScanner(),
   new KimiWorkScanner(),
   new WorkBuddyScanner(),
-  new TraeScanner(),
-  new QoderScanner(),
 ]

@@ -213,16 +213,6 @@ export function getKimiWorkSessionsDir(): string {
   return getKimiWorkSessionsSources()[0].dir
 }
 
-/** Trae 安装路径（Windows 专用） */
-export function getTraePath(): string {
-  return join(homedir(), 'AppData', 'Roaming', 'Trae CN')
-}
-
-/** Qoder 安装路径（Windows 专用） */
-export function getQoderPath(): string {
-  return join(homedir(), 'AppData', 'Local', '.qoder-cn')
-}
-
 /**
  * 应用数据目录
  * ~/.ohmytoken/
