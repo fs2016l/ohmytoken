@@ -1,6 +1,6 @@
 {
   "name": "ohmytoken",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "本地 AI Agent Token 用量观测桌面应用",
   "main": "./out/main/index.js",
   "author": "fs2016l",

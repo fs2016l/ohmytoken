@@ -33,6 +33,20 @@ function hasUsableDate<T extends { date: string }>(item: T): boolean {
   return Boolean(item.date && item.date !== 'detected')
 }
 
+function findOnlyUsageDate(groups: ReadonlyArray<ReadonlyArray<DailyStats>>): string | null {
+  const usageDates = new Set<string>()
+
+  for (const group of groups) {
+    for (const row of group) {
+      if (!hasUsableDate(row) || Number(row.totalTokens) <= 0) continue
+      usageDates.add(row.date.replace(/\//g, '-'))
+      if (usageDates.size > 1) return null
+    }
+  }
+
+  return usageDates.values().next().value ?? null
+}
+
 export function formatDateInput(date: Date): string {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -158,19 +172,9 @@ export function useAgentStats() {
       .map((model) => model.model),
   )
 
-  const hourlyTrendDate = computed<string | null>(() => {
-    const from = dateFrom.value.replace(/\//g, '-')
-    const to = dateTo.value.replace(/\//g, '-')
-    if (!from || !to) return null
-    if (from === to) return from
-
-    // “本月”会在日期框中保留完整自然月。月初第一天虽然结束日期是月末，
-    // 实际趋势仍只有今天一天，应与“今天”及周一的“本周”一样展示小时数据。
-    const today = formatDateInput(new Date())
-    const isFirstDayOfCurrentQuickRange =
-      (quickRange.value === 'week' || quickRange.value === 'month') && from === today
-    return isFirstDayOfCurrentQuickRange ? today : null
-  })
+  const hourlyTrendDate = computed<string | null>(() =>
+    findOnlyUsageDate([dailyStats.value, dailyModelStats.value]),
+  )
 
   const singleDayRange = computed(() => hourlyTrendDate.value !== null)
 
@@ -187,10 +191,6 @@ export function useAgentStats() {
     if (dateFrom.value) params.from = dateFrom.value.replace(/\//g, '-')
     if (dateTo.value) params.to = dateTo.value.replace(/\//g, '-')
     return params
-  }
-
-  function getSingleDayDate(): string | null {
-    return hourlyTrendDate.value
   }
 
   function resetDrilldownRows(): void {
@@ -304,6 +304,7 @@ export function useAgentStats() {
       dailyStats.value = (res.data || []).filter(hasUsableDate)
     } catch (error) {
       console.error('Failed to fetch daily stats:', error)
+      dailyStats.value = []
     }
   }
 
@@ -315,11 +316,12 @@ export function useAgentStats() {
       dailyModelStats.value = (res.data || []).filter(hasUsableDate)
     } catch (error) {
       console.error('Failed to fetch daily model stats:', error)
+      dailyModelStats.value = []
     }
   }
 
   async function fetchHourlyStats(): Promise<void> {
-    const date = getSingleDayDate()
+    const date = hourlyTrendDate.value
     if (!date) {
       hourlyAgentStats.value = []
       hourlyModelStats.value = []
@@ -379,12 +381,12 @@ export function useAgentStats() {
   }
 
   async function refreshAll(): Promise<void> {
+    const dailyStatsReady = Promise.all([fetchDailyStats(), fetchDailyModelStats()])
+
     await Promise.all([
       fetchOverview(),
       fetchOverviewFixed(),
-      fetchDailyStats(),
-      fetchDailyModelStats(),
-      fetchHourlyStats(),
+      dailyStatsReady.then(() => fetchHourlyStats()),
       fetchMonthlyStats(),
       fetchModelStats(),
       fetchFixedData(),
