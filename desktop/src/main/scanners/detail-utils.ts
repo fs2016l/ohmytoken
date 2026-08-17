@@ -87,6 +87,7 @@ export function buildSessionsFromApiCalls(
         session.rootSessionId = rootSessionId
       }
       if (call.subAgentName) session.subAgentName = call.subAgentName
+      if (call.projectPath) session.projectPath = call.projectPath
       grouped.set(key, session)
       continue
     }
@@ -100,6 +101,7 @@ export function buildSessionsFromApiCalls(
     current.totalTokens += call.totalTokens
     current.reasoningTokens += call.reasoningTokens
     current.apiCallCount += 1
+    if (!current.projectPath && call.projectPath) current.projectPath = call.projectPath
   }
 
   return [...grouped.values()]

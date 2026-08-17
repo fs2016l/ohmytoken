@@ -10,10 +10,15 @@ import { useAuth } from '../composables/useAuth'
 import { useUpdater } from '../composables/useUpdater'
 import { submitFeedback as submitFeedbackRequest } from '../api/http/feedback'
 import { openConfiguredUrl } from '../api/runtime-config'
+import type { CloseBehavior } from '@shared/models'
 
 const { currentLang, setLang, tr, label } = useI18n()
 const { currentTheme, setTheme } = useTheme()
 const { settings, updateLanguage, updateTheme, updateSystemNotifications } = useAppSettings()
+const closeBehavior = ref<CloseBehavior>('ask')
+const closeBehaviorLoading = ref(true)
+const closeBehaviorError = ref('')
+let stopCloseBehaviorListener: (() => void) | null = null
 
 const { currentUser, login, logout } = useAuth()
 
@@ -27,7 +32,41 @@ watch(currentTheme, (theme) => {
 onMounted(() => {
   updateLanguage(currentLang.value)
   updateTheme(currentTheme.value)
+  stopCloseBehaviorListener = window.api.onCloseBehaviorChanged((behavior) => {
+    closeBehavior.value = behavior
+  })
+  void window.api
+    .getCloseBehavior()
+    .then((behavior) => {
+      closeBehavior.value = behavior
+    })
+    .catch((error) => {
+      closeBehaviorError.value =
+        error instanceof Error
+          ? error.message
+          : label('Failed to load preference.', '读取偏好失败。')
+    })
+    .finally(() => {
+      closeBehaviorLoading.value = false
+    })
 })
+
+async function changeCloseBehavior(behavior: CloseBehavior): Promise<void> {
+  if (closeBehaviorLoading.value || closeBehavior.value === behavior) return
+  const previous = closeBehavior.value
+  closeBehavior.value = behavior
+  closeBehaviorLoading.value = true
+  closeBehaviorError.value = ''
+  try {
+    closeBehavior.value = await window.api.setCloseBehavior(behavior)
+  } catch (error) {
+    closeBehavior.value = previous
+    closeBehaviorError.value =
+      error instanceof Error ? error.message : label('Failed to save preference.', '保存偏好失败。')
+  } finally {
+    closeBehaviorLoading.value = false
+  }
+}
 
 async function doLogin(): Promise<void> {
   try {
@@ -115,6 +154,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopCloseBehaviorListener?.()
+  stopCloseBehaviorListener = null
   stopDiagnosticUploadStateListener?.()
   stopDiagnosticUploadStateListener = null
   if (feedbackResetTimer !== null) window.clearTimeout(feedbackResetTimer)
@@ -356,6 +397,60 @@ const versionString = computed(() => currentVersion.value || settings.version)
               <option value="dark">{{ tr('themeDark') }}</option>
               <option value="light">{{ tr('themeLight') }}</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Main-window close behavior. Main process is the single source of truth. -->
+        <div class="setting-row close-behavior-row">
+          <span class="row-icon material-symbols-outlined" aria-hidden="true">move_to_inbox</span>
+          <div class="setting-info">
+            <span class="setting-name">{{ tr('closeBehavior') }}</span>
+            <span class="setting-desc">{{ tr('closeBehaviorDesc') }}</span>
+            <span v-if="closeBehaviorError" class="setting-inline-error">
+              {{ closeBehaviorError }}
+            </span>
+          </div>
+          <div
+            class="setting-control close-behavior-control"
+            role="radiogroup"
+            :aria-label="tr('closeBehavior')"
+          >
+            <button
+              class="close-behavior-option"
+              :class="{ active: closeBehavior === 'ask' }"
+              type="button"
+              role="radio"
+              :aria-checked="closeBehavior === 'ask'"
+              :disabled="closeBehaviorLoading"
+              @click="changeCloseBehavior('ask')"
+            >
+              <span class="material-symbols-outlined">help</span>
+              {{ tr('closeBehaviorAsk') }}
+            </button>
+            <button
+              class="close-behavior-option"
+              :class="{ active: closeBehavior === 'background' }"
+              type="button"
+              role="radio"
+              :aria-checked="closeBehavior === 'background'"
+              :disabled="closeBehaviorLoading"
+              @click="changeCloseBehavior('background')"
+            >
+              <span class="material-symbols-outlined">dock_to_right</span>
+              {{ tr('closeBehaviorBackground') }}
+            </button>
+            <button
+              class="close-behavior-option"
+              :class="{ active: closeBehavior === 'quit' }"
+              type="button"
+              role="radio"
+              :aria-checked="closeBehavior === 'quit'"
+              :disabled="closeBehaviorLoading"
+              @click="changeCloseBehavior('quit')"
+            >
+              <span class="material-symbols-outlined">power_settings_new</span>
+              {{ tr('closeBehaviorQuit') }}
+            </button>
           </div>
         </div>
       </section>
@@ -789,6 +884,66 @@ const versionString = computed(() => currentVersion.value || settings.version)
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.setting-inline-error {
+  display: block;
+  margin-top: 5px;
+  color: #fb7185;
+  font-size: 11px;
+}
+
+.close-behavior-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(96px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-container);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.close-behavior-option {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--text-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  transition:
+    color 0.16s ease,
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.close-behavior-option .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.close-behavior-option:hover:not(:disabled),
+.close-behavior-option:focus-visible {
+  color: var(--text);
+  background: var(--surface-container-high);
+}
+
+.close-behavior-option.active {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--bg-base));
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--border));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.close-behavior-option:disabled {
+  cursor: wait;
+  opacity: 0.58;
 }
 
 /* ── Notification switch ────────────────────────────────────────────── */
@@ -1388,6 +1543,9 @@ const versionString = computed(() => currentVersion.value || settings.version)
   }
   .setting-control {
     width: 100%;
+  }
+  .close-behavior-control {
+    grid-template-columns: 1fr;
   }
   .notification-toggle-control {
     justify-content: flex-end;

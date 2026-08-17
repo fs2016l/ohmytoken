@@ -7,6 +7,8 @@ import { useUpdater } from '../../composables/useUpdater'
 import UserMenu from './UserMenu.vue'
 import MessageBanner from '../message/MessageBanner.vue'
 import BrandMark from '../base/BrandMark.vue'
+import CloseBehaviorDialog from './CloseBehaviorDialog.vue'
+import TrayUpdateDialog from './TrayUpdateDialog.vue'
 
 const { currentLang, setLang, label, tr } = useI18n()
 const { currentTheme, toggleTheme } = useTheme()
@@ -230,11 +232,15 @@ function onPushMessage(msg: Record<string, unknown>): void {
 }
 
 let unsubSse: (() => void) | null = null
+let unsubFloatingWindowVisibility: (() => void) | null = null
 
 onMounted(() => {
   void updater.init()
   void reloadNotifications()
   void refreshFloatingWindowVisibility()
+  unsubFloatingWindowVisibility = window.api.onFloatingWindowVisibilityChanged((visible) => {
+    isFloatingWindowVisible.value = visible
+  })
   unsubSse = window.api.onSsePushMessage(onPushMessage)
   document.addEventListener('click', closeNotifyPanel)
   window.addEventListener('focus', handleWindowFocus)
@@ -244,6 +250,8 @@ onUnmounted(() => {
   document.removeEventListener('click', closeNotifyPanel)
   window.removeEventListener('focus', handleWindowFocus)
   if (unsubSse) unsubSse()
+  unsubFloatingWindowVisibility?.()
+  unsubFloatingWindowVisibility = null
 })
 </script>
 
@@ -486,6 +494,8 @@ onUnmounted(() => {
       </router-view>
     </div>
   </div>
+  <CloseBehaviorDialog />
+  <TrayUpdateDialog />
 </template>
 
 <style scoped>

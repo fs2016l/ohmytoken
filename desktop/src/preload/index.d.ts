@@ -26,6 +26,7 @@ import type {
 } from '../shared/diagnostics'
 import type {
   AgentModelStats,
+  CloseBehavior,
   Comparisons,
   DailyStats,
   HourlyUsageStats,
@@ -34,11 +35,14 @@ import type {
   MonthlyStats,
   Overview,
   PageResult,
+  ProjectUsageDetail,
+  ProjectUsageOverview,
   ScanOptions,
   ScanResult,
   TokenUsageApiCall,
   TokenUsageSession,
   TokenUsageUserSession,
+  TrackedProject,
   UsageTrendStats,
 } from '../shared/models'
 import type {
@@ -79,6 +83,9 @@ export interface UsageSessionsParams extends RangeParams, PaginationParams {
   agent?: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
+  query?: string
 }
 
 export interface UsageApiCallsParams {
@@ -86,6 +93,8 @@ export interface UsageApiCallsParams {
   sessionId: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
   from?: string
   to?: string
 }
@@ -95,6 +104,8 @@ export interface UsageApiRecordsParams extends RangeParams, PaginationParams {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
 }
 
 export interface HourlyUsageParams {
@@ -177,6 +188,14 @@ export interface AppAPI {
   /** 分钟级 Token 趋势，供悬浮窗缩放到分钟粒度。 */
   getUsageTrendStats(params: UsageTrendParams): Promise<UsageTrendStats>
 
+  projectsList(): Promise<TrackedProject[]>
+  selectProjectDirectory(): Promise<string | null>
+  saveProject(input: { name: string; path: string }): Promise<TrackedProject>
+  updateProject(input: { projectId: string; name: string; path: string }): Promise<TrackedProject>
+  removeProject(projectId: string): Promise<boolean>
+  getProjectUsageOverview(params?: RangeParams): Promise<ProjectUsageOverview>
+  getProjectUsageDetail(params: RangeParams & { projectId: string }): Promise<ProjectUsageDetail>
+
   tokenPlanCredentialsList(): Promise<TokenPlanCredentialStatus[]>
   tokenPlanCredentialSave(input: TokenPlanCredentialInput): Promise<TokenPlanCredentialStatus>
   tokenPlanCredentialRemove(providerId: TokenPlanProviderId): Promise<boolean>
@@ -201,6 +220,9 @@ export interface AppAPI {
   /** 查询 Token 会话悬浮窗是否可见 */
   isFloatingWindowVisible(): Promise<boolean>
 
+  /** 订阅小窗显隐变化，保持主窗口按钮与托盘操作同步。 */
+  onFloatingWindowVisibilityChanged(callback: (visible: boolean) => void): () => void
+
   /** 查询 Token 会话悬浮窗是否保持在所有窗口最前面 */
   isFloatingWindowAlwaysOnTop(): Promise<boolean>
 
@@ -213,6 +235,25 @@ export interface AppAPI {
   getDeviceId(): Promise<string>
 
   getAgentRequestIdentity(): Promise<AgentRequestIdentity>
+
+  setAppLanguage(language: 'zh' | 'en'): Promise<void>
+
+  /** 响应主窗口关闭请求，并选择进入后台、退出或取消。 */
+  resolveTrayClose(input: {
+    decision: 'background' | 'quit' | 'cancel'
+    remember: boolean
+  }): Promise<boolean>
+
+  /** 读取或更新主进程持久化的统一关闭策略。 */
+  getCloseBehavior(): Promise<CloseBehavior>
+  setCloseBehavior(behavior: CloseBehavior): Promise<CloseBehavior>
+  onCloseBehaviorChanged(callback: (behavior: CloseBehavior) => void): () => void
+
+  /** 主进程请求 renderer 展示自定义关闭确认弹窗。 */
+  onTrayCloseRequested(callback: () => void): () => void
+
+  /** 用户从系统托盘触发检查更新。 */
+  onTrayCheckUpdateRequested(callback: () => void): () => void
 
   /** 检查更新（向 com 后端 latest.yml 拉取并对比版本） */
   checkForUpdates(): Promise<{

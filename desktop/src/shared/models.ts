@@ -15,6 +15,9 @@ export interface TokenUsageRecord {
   cost: number
 }
 
+/** 关闭主窗口后的全局行为；主进程持久化，所有 renderer 共用同一份偏好。 */
+export type CloseBehavior = 'ask' | 'background' | 'quit'
+
 /**
  * 会话级 Token 用量汇总。
  * 一条记录代表某个智能体中一个会话在某个模型下的汇总用量。
@@ -28,6 +31,8 @@ export interface TokenUsageSession {
   rootSessionId?: string
   /** 子 agent / 子任务名称；仅子会话有值。 */
   subAgentName?: string
+  /** 会话运行时的真实工作目录；仅在数据源明确提供时记录。 */
+  projectPath?: string
   title?: string
   date: string
   startedAt: string
@@ -53,6 +58,8 @@ export interface TokenUsageApiCall {
   parentSessionId?: string
   rootSessionId?: string
   subAgentName?: string
+  /** 本轮调用所属的真实工作目录；仅在数据源明确提供时记录。 */
+  projectPath?: string
   role?: string
   date: string
   /** 数据源提供的原始时间值；数字时间戳按原始十进制字符串保存。 */
@@ -89,6 +96,11 @@ export interface UsageDetailFilter {
   agent?: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  /** 仅包含用户已保存项目目录覆盖的记录。 */
+  trackedProjectsOnly?: boolean
+  /** 多关键词会话搜索；空格分词、任意词匹配。 */
+  query?: string
   from?: string
   to?: string
 }
@@ -101,6 +113,8 @@ export interface UsageApiCallFilter {
   sessionId: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
   from?: string
   to?: string
 }
@@ -111,6 +125,8 @@ export interface UsageApiRecordFilter {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
   from?: string
   to?: string
 }
@@ -250,6 +266,52 @@ export interface ModelAgentStats {
   cacheReadTokens: number
   cacheWriteTokens: number
   reasoningTokens: number
+}
+
+/** 用户保存的项目目录。path 保留用于界面展示，normalizedPath 用于归属匹配。 */
+export interface TrackedProject {
+  id: string
+  name: string
+  path: string
+  normalizedPath: string
+  createdAt: number
+}
+
+export interface ProjectUsageStat {
+  projectId: string
+  name: string
+  path: string
+  totalTokens: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+}
+
+export interface ProjectDailyStats {
+  date: string
+  projectTokens: Record<string, number>
+  totalTokens: number
+}
+
+export interface ProjectHourlyStats {
+  hour: number
+  label: string
+  projectTokens: Record<string, number>
+  totalTokens: number
+}
+
+export interface ProjectUsageOverview {
+  projects: ProjectUsageStat[]
+  daily: ProjectDailyStats[]
+  /** 单日模式下返回完整 24 小时桶；其他日期范围为空数组。 */
+  hourly: ProjectHourlyStats[]
+}
+
+export interface ProjectUsageDetail {
+  byModel: AgentModelStats[]
+  byAgent: ModelAgentStats[]
 }
 
 /**

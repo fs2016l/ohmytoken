@@ -34,12 +34,14 @@ import {
   isIncrementalContext,
   normalizeScanContext,
 } from './incremental-utils'
+import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
 
 type SessionMetadata = {
   titles: Map<string, string>
+  projectPaths: Map<string, string>
   userSessionIds: Set<string> | null
 }
 
@@ -108,6 +110,13 @@ export class MiniMaxCodeScanner implements AgentScanner {
         'name',
         'summary',
       ])
+      const projectPathColumn = firstExistingColumn(columns, [
+        'directory',
+        'cwd',
+        'workspace_path',
+        'workspace',
+        'project_path',
+      ])
 
       // 必须列检查
       if (!hasTs || !hasInput || !hasOutput) {
@@ -127,6 +136,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
       if (hasThreadId) selectCols.push('thread_id')
       if (hasChatId) selectCols.push('chat_id')
       if (titleColumn) selectCols.push(titleColumn)
+      if (projectPathColumn) selectCols.push(projectPathColumn)
       if (hasId) selectCols.push('id')
       if (hasRequestId) selectCols.push('request_id')
       if (hasMessageId) selectCols.push('message_id')
@@ -171,6 +181,9 @@ export class MiniMaxCodeScanner implements AgentScanner {
         const sessionTitle = sourceSessionId ? sessionMetadata.titles.get(sourceSessionId) : ''
         const tokenUsageTitle = titleColumn ? dbString(row[titleColumn]) : ''
         const title = sessionTitle || tokenUsageTitle
+        const projectPath =
+          (projectPathColumn ? normalizeCollectedProjectPath(row[projectPathColumn]) : undefined) ||
+          (sourceSessionId ? sessionMetadata.projectPaths.get(sourceSessionId) : '')
         if (sourceSessionId && title && !titleBySessionId.has(sourceSessionId)) {
           titleBySessionId.set(sourceSessionId, title)
         }
@@ -179,6 +192,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
           agent: this.agentName,
           apiCallId: rowId,
           sessionId,
+          ...(projectPath ? { projectPath } : {}),
           date,
           rawTimestamp,
           timestamp,
@@ -243,6 +257,7 @@ function resolveUsageTable(db: Database.Database): UsageTableName | null {
 function emptySessionMetadata(): SessionMetadata {
   return {
     titles: new Map<string, string>(),
+    projectPaths: new Map<string, string>(),
     userSessionIds: null,
   }
 }
@@ -250,6 +265,7 @@ function emptySessionMetadata(): SessionMetadata {
 function readLegacySessionMetadata(db: Database.Database): SessionMetadata {
   const metadata: SessionMetadata = {
     titles: new Map<string, string>(),
+    projectPaths: new Map<string, string>(),
     userSessionIds: null,
   }
   const tableRows = queryAll(
@@ -267,12 +283,20 @@ function readLegacySessionMetadata(db: Database.Database): SessionMetadata {
 
   const hasTitle = columns.has('title')
   const hasSessionType = columns.has('session_type')
+  const projectPathColumn = [
+    'directory',
+    'cwd',
+    'workspace_path',
+    'workspace',
+    'project_path',
+  ].find((column) => columns.has(column))
   const selectCols = ['session_id']
   if (hasTitle) selectCols.push('title')
   if (hasSessionType) {
     selectCols.push('session_type')
     metadata.userSessionIds = new Set<string>()
   }
+  if (projectPathColumn) selectCols.push(projectPathColumn)
 
   for (const row of queryAll(db, `SELECT ${selectCols.join(', ')} FROM sessions`)) {
     const sessionId = dbString(row.session_id)
@@ -281,6 +305,10 @@ function readLegacySessionMetadata(db: Database.Database): SessionMetadata {
     if (hasTitle) {
       const title = dbString(row.title)
       if (title) metadata.titles.set(sessionId, title)
+    }
+    if (projectPathColumn) {
+      const projectPath = normalizeCollectedProjectPath(row[projectPathColumn])
+      if (projectPath) metadata.projectPaths.set(sessionId, projectPath)
     }
     if (metadata.userSessionIds && toLong(row.session_type) === 0) {
       metadata.userSessionIds.add(sessionId)
@@ -322,6 +350,8 @@ function readRuntimeSessionMetadata(db: Database.Database): SessionMetadata {
 
     const title = typeof record.title === 'string' ? record.title.trim() : ''
     if (title) metadata.titles.set(sessionId, title)
+    const projectPath = extractProjectPath(record)
+    if (projectPath) metadata.projectPaths.set(sessionId, projectPath)
 
     if (typeof record.origin === 'string') {
       hasOriginMetadata = true

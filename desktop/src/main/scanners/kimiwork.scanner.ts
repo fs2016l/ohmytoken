@@ -33,6 +33,7 @@ import {
   timestampsFromValue,
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
+import { extractProjectPath } from './project-path'
 
 interface ParsedKimiSession {
   sessionId: string
@@ -44,6 +45,7 @@ interface ParsedKimiSession {
 interface ResolvedKimiSession {
   sessionId: string
   stateTitle: string
+  projectPath?: string
 }
 
 export class KimiWorkScanner implements AgentScanner {
@@ -95,10 +97,16 @@ export class KimiWorkScanner implements AgentScanner {
     const apiCalls: TokenUsageApiCall[] = []
     const sessionId = resolved.sessionId
     let sessionTitle = ''
+    let projectPath = resolved.projectPath || ''
     try {
       for (const { line, lineIndex } of readUtf8Lines(file)) {
         if (line.length === 0) continue
-        if (!line.includes('usage.record') && !mayContainSessionTitle(line)) continue
+        if (
+          !line.includes('usage.record') &&
+          !mayContainSessionTitle(line) &&
+          !mayContainProjectPath(line)
+        )
+          continue
         let obj: unknown
         try {
           obj = JSON.parse(line)
@@ -106,6 +114,7 @@ export class KimiWorkScanner implements AgentScanner {
           continue
         }
         if (!isObject(obj)) continue
+        projectPath = projectPath || extractProjectPath(obj) || ''
         sessionTitle = keepFirstSessionTitle(sessionTitle, extractKimiTitle(obj))
         if (obj.type !== 'usage.record') continue
 
@@ -132,6 +141,7 @@ export class KimiWorkScanner implements AgentScanner {
           agent: this.agentName,
           apiCallId: sourceId,
           sessionId,
+          ...(projectPath ? { projectPath } : {}),
           date,
           rawTimestamp,
           timestamp,
@@ -197,6 +207,10 @@ function mayContainSessionTitle(line: string): boolean {
   return line.includes('turn.prompt') || line.includes('context.append_message')
 }
 
+function mayContainProjectPath(line: string): boolean {
+  return /"(?:cwd|directory|workspace|project_path|workspace_path)"/.test(line)
+}
+
 /** 递归收集目录下所有名为 wire.jsonl 的文件 */
 function listWireJsonlFiles(root: string): string[] {
   const out: string[] = []
@@ -226,6 +240,7 @@ interface KimiStateMeta {
   title: string
   conversationKey: string
   sessionKind: string
+  projectPath?: string
 }
 
 /** 仅放行用户可见的 conversation 会话；conversation-title 等辅助会话需剔除 */
@@ -274,7 +289,8 @@ function readKimiState(statePath: string): KimiStateMeta | null {
       ? custom.conversationKey.trim()
       : ''
   const title = typeof obj.title === 'string' ? obj.title.trim() : ''
-  return { title, conversationKey, sessionKind }
+  const projectPath = extractProjectPath(obj)
+  return { title, conversationKey, sessionKind, ...(projectPath ? { projectPath } : {}) }
 }
 
 function conversationDirSessionId(sessionDir: string): string {
@@ -311,7 +327,7 @@ function resolveKimiSessionMeta(
   if (source.kind === 'kimi-cli') {
     const sessionId = basename(sessionDir)
     if (!sessionId) return null
-    return { sessionId, stateTitle: state.title }
+    return { sessionId, stateTitle: state.title, projectPath: state.projectPath }
   }
 
   if (state.sessionKind !== KIMI_ALLOWED_SESSION_KIND) return null
@@ -319,7 +335,7 @@ function resolveKimiSessionMeta(
   const fallbackId = conversationDirSessionId(sessionDir)
   const sessionId = state.conversationKey.length > 0 ? state.conversationKey : fallbackId
   if (!sessionId) return null
-  return { sessionId, stateTitle: state.title }
+  return { sessionId, stateTitle: state.title, projectPath: state.projectPath }
 }
 
 function hasText(value: string): boolean {

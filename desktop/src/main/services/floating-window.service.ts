@@ -30,12 +30,17 @@ interface FloatingWindowConfig {
   rendererFile: string
   rendererUrl?: string
   iconPath: string
+  onVisibilityChanged?: (visible: boolean) => void
 }
 
 let floatingWindow: BrowserWindow | null = null
 let config: FloatingWindowConfig | null = null
 const state = loadState()
 let closingForAppQuit = false
+
+function notifyVisibilityChanged(visible: boolean): void {
+  config?.onVisibilityChanged?.(visible)
+}
 
 function loadState(): FloatingWindowState {
   try {
@@ -162,6 +167,7 @@ function createFloatingWindow(): BrowserWindow {
     if (!closingForAppQuit) {
       state.visible = false
       saveState()
+      notifyVisibilityChanged(false)
     }
   })
   window.on('closed', () => {
@@ -189,6 +195,7 @@ export function showFloatingWindow(): void {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
     floatingWindow.show()
     floatingWindow.focus()
+    notifyVisibilityChanged(true)
     return
   }
   floatingWindow = createFloatingWindow()
@@ -196,6 +203,7 @@ export function showFloatingWindow(): void {
     if (state.visible && floatingWindow && !floatingWindow.isDestroyed()) {
       floatingWindow.show()
       floatingWindow.focus()
+      notifyVisibilityChanged(true)
     }
   })
 }
@@ -204,6 +212,7 @@ export function closeFloatingWindow(): void {
   state.visible = false
   saveState()
   if (floatingWindow && !floatingWindow.isDestroyed()) floatingWindow.close()
+  notifyVisibilityChanged(false)
 }
 
 export function isFloatingWindowVisible(): boolean {

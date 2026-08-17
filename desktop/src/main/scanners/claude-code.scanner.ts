@@ -27,6 +27,7 @@ import {
   timestampsFromValue,
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
+import { extractProjectPath } from './project-path'
 
 export class ClaudeCodeScanner implements AgentScanner {
   readonly agentName = 'claude-code'
@@ -71,6 +72,7 @@ export class ClaudeCodeScanner implements AgentScanner {
       let fileScopedTitle = ''
       let fileScopedTitleFromSummary = false
       let explicitSessionId = ''
+      let fileScopedProjectPath = ''
       try {
         for (const { line, lineIndex } of readUtf8Lines(file)) {
           const hasTokenUsage = line.includes('input_tokens') || line.includes('output_tokens')
@@ -84,6 +86,7 @@ export class ClaudeCodeScanner implements AgentScanner {
             continue
           }
           if (!isObject(obj)) continue
+          fileScopedProjectPath = fileScopedProjectPath || extractProjectPath(obj) || ''
 
           const sessionId = sessionIdFromObject(obj, file, projectsDir)
           if (hasExplicitSessionId(obj) && !explicitSessionId) explicitSessionId = sessionId
@@ -131,6 +134,7 @@ export class ClaudeCodeScanner implements AgentScanner {
             agent: this.agentName,
             apiCallId,
             sessionId,
+            ...(fileScopedProjectPath ? { projectPath: fileScopedProjectPath } : {}),
             date: dateFromTimestamp(timestamp, fallbackDate),
             rawTimestamp: sourceTimestamp,
             timestamp,

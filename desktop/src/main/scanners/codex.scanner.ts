@@ -58,6 +58,7 @@ import {
   normalizeScanContext,
   shouldScanFile,
 } from './incremental-utils'
+import { extractProjectPath } from './project-path'
 
 type DbValue = number | string | bigint | Uint8Array | null
 
@@ -207,6 +208,7 @@ export class CodexScanner implements AgentScanner {
     let sessionTitle = context.title || ''
     let parentSessionId = ''
     let subAgentName = ''
+    let projectPath = ''
     let isThreadSpawnSubAgent = false
     let previousAcceptedCumulative = ''
     let finalCumulative: CodexUsageSnapshot | null = null
@@ -230,6 +232,7 @@ export class CodexScanner implements AgentScanner {
           const payload = obj.payload
           if (isObject(payload)) {
             if (!context.sessionId) sessionId = readString(payload.id) || sessionId
+            projectPath = projectPath || extractProjectPath(payload) || ''
             const relation = readCodexSessionRelation(payload)
             parentSessionId = relation.parentSessionId || parentSessionId
             subAgentName = relation.subAgentName || subAgentName
@@ -240,6 +243,7 @@ export class CodexScanner implements AgentScanner {
         if (type === 'turn_context') {
           const payload = obj.payload
           if (isObject(payload)) {
+            projectPath = projectPath || extractProjectPath(payload) || ''
             sessionTitle = preferSessionTitle(
               sessionTitle,
               readString(payload.summary) || readString(payload.name),
@@ -297,6 +301,7 @@ export class CodexScanner implements AgentScanner {
                 usage,
               ),
               sessionId,
+              ...(projectPath ? { projectPath } : {}),
               date: dateFromTimestamp(timestamp, sessionDate),
               rawTimestamp,
               timestamp,

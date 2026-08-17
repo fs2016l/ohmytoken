@@ -12,10 +12,12 @@ import {
   shouldScanFile,
 } from './incremental-utils'
 import { parseWorkBuddyProviderUsage } from './workbuddy-usage'
+import { extractProjectPath } from './project-path'
 
 export interface WorkBuddySessionInfo {
   date: string
   model: string
+  projectPath?: string
 }
 
 interface ProjectPathInfo {
@@ -142,6 +144,7 @@ function parseProjectJsonlLine(params: {
     ) ?? 'unknown',
   )
   const rootSessionId = params.pathInfo.rootSessionId ?? sessionId
+  const projectPath = extractProjectPath(root) || sessionInfo?.projectPath
   const apiCall: TokenUsageApiCall = {
     agent: params.agentName,
     apiCallId: sourceApiCallId(
@@ -153,6 +156,7 @@ function parseProjectJsonlLine(params: {
       params.index,
     ),
     sessionId,
+    ...(projectPath ? { projectPath } : {}),
     date,
     rawTimestamp,
     timestamp,

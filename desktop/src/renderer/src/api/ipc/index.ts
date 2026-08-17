@@ -10,7 +10,7 @@ interface MockAxiosResponse<T> {
   data: T
 }
 
-type FlatParams = Record<string, string | number | undefined>
+type FlatParams = Record<string, string | number | boolean | undefined>
 
 function requireParam(params: FlatParams, name: string): string {
   const value = params[name]
@@ -73,6 +73,9 @@ export const api = {
           agent: stringParam(params, 'agent'),
           model: stringParam(params, 'model'),
           rootSessionId: stringParam(params, 'rootSessionId'),
+          projectId: stringParam(params, 'projectId'),
+          trackedProjectsOnly: params.trackedProjectsOnly === true,
+          query: stringParam(params, 'query'),
         }),
       }
     }
@@ -84,6 +87,9 @@ export const api = {
           agent: stringParam(params, 'agent'),
           model: stringParam(params, 'model'),
           rootSessionId: stringParam(params, 'rootSessionId'),
+          projectId: stringParam(params, 'projectId'),
+          trackedProjectsOnly: params.trackedProjectsOnly === true,
+          query: stringParam(params, 'query'),
         }),
       }
     }
@@ -94,6 +100,8 @@ export const api = {
           sessionId: requireParam(params, 'sessionId'),
           model: stringParam(params, 'model'),
           rootSessionId: stringParam(params, 'rootSessionId'),
+          projectId: stringParam(params, 'projectId'),
+          trackedProjectsOnly: params.trackedProjectsOnly === true,
           ...rangeParams(params),
         }),
       }
@@ -107,6 +115,8 @@ export const api = {
           sessionId: stringParam(params, 'sessionId'),
           rootSessionId: stringParam(params, 'rootSessionId'),
           model: stringParam(params, 'model'),
+          projectId: stringParam(params, 'projectId'),
+          trackedProjectsOnly: params.trackedProjectsOnly === true,
         }),
       }
     }

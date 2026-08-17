@@ -1,6 +1,7 @@
 import { is, optimizer } from '@electron-toolkit/utils'
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
+import { IPC } from './ipc/channels'
 import { registerIpcHandlers, stopSseService } from './ipc/handlers'
 import { initDataStorage } from './services/data-storage.service'
 import { getAccessToken } from './services/auth.service'
@@ -12,15 +13,25 @@ import {
   reportDiagnosticError,
 } from './services/diagnostic-log.service'
 import {
+  closeFloatingWindow,
   configureFloatingWindow,
   destroyFloatingWindowForAppQuit,
+  isFloatingWindowVisible,
   registerFloatingWindowIpc,
   shouldRestoreFloatingWindow,
   showFloatingWindow,
 } from './services/floating-window.service'
+import { getDesktopRuntimeConfig } from './services/runtime-config.service'
 import { stopBackgroundScan } from './services/scan.service'
 import { initAutoUpdater } from './services/updater.service'
 import { loadWindowState, trackWindowState } from './services/window-state.service'
+import {
+  configureTray,
+  destroyTray,
+  handleMainWindowClose,
+  initializeTray,
+  refreshTrayMenu,
+} from './services/tray.service'
 
 // 统一应用名：影响 app.getPath('userData') → %APPDATA%\ohmytoken\
 // 必须在任何 getPath / requestSingleInstanceLock 之前调用
@@ -95,6 +106,11 @@ function createWindow(): void {
 
   mainWindow.on('unresponsive', () => {
     recordDiagnosticEvent('renderer', 'unresponsive', '主窗口渲染进程无响应')
+  })
+
+  mainWindow.on('close', (event) => {
+    if (isQuitting || !mainWindow) return
+    handleMainWindowClose(event, mainWindow)
   })
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
@@ -196,11 +212,35 @@ if (!gotLock) {
       rendererFile: join(__dirname, '../renderer/index.html'),
       rendererUrl: is.dev ? process.env.ELECTRON_RENDERER_URL : undefined,
       iconPath: getAppIconPath(),
+      onVisibilityChanged: (visible) => {
+        refreshTrayMenu()
+        for (const window of BrowserWindow.getAllWindows()) {
+          if (!window.isDestroyed()) {
+            window.webContents.send(IPC.FLOATING_WINDOW_VISIBILITY_CHANGED, visible)
+          }
+        }
+      },
     })
     registerFloatingWindowIpc()
 
+    configureTray({
+      getMainWindow,
+      getIconPath: getAppIconPath,
+      isFloatingWindowVisible,
+      toggleFloatingWindow: () => {
+        if (isFloatingWindowVisible()) closeFloatingWindow()
+        else showFloatingWindow()
+      },
+      openWebsite: async () => {
+        const runtimeConfig = await getDesktopRuntimeConfig()
+        await shell.openExternal(runtimeConfig.websiteUrl)
+      },
+      requestQuit: () => app.quit(),
+    })
+
     // 先创建窗口：registerIpcHandlers 通过 getter 动态获取主窗口引用
     createWindow()
+    initializeTray()
 
     // 注册所有 IPC 处理器（M8：传 getter 而非静态引用，activate 重建窗口后无需重新 register）
     registerIpcHandlers(getMainWindow)
@@ -224,7 +264,13 @@ if (!gotLock) {
 
     // macOS：点 dock 图标时若无窗口则重建
     app.on('activate', () => {
-      if (!mainWindow) createWindow()
+      if (!mainWindow) {
+        createWindow()
+        return
+      }
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
     })
   })
 
@@ -240,6 +286,7 @@ if (!gotLock) {
     recordDiagnosticEvent('app', 'before-quit', '应用准备退出')
     isQuitting = true
     destroyFloatingWindowForAppQuit()
+    destroyTray()
     stopSseService()
     stopBackgroundScan()
   })

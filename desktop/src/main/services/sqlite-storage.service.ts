@@ -11,6 +11,10 @@ import type { TokenUsageRecord } from '../../shared/models'
 import { hasExplicitTimezone, localTimestampFromValue, timestampEpochMs } from '../lib/date-utils'
 import { getUsageDbFile } from '../lib/paths'
 import { SCANNER_REVISION } from './incremental-scan.constants'
+import {
+  searchableSessionTitleSql,
+  USAGE_SESSION_SEARCH_CONTENT_VIEW,
+} from './session-title-search'
 
 /** DB 单例（整个应用生命周期复用同一个连接） */
 let db: Database.Database | null = null
@@ -64,6 +68,9 @@ export function openDatabase(): Database.Database {
   conn.pragma('journal_mode = WAL')
   conn.pragma('synchronous = NORMAL')
   conn.pragma('foreign_keys = ON')
+  // usage_sessions 当前使用 INSERT OR REPLACE。开启递归触发器后，REPLACE 隐式执行的
+  // DELETE 也会触发 FTS5 删除同步，避免旧 rowid 留下失效索引。
+  conn.pragma('recursive_triggers = ON')
 
   // Schema 版本管理：读取当前版本（simple 模式直接返回 number）
   let currentVersion = conn.pragma('user_version', { simple: true }) as number
@@ -380,6 +387,55 @@ export function openDatabase(): Database.Database {
     currentVersion = 9
   }
 
+  // schema v10：会话搜索 FTS5 索引。
+  // usage_sessions 仍是唯一数据源；虚拟表只保存可删除、可重建的搜索索引，
+  // 不修改现有字段、主键，也不会接触任何 Agent 的原始数据库。
+  if (currentVersion < 10) {
+    ensureUsageSessionSearchSchema(conn)
+    conn.pragma('user_version = 10')
+    currentVersion = 10
+  }
+
+  // schema v11：项目目录管理，以及会话/API 调用的真实工作目录。
+  if (
+    currentVersion < 11 ||
+    !columnExists(conn, 'usage_sessions', 'project_path') ||
+    !columnExists(conn, 'usage_api_calls', 'project_path') ||
+    !tableExists(conn, 'tracked_projects')
+  ) {
+    if (!columnExists(conn, 'usage_sessions', 'project_path')) {
+      conn.exec('ALTER TABLE usage_sessions ADD COLUMN project_path TEXT')
+    }
+    if (!columnExists(conn, 'usage_api_calls', 'project_path')) {
+      conn.exec('ALTER TABLE usage_api_calls ADD COLUMN project_path TEXT')
+    }
+    conn.exec(`
+      CREATE TABLE IF NOT EXISTS tracked_projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        normalized_path TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_usage_sessions_project_date
+        ON usage_sessions(project_path, date);
+      CREATE INDEX IF NOT EXISTS idx_usage_api_calls_project_date
+        ON usage_api_calls(project_path, date);
+      CREATE INDEX IF NOT EXISTS idx_tracked_projects_created
+        ON tracked_projects(created_at, id);
+    `)
+    conn.pragma('user_version = 11')
+    currentVersion = 11
+  }
+
+  // schema v12：搜索索引只接收可靠标题，避免完整对话误作标题后污染召回和排序。
+  // 原始 title 保持不变；过滤仅发生在可重建的 FTS5 索引视图中。
+  if (currentVersion < 12 || !usageSessionSearchSchemaReady(conn)) {
+    ensureUsageSessionSearchSchema(conn)
+    conn.pragma('user_version = 12')
+    currentVersion = 12
+  }
+
   // 早期 v8 构建可能已经建好表但尚未写 Agent 状态；幂等补种避免首刷全量。
   seedAgentScanStatesFromUsage(conn)
 
@@ -399,6 +455,170 @@ function indexExists(conn: Database.Database, indexName: string): boolean {
     .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name = ?")
     .get(indexName) as { name?: string } | undefined
   return row?.name === indexName
+}
+
+function triggerExists(conn: Database.Database, triggerName: string): boolean {
+  const row = conn
+    .prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name = ?")
+    .get(triggerName) as { name?: string } | undefined
+  return row?.name === triggerName
+}
+
+const USAGE_SESSION_SEARCH_COLUMNS = [
+  'title',
+  'model',
+  'agent',
+  'sub_agent_name',
+  'session_id',
+  'root_session_id',
+] as const
+
+const USAGE_SESSION_SEARCH_TRIGGERS = [
+  'usage_sessions_fts_ai',
+  'usage_sessions_fts_ad',
+  'usage_sessions_fts_au',
+] as const
+
+function usageSessionSearchSchemaReady(conn: Database.Database): boolean {
+  if (!tableExists(conn, 'usage_sessions_fts')) return false
+  const tableDefinition = conn
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name = ?")
+    .get('usage_sessions_fts') as { sql?: string } | undefined
+  const contentView = conn
+    .prepare("SELECT name FROM sqlite_master WHERE type='view' AND name = ?")
+    .get(USAGE_SESSION_SEARCH_CONTENT_VIEW) as { name?: string } | undefined
+  const columns = conn.prepare('PRAGMA table_info(usage_sessions_fts)').all() as {
+    name?: string
+  }[]
+  const expectedColumns = USAGE_SESSION_SEARCH_COLUMNS.join('\u0000')
+  const actualColumns = columns.map((row) => row.name).join('\u0000')
+  return (
+    actualColumns === expectedColumns &&
+    tableDefinition?.sql?.includes(`content='${USAGE_SESSION_SEARCH_CONTENT_VIEW}'`) === true &&
+    contentView?.name === USAGE_SESSION_SEARCH_CONTENT_VIEW &&
+    USAGE_SESSION_SEARCH_TRIGGERS.every((triggerName) => triggerExists(conn, triggerName))
+  )
+}
+
+/**
+ * 创建并回填会话 FTS5 搜索索引。
+ *
+ * 外部内容模式通过 usage_sessions.rowid 关联原表，搜索字段使用 trigram 分词，
+ * 适合模型名和中英文标题的任意位置匹配。短于 3 个字符的查询由上层回退 LIKE。
+ */
+function ensureUsageSessionSearchSchema(conn: Database.Database): void {
+  if (usageSessionSearchSchemaReady(conn)) return
+
+  const searchableTitle = searchableSessionTitleSql('title')
+  const searchableNewTitle = searchableSessionTitleSql('new.title')
+  const searchableOldTitle = searchableSessionTitleSql('old.title')
+  const migrate = conn.transaction(() => {
+    for (const triggerName of USAGE_SESSION_SEARCH_TRIGGERS) {
+      conn.exec(`DROP TRIGGER IF EXISTS ${triggerName}`)
+    }
+    conn.exec('DROP TABLE IF EXISTS usage_sessions_fts')
+    conn.exec(`DROP VIEW IF EXISTS ${USAGE_SESSION_SEARCH_CONTENT_VIEW}`)
+
+    conn.exec(`
+      CREATE VIEW ${USAGE_SESSION_SEARCH_CONTENT_VIEW} AS
+      SELECT
+        rowid,
+        ${searchableTitle} AS title,
+        model,
+        agent,
+        COALESCE(sub_agent_name, '') AS sub_agent_name,
+        session_id,
+        COALESCE(NULLIF(root_session_id, ''), session_id) AS root_session_id
+      FROM usage_sessions;
+
+      CREATE VIRTUAL TABLE usage_sessions_fts USING fts5(
+        title,
+        model,
+        agent,
+        sub_agent_name,
+        session_id,
+        root_session_id,
+        content='${USAGE_SESSION_SEARCH_CONTENT_VIEW}',
+        content_rowid='rowid',
+        tokenize='trigram'
+      );
+
+      CREATE TRIGGER IF NOT EXISTS usage_sessions_fts_ai
+      AFTER INSERT ON usage_sessions BEGIN
+        INSERT INTO usage_sessions_fts(
+          rowid, title, model, agent, sub_agent_name, session_id, root_session_id
+        ) VALUES (
+          new.rowid,
+          ${searchableNewTitle},
+          new.model,
+          new.agent,
+          COALESCE(new.sub_agent_name, ''),
+          new.session_id,
+          COALESCE(NULLIF(new.root_session_id, ''), new.session_id)
+        );
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS usage_sessions_fts_ad
+      AFTER DELETE ON usage_sessions BEGIN
+        INSERT INTO usage_sessions_fts(
+          usage_sessions_fts,
+          rowid,
+          title,
+          model,
+          agent,
+          sub_agent_name,
+          session_id,
+          root_session_id
+        ) VALUES (
+          'delete',
+          old.rowid,
+          ${searchableOldTitle},
+          old.model,
+          old.agent,
+          COALESCE(old.sub_agent_name, ''),
+          old.session_id,
+          COALESCE(NULLIF(old.root_session_id, ''), old.session_id)
+        );
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS usage_sessions_fts_au
+      AFTER UPDATE ON usage_sessions BEGIN
+        INSERT INTO usage_sessions_fts(
+          usage_sessions_fts,
+          rowid,
+          title,
+          model,
+          agent,
+          sub_agent_name,
+          session_id,
+          root_session_id
+        ) VALUES (
+          'delete',
+          old.rowid,
+          ${searchableOldTitle},
+          old.model,
+          old.agent,
+          COALESCE(old.sub_agent_name, ''),
+          old.session_id,
+          COALESCE(NULLIF(old.root_session_id, ''), old.session_id)
+        );
+        INSERT INTO usage_sessions_fts(
+          rowid, title, model, agent, sub_agent_name, session_id, root_session_id
+        ) VALUES (
+          new.rowid,
+          ${searchableNewTitle},
+          new.model,
+          new.agent,
+          COALESCE(new.sub_agent_name, ''),
+          new.session_id,
+          COALESCE(NULLIF(new.root_session_id, ''), new.session_id)
+        );
+      END;
+
+      INSERT INTO usage_sessions_fts(usage_sessions_fts) VALUES ('rebuild');
+    `)
+  })
+  migrate()
 }
 
 function columnExists(conn: Database.Database, tableName: string, columnName: string): boolean {

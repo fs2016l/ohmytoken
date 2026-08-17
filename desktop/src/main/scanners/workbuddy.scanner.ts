@@ -39,6 +39,7 @@ import {
 } from './detail-utils'
 import { normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { loadWorkBuddyProjectScan, normalizeWorkBuddyModel } from './workbuddy-jsonl'
+import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -48,6 +49,7 @@ interface SessionInfo {
   model: string
   startedAt: string
   title?: string
+  projectPath?: string
 }
 
 interface TraceApiCallEntry {
@@ -192,10 +194,13 @@ export class WorkBuddyScanner implements AgentScanner {
         const date = dateFromTimestamp(timestamp, fallbackDate)
         const effectiveSessionId = sessionId ?? `aggregate:${date}:${model}`
         const freshInput = freshWorkBuddyInputTokens(input, cached)
+        const projectPath =
+          extractProjectPath(root) || (sessionId ? sessions.get(sessionId)?.projectPath : undefined)
         const apiCall: TokenUsageApiCall = {
           agent: this.agentName,
           apiCallId: relative(tracesDir, traceFile).split(sep).join('/'),
           sessionId: effectiveSessionId,
+          ...(projectPath ? { projectPath } : {}),
           date,
           rawTimestamp,
           timestamp,
@@ -251,9 +256,17 @@ export class WorkBuddyScanner implements AgentScanner {
         'summary',
       ])
       const customTitleColumn = firstExistingColumn(columns, ['custom_title', 'customTitle'])
+      const projectPathColumn = firstExistingColumn(columns, [
+        'directory',
+        'cwd',
+        'workspace_path',
+        'workspace',
+        'project_path',
+      ])
       const selectCols = ['id', 'model', 'created_at']
       if (titleColumn) selectCols.push(titleColumn)
       if (customTitleColumn && customTitleColumn !== titleColumn) selectCols.push(customTitleColumn)
+      if (projectPathColumn) selectCols.push(projectPathColumn)
 
       for (const row of queryAll(
         db,
@@ -267,11 +280,15 @@ export class WorkBuddyScanner implements AgentScanner {
         const rawTitle = titleColumn ? dbString(row[titleColumn]) : ''
         const customTitle = customTitleColumn ? dbString(row[customTitleColumn]) : ''
         const title = cleanWorkBuddyTitle(customTitle || rawTitle)
+        const projectPath = projectPathColumn
+          ? normalizeCollectedProjectPath(row[projectPathColumn])
+          : undefined
         sessions.set(id, {
           date,
           model,
           startedAt: timestampFromValue(createdAt, date),
           ...(title ? { title } : {}),
+          ...(projectPath ? { projectPath } : {}),
         })
       }
     } catch (e) {

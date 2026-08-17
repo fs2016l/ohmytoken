@@ -16,7 +16,13 @@ import type {
   DiagnosticUploadOptions,
   DiagnosticUploadState,
 } from '../shared/diagnostics'
-import type { ScanOptions } from '../shared/models'
+import type {
+  CloseBehavior,
+  ProjectUsageDetail,
+  ProjectUsageOverview,
+  ScanOptions,
+  TrackedProject,
+} from '../shared/models'
 import type {
   CustomMessageData,
   CustomMessageEvent,
@@ -55,6 +61,9 @@ export interface UsageSessionsParams extends RangeParams, PaginationParams {
   agent?: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
+  query?: string
 }
 
 export interface UsageApiCallsParams {
@@ -62,6 +71,8 @@ export interface UsageApiCallsParams {
   sessionId: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
   from?: string
   to?: string
 }
@@ -71,6 +82,8 @@ export interface UsageApiRecordsParams extends RangeParams, PaginationParams {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
 }
 
 export interface HourlyUsageParams {
@@ -117,6 +130,27 @@ const api = {
   getUsageTrendStats: (params: UsageTrendParams): Promise<unknown> =>
     ipcRenderer.invoke(IPC.STATS_USAGE_TREND, params),
 
+  projectsList: (): Promise<TrackedProject[]> =>
+    ipcRenderer.invoke(IPC.PROJECTS_LIST) as Promise<TrackedProject[]>,
+  selectProjectDirectory: (): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.PROJECTS_SELECT_DIRECTORY) as Promise<string | null>,
+  saveProject: (input: { name: string; path: string }): Promise<TrackedProject> =>
+    ipcRenderer.invoke(IPC.PROJECTS_SAVE, input) as Promise<TrackedProject>,
+  updateProject: (input: {
+    projectId: string
+    name: string
+    path: string
+  }): Promise<TrackedProject> =>
+    ipcRenderer.invoke(IPC.PROJECTS_UPDATE, input) as Promise<TrackedProject>,
+  removeProject: (projectId: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.PROJECTS_REMOVE, projectId) as Promise<boolean>,
+  getProjectUsageOverview: (params?: RangeParams): Promise<ProjectUsageOverview> =>
+    ipcRenderer.invoke(IPC.PROJECTS_OVERVIEW, params ?? {}) as Promise<ProjectUsageOverview>,
+  getProjectUsageDetail: (
+    params: RangeParams & { projectId: string },
+  ): Promise<ProjectUsageDetail> =>
+    ipcRenderer.invoke(IPC.PROJECTS_DETAIL, params) as Promise<ProjectUsageDetail>,
+
   tokenPlanCredentialsList: (): Promise<TokenPlanCredentialStatus[]> =>
     ipcRenderer.invoke(IPC.TOKEN_PLAN_CREDENTIALS_LIST) as Promise<TokenPlanCredentialStatus[]>,
   tokenPlanCredentialSave: (input: TokenPlanCredentialInput): Promise<TokenPlanCredentialStatus> =>
@@ -144,6 +178,13 @@ const api = {
   /** 查询 Token 会话悬浮窗是否可见 */
   isFloatingWindowVisible: (): Promise<boolean> =>
     ipcRenderer.invoke(IPC.FLOATING_WINDOW_IS_VISIBLE) as Promise<boolean>,
+  onFloatingWindowVisibilityChanged: (callback: (visible: boolean) => void): (() => void) => {
+    const listener = (_event: unknown, visible: boolean): void => callback(visible)
+    ipcRenderer.on(IPC.FLOATING_WINDOW_VISIBILITY_CHANGED, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.FLOATING_WINDOW_VISIBILITY_CHANGED, listener)
+    }
+  },
   /** 查询 Token 会话悬浮窗是否保持在所有窗口最前面 */
   isFloatingWindowAlwaysOnTop: (): Promise<boolean> =>
     ipcRenderer.invoke(IPC.FLOATING_WINDOW_GET_ALWAYS_ON_TOP) as Promise<boolean>,
@@ -157,6 +198,37 @@ const api = {
   getDeviceId: (): Promise<string> => ipcRenderer.invoke(IPC.APP_GET_DEVICE_ID) as Promise<string>,
   getAgentRequestIdentity: (): Promise<AgentRequestIdentity> =>
     ipcRenderer.invoke(IPC.APP_GET_REQUEST_IDENTITY) as Promise<AgentRequestIdentity>,
+  setAppLanguage: (language: 'zh' | 'en'): Promise<void> =>
+    ipcRenderer.invoke(IPC.APP_SET_LANGUAGE, language) as Promise<void>,
+  resolveTrayClose: (input: {
+    decision: 'background' | 'quit' | 'cancel'
+    remember: boolean
+  }): Promise<boolean> => ipcRenderer.invoke(IPC.TRAY_RESOLVE_CLOSE, input) as Promise<boolean>,
+  getCloseBehavior: (): Promise<CloseBehavior> =>
+    ipcRenderer.invoke(IPC.TRAY_GET_CLOSE_BEHAVIOR) as Promise<CloseBehavior>,
+  setCloseBehavior: (behavior: CloseBehavior): Promise<CloseBehavior> =>
+    ipcRenderer.invoke(IPC.TRAY_SET_CLOSE_BEHAVIOR, behavior) as Promise<CloseBehavior>,
+  onCloseBehaviorChanged: (callback: (behavior: CloseBehavior) => void): (() => void) => {
+    const listener = (_event: unknown, behavior: CloseBehavior): void => callback(behavior)
+    ipcRenderer.on(IPC.TRAY_CLOSE_BEHAVIOR_CHANGED, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.TRAY_CLOSE_BEHAVIOR_CHANGED, listener)
+    }
+  },
+  onTrayCloseRequested: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on(IPC.TRAY_CLOSE_REQUESTED, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.TRAY_CLOSE_REQUESTED, listener)
+    }
+  },
+  onTrayCheckUpdateRequested: (callback: () => void): (() => void) => {
+    const listener = (): void => callback()
+    ipcRenderer.on(IPC.TRAY_CHECK_UPDATE_REQUESTED, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.TRAY_CHECK_UPDATE_REQUESTED, listener)
+    }
+  },
   /** 检查更新（向 com 后端 latest.yml 拉取并对比版本） */
   checkForUpdates: (): Promise<{
     hasUpdate: boolean

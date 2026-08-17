@@ -18,6 +18,8 @@ import type {
 } from '../../shared/models'
 import { hasExplicitTimezone, localTimestampFromValue, timestampEpochMs } from '../lib/date-utils'
 import { openDatabase } from './sqlite-storage.service'
+import { buildProjectSqlFilter, buildTrackedProjectsSqlFilter } from './project.service'
+import { USAGE_SESSION_SEARCH_CONTENT_VIEW } from './session-title-search'
 
 interface UsageSessionRow {
   agent: string
@@ -25,6 +27,7 @@ interface UsageSessionRow {
   parent_session_id: string | null
   root_session_id: string | null
   sub_agent_name: string | null
+  project_path: string | null
   title: string | null
   date: string
   started_at: string
@@ -48,6 +51,7 @@ interface UsageApiCallRow {
   parent_session_id: string | null
   root_session_id: string | null
   sub_agent_name: string | null
+  project_path: string | null
   role: string | null
   date: string
   raw_timestamp: string
@@ -106,6 +110,7 @@ type MutableUserSession = TokenUsageUserSession & {
 interface UserSessionPageKey {
   agent: string
   root_session_id: string
+  match_score?: number
 }
 
 interface NormalizedPagination {
@@ -161,13 +166,14 @@ export function insertSessionRows(sessions: TokenUsageSession[]): void {
   const db = openDatabase()
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO usage_sessions
-      (agent, session_id, parent_session_id, root_session_id, sub_agent_name, title, date,
+      (agent, session_id, parent_session_id, root_session_id, sub_agent_name, project_path,
+       title, date,
        started_at, ended_at, model, input_tokens, output_tokens, cache_read_tokens,
        cache_write_tokens, total_tokens, reasoning_tokens, api_call_count,
        started_at_ms, ended_at_ms)
     VALUES
-      (@agent, @session_id, @parent_session_id, @root_session_id, @sub_agent_name, @title,
-       @date, @started_at, @ended_at, @model, @input_tokens, @output_tokens,
+      (@agent, @session_id, @parent_session_id, @root_session_id, @sub_agent_name,
+       @project_path, @title, @date, @started_at, @ended_at, @model, @input_tokens, @output_tokens,
        @cache_read_tokens, @cache_write_tokens, @total_tokens, @reasoning_tokens,
        @api_call_count, @started_at_ms, @ended_at_ms)
   `)
@@ -180,6 +186,7 @@ export function insertSessionRows(sessions: TokenUsageSession[]): void {
       parent_session_id: row.parentSessionId ?? null,
       root_session_id: row.rootSessionId ?? row.sessionId,
       sub_agent_name: row.subAgentName ?? null,
+      project_path: row.projectPath ?? null,
       title: row.title ?? null,
       date: row.date,
       started_at: startedAt,
@@ -204,12 +211,12 @@ export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
   const stmt = db.prepare(`
     INSERT OR REPLACE INTO usage_api_calls
       (agent, api_call_id, session_id, parent_session_id, root_session_id, sub_agent_name,
-       role, date, raw_timestamp, timestamp, hour, model, input_tokens, output_tokens,
+       project_path, role, date, raw_timestamp, timestamp, hour, model, input_tokens, output_tokens,
        cache_read_tokens, cache_write_tokens, total_tokens, reasoning_tokens,
        event_timestamp_ms, source_scope)
     VALUES
       (@agent, @api_call_id, @session_id, @parent_session_id, @root_session_id,
-       @sub_agent_name, @role, @date, @raw_timestamp, @timestamp, @hour, @model,
+       @sub_agent_name, @project_path, @role, @date, @raw_timestamp, @timestamp, @hour, @model,
        @input_tokens, @output_tokens, @cache_read_tokens, @cache_write_tokens,
        @total_tokens, @reasoning_tokens, @event_timestamp_ms, @source_scope)
   `)
@@ -223,6 +230,7 @@ export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
       parent_session_id: row.parentSessionId ?? null,
       root_session_id: row.rootSessionId ?? row.sessionId,
       sub_agent_name: row.subAgentName ?? null,
+      project_path: row.projectPath ?? null,
       role: row.role ?? null,
       date: timeParts.date,
       raw_timestamp: row.rawTimestamp ?? (hasExplicitTimezone(row.timestamp) ? row.timestamp : ''),
@@ -256,16 +264,21 @@ export function listUserUsageSessionsPage(
   const db = openDatabase()
   const { whereSql, params } = buildSessionWhere(filter)
   const rootExpression = "COALESCE(NULLIF(root_session_id, ''), session_id)"
+  const search = buildSessionSearchScore(filter.query)
+  const searchColumn = search.scoreSql ? `, (${search.scoreSql}) AS match_score` : ''
+  const searchHaving = search.scoreSql ? 'HAVING match_score > 0' : ''
   const countRow = db
     .prepare(
       `SELECT COUNT(*) AS total FROM (
-        SELECT agent, ${rootExpression}
+        SELECT agent, ${rootExpression}${searchColumn}
         FROM usage_sessions
+        ${search.joinSql}
         ${whereSql}
         GROUP BY agent, ${rootExpression}
+        ${searchHaving}
       )`,
     )
-    .get(...params) as { total?: number } | undefined
+    .get(...search.params, ...params) as { total?: number } | undefined
   const total = Number(countRow?.total || 0)
   const pagination = normalizePagination(filter.page, filter.pageSize, total)
   if (total === 0) return createPageResult([], pagination, total)
@@ -275,6 +288,7 @@ export function listUserUsageSessionsPage(
       `SELECT
         agent,
         ${rootExpression} AS root_session_id,
+        ${search.scoreSql ? `(${search.scoreSql})` : '0'} AS match_score,
         MAX(
           CASE
             WHEN ended_at_ms > 0 THEN ended_at_ms
@@ -285,12 +299,20 @@ export function listUserUsageSessionsPage(
         MAX(COALESCE(NULLIF(ended_at, ''), NULLIF(started_at, ''), date)) AS recent_value,
         SUM(total_tokens) AS grouped_total
       FROM usage_sessions
+      ${search.joinSql}
       ${whereSql}
       GROUP BY agent, ${rootExpression}
-      ORDER BY recent_ms DESC, recent_value DESC, grouped_total DESC, agent ASC, root_session_id ASC
+      ${searchHaving}
+      ORDER BY match_score DESC, recent_ms DESC, recent_value DESC, grouped_total DESC,
+               agent ASC, root_session_id ASC
       LIMIT ? OFFSET ?`,
     )
-    .all(...params, pagination.pageSize, pagination.offset) as UserSessionPageKey[]
+    .all(
+      ...search.params,
+      ...params,
+      pagination.pageSize,
+      pagination.offset,
+    ) as UserSessionPageKey[]
 
   if (pageKeys.length === 0) return createPageResult([], pagination, total)
 
@@ -585,6 +607,7 @@ function buildSessionWhere(filter: UsageDetailFilter): {
     clauses.push("COALESCE(NULLIF(root_session_id, ''), session_id) = ?")
     params.push(filter.rootSessionId)
   }
+  addProjectFilter(clauses, params, filter.projectId, filter.trackedProjectsOnly)
   addDateFilters(clauses, params, filter.from, filter.to)
   return { whereSql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params }
 }
@@ -602,6 +625,7 @@ function buildApiCallWhere(filter: UsageApiRecordFilter): {
     params.push(filter.rootSessionId)
   }
   addEqualsFilter(clauses, params, 'model', filter.model)
+  addProjectFilter(clauses, params, filter.projectId, filter.trackedProjectsOnly)
   addDateFilters(clauses, params, filter.from, filter.to)
   return { whereSql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params }
 }
@@ -631,6 +655,150 @@ function addDateFilters(
     clauses.push('date <= ?')
     params.push(to)
   }
+}
+
+function addProjectFilter(
+  clauses: string[],
+  params: QueryParam[],
+  projectId: string | undefined,
+  trackedProjectsOnly: boolean | undefined,
+): void {
+  if (!projectId && !trackedProjectsOnly) return
+  const projectFilter = projectId
+    ? buildProjectSqlFilter(projectId, 'project_path')
+    : buildTrackedProjectsSqlFilter('project_path')
+  if (!projectFilter.clause) return
+  clauses.push(projectFilter.clause)
+  params.push(...projectFilter.params)
+}
+
+interface SessionSearchScore {
+  scoreSql: string
+  joinSql: string
+  params: QueryParam[]
+}
+
+const TITLE_KEYWORD_SCORE = 180
+const METADATA_KEYWORD_SCORE = 100
+const ALL_TITLE_KEYWORDS_BONUS = 160
+const ORDERED_TITLE_KEYWORDS_BONUS = 60
+const TITLE_PREFIX_BONUS = 30
+const SEARCH_METADATA_FIELDS = [
+  'model',
+  'agent',
+  'sub_agent_name',
+  'session_id',
+  'root_session_id',
+] as const
+
+const FTS_ROW_MATCH_SQL = `EXISTS (
+  SELECT 1 FROM usage_sessions_fts
+  WHERE usage_sessions_fts.rowid = usage_sessions.rowid
+    AND usage_sessions_fts MATCH ?
+)`
+
+const SEARCH_CONTENT_ALIAS = 'usage_session_search_content'
+
+/**
+ * 搜索按空格拆成 OR 关键词，并在 root 会话级累计相关性：
+ * - 正常标题命中高于模型、Agent、子 Agent 和会话 ID；
+ * - 多关键词同时出现在同一标题、保持输入顺序或靠近标题开头时继续加分；
+ * - 超长标题和明显完整对话由 FTS 内容视图统一置空，不参与召回与评分。
+ * 长词走 trigram FTS5，短词走参数化 LIKE；最终只在 SQLite 内排序并分页。
+ */
+function buildSessionSearchScore(query: string | undefined): SessionSearchScore {
+  const keywords = normalizeSearchKeywords(query)
+  if (keywords.length === 0) return { scoreSql: '', joinSql: '', params: [] }
+
+  const scoreParts: string[] = []
+  const params: QueryParam[] = []
+  const searchableTitle = `${SEARCH_CONTENT_ALIAS}.search_title`
+  for (const keyword of keywords) {
+    if ([...keyword].length >= 3) {
+      const phrase = `"${keyword.replace(/"/g, '""')}"`
+      scoreParts.push(`MAX(CASE
+        WHEN ${FTS_ROW_MATCH_SQL} THEN ${TITLE_KEYWORD_SCORE}
+        WHEN ${FTS_ROW_MATCH_SQL} THEN ${METADATA_KEYWORD_SCORE}
+        ELSE 0
+      END)`)
+      params.push(`title : ${phrase}`, `{${SEARCH_METADATA_FIELDS.join(' ')}} : ${phrase}`)
+      continue
+    }
+
+    const titleMatch = `LOWER(${searchableTitle}) LIKE ? ESCAPE '\\'`
+    const metadataMatches = SEARCH_METADATA_FIELDS.map(
+      (field) => `LOWER(COALESCE(${field}, '')) LIKE ? ESCAPE '\\'`,
+    )
+    scoreParts.push(`MAX(CASE
+      WHEN ${titleMatch} THEN ${TITLE_KEYWORD_SCORE}
+      WHEN (${metadataMatches.join(' OR ')}) THEN ${METADATA_KEYWORD_SCORE}
+      ELSE 0
+    END)`)
+    const pattern = `%${escapeSearchLike(keyword.toLowerCase())}%`
+    params.push(pattern, ...metadataMatches.map(() => pattern))
+  }
+
+  if (keywords.length > 1) {
+    const allTitleMatches = keywords
+      .map(() => `INSTR(LOWER(${searchableTitle}), ?) > 0`)
+      .join(' AND ')
+    scoreParts.push(`MAX(CASE WHEN ${allTitleMatches} THEN ${ALL_TITLE_KEYWORDS_BONUS} ELSE 0 END)`)
+    params.push(...keywords.map((keyword) => keyword.toLowerCase()))
+
+    const orderedTitleMatches = keywords
+      .slice(0, -1)
+      .map(
+        () =>
+          `(INSTR(LOWER(${searchableTitle}), ?) > 0
+            AND INSTR(LOWER(${searchableTitle}), ?) > INSTR(LOWER(${searchableTitle}), ?))`,
+      )
+      .join(' AND ')
+    scoreParts.push(
+      `MAX(CASE WHEN ${orderedTitleMatches} THEN ${ORDERED_TITLE_KEYWORDS_BONUS} ELSE 0 END)`,
+    )
+    for (let index = 0; index < keywords.length - 1; index += 1) {
+      params.push(
+        keywords[index].toLowerCase(),
+        keywords[index + 1].toLowerCase(),
+        keywords[index].toLowerCase(),
+      )
+    }
+  }
+
+  scoreParts.push(
+    `MAX(CASE WHEN INSTR(LOWER(${searchableTitle}), ?) BETWEEN 1 AND 12 THEN ${TITLE_PREFIX_BONUS} ELSE 0 END)`,
+  )
+  params.push(keywords[0].toLowerCase())
+
+  return {
+    scoreSql: scoreParts.join(' + '),
+    joinSql: `JOIN (
+        SELECT rowid AS search_rowid, title AS search_title
+        FROM ${USAGE_SESSION_SEARCH_CONTENT_VIEW}
+      ) AS ${SEARCH_CONTENT_ALIAS}
+      ON ${SEARCH_CONTENT_ALIAS}.search_rowid = usage_sessions.rowid`,
+    params,
+  }
+}
+
+function normalizeSearchKeywords(query: string | undefined): string[] {
+  if (typeof query !== 'string') return []
+  const unique = new Map<string, string>()
+  const sanitized = [...query]
+    .map((character) => (character.charCodeAt(0) < 32 ? ' ' : character))
+    .join('')
+  for (const raw of sanitized.trim().split(/\s+/u)) {
+    const keyword = raw.trim().slice(0, 80)
+    if (!keyword) continue
+    const key = keyword.toLocaleLowerCase()
+    if (!unique.has(key)) unique.set(key, keyword)
+    if (unique.size >= 12) break
+  }
+  return [...unique.values()]
+}
+
+function escapeSearchLike(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
 }
 
 function normalizePagination(
@@ -775,6 +943,7 @@ function rowToSession(row: UsageSessionRow): TokenUsageSession {
   if (rootSessionId !== row.session_id || row.parent_session_id)
     session.rootSessionId = rootSessionId
   if (row.sub_agent_name) session.subAgentName = row.sub_agent_name
+  if (row.project_path) session.projectPath = row.project_path
   if (row.title) session.title = row.title
   return session
 }
@@ -801,6 +970,7 @@ function rowToApiCall(row: UsageApiCallRow): TokenUsageApiCall {
   if (rootSessionId !== row.session_id || row.parent_session_id)
     apiCall.rootSessionId = rootSessionId
   if (row.sub_agent_name) apiCall.subAgentName = row.sub_agent_name
+  if (row.project_path) apiCall.projectPath = row.project_path
   if (row.role) apiCall.role = row.role
   return apiCall
 }

@@ -9,8 +9,16 @@
  *   - monthly：from=2020-01, to=2099-12（注意是 7 位 yyyy-MM）
  *   - overview / agent / modelAgents：from/to 可选（null 表示不限）
  */
-import { app, BrowserWindow, ipcMain, shell, type IpcMainInvokeEvent } from 'electron'
-import type { ScanOptions } from '../../shared/models'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  shell,
+  type IpcMainInvokeEvent,
+  type OpenDialogOptions,
+} from 'electron'
+import type { CloseBehavior, ScanOptions } from '../../shared/models'
 import type { TokenPlanCredentialInput, TokenPlanProviderId } from '../../shared/token-plan'
 import type { DiagnosticErrorPayload, DiagnosticUploadOptions } from '../../shared/diagnostics'
 import type { CustomMessageEvent, CustomMessagePlacement } from '../../shared/custom-message'
@@ -66,6 +74,21 @@ import {
   getUserUsageSessionsPage,
 } from '../services/stats.service'
 import { checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater.service'
+import {
+  getProjectUsageDetail,
+  getProjectUsageOverview,
+  listTrackedProjects,
+  removeTrackedProject,
+  saveTrackedProject,
+  updateTrackedProject,
+} from '../services/project.service'
+import {
+  getCloseBehavior,
+  resolveMainWindowClose,
+  setCloseBehavior,
+  setTrayLanguage,
+  type CloseDecision,
+} from '../services/tray.service'
 import {
   listTokenPlanCredentials,
   queryAllTokenPlanUsage,
@@ -123,6 +146,9 @@ export interface UsageSessionsParams extends RangeParams, PaginationParams {
   agent?: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
+  query?: string
 }
 
 export interface UsageApiCallsParams {
@@ -130,6 +156,8 @@ export interface UsageApiCallsParams {
   sessionId: string
   model?: string
   rootSessionId?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
   from?: string
   to?: string
 }
@@ -139,6 +167,8 @@ export interface UsageApiRecordsParams extends RangeParams, PaginationParams {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
 }
 
 export interface HourlyUsageParams {
@@ -366,6 +396,73 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
     }),
   )
 
+  ipcMain.handle(
+    IPC.PROJECTS_LIST,
+    wrapHandler(() => listTrackedProjects()),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_SELECT_DIRECTORY,
+    wrapHandler(async () => {
+      const owner = windowGetter()
+      const options: OpenDialogOptions = { properties: ['openDirectory'] }
+      const result = owner
+        ? await dialog.showOpenDialog(owner, options)
+        : await dialog.showOpenDialog(options)
+      return result.canceled ? null : result.filePaths[0] || null
+    }),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_SAVE,
+    wrapHandler((_event, input?: { name?: string; path?: string }) =>
+      saveTrackedProject(input?.name ?? '', input?.path ?? ''),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_UPDATE,
+    wrapHandler((_event, input?: { projectId?: string; name?: string; path?: string }) =>
+      updateTrackedProject(input?.projectId ?? '', input?.name ?? '', input?.path ?? ''),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_REMOVE,
+    wrapHandler((_event, projectId?: string) => removeTrackedProject(projectId ?? '')),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_OVERVIEW,
+    wrapHandler((_event, params?: RangeParams) =>
+      getProjectUsageOverview(params?.from, params?.to),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_DETAIL,
+    wrapHandler((_event, params?: RangeParams & { projectId?: string }) =>
+      getProjectUsageDetail(params?.projectId ?? '', params?.from, params?.to),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.TRAY_RESOLVE_CLOSE,
+    wrapHandler((_event, input?: { decision?: CloseDecision; remember?: boolean }) =>
+      resolveMainWindowClose(input?.decision ?? 'cancel', input?.remember === true),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.TRAY_GET_CLOSE_BEHAVIOR,
+    wrapHandler(() => getCloseBehavior()),
+  )
+
+  ipcMain.handle(
+    IPC.TRAY_SET_CLOSE_BEHAVIOR,
+    wrapHandler((_event, behavior?: CloseBehavior) => setCloseBehavior(behavior as CloseBehavior)),
+  )
+
   // 在系统默认浏览器打开外部 URL
   ipcMain.handle(
     IPC.APP_OPEN_EXTERNAL,
@@ -404,6 +501,11 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   ipcMain.handle(
     IPC.APP_GET_REQUEST_IDENTITY,
     wrapHandler(async () => ensureAgentClientRegistered(await getAccessToken())),
+  )
+
+  ipcMain.handle(
+    IPC.APP_SET_LANGUAGE,
+    wrapHandler((_event, language?: string) => setTrayLanguage(language ?? '')),
   )
 
   ipcMain.handle(

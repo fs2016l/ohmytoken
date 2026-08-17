@@ -36,6 +36,19 @@ export const IPC = {
   STATS_HOURLY: 'stats:hourly',
   /** 分钟级可缩放趋势 → stats.service.getUsageTrendStats */
   STATS_USAGE_TREND: 'stats:usageTrend',
+  PROJECTS_LIST: 'projects:list',
+  PROJECTS_SELECT_DIRECTORY: 'projects:selectDirectory',
+  PROJECTS_SAVE: 'projects:save',
+  PROJECTS_UPDATE: 'projects:update',
+  PROJECTS_REMOVE: 'projects:remove',
+  PROJECTS_OVERVIEW: 'projects:overview',
+  PROJECTS_DETAIL: 'projects:detail',
+  TRAY_CLOSE_REQUESTED: 'tray:closeRequested',
+  TRAY_RESOLVE_CLOSE: 'tray:resolveClose',
+  TRAY_GET_CLOSE_BEHAVIOR: 'tray:getCloseBehavior',
+  TRAY_SET_CLOSE_BEHAVIOR: 'tray:setCloseBehavior',
+  TRAY_CLOSE_BEHAVIOR_CHANGED: 'tray:closeBehaviorChanged',
+  TRAY_CHECK_UPDATE_REQUESTED: 'tray:checkUpdateRequested',
   /** shell.openExternal —— 外部链接转系统浏览器 */
   APP_OPEN_EXTERNAL: 'app:openExternal',
   /** 获取 ohmytokencom 后端 baseURL（供 renderer axios） */
@@ -46,6 +59,7 @@ export const IPC = {
   APP_GET_VERSION: 'app:getVersion',
   APP_GET_DEVICE_ID: 'app:getDeviceId',
   APP_GET_REQUEST_IDENTITY: 'app:getRequestIdentity',
+  APP_SET_LANGUAGE: 'app:setLanguage',
   TOKEN_PLAN_CREDENTIALS_LIST: 'token-plan:credentials:list',
   /** 加密保存一家厂商的套餐 API Key */
   TOKEN_PLAN_CREDENTIAL_SAVE: 'token-plan:credential:save',
@@ -61,6 +75,8 @@ export const IPC = {
   FLOATING_WINDOW_CLOSE: 'floating-window:close',
   /** 查询 Token 会话悬浮窗是否可见 */
   FLOATING_WINDOW_IS_VISIBLE: 'floating-window:isVisible',
+  /** Token 会话悬浮窗显隐变化（主进程 → renderer） */
+  FLOATING_WINDOW_VISIBILITY_CHANGED: 'floating-window:visibilityChanged',
   /** 查询 Token 会话悬浮窗是否保持在所有窗口最前面 */
   FLOATING_WINDOW_GET_ALWAYS_ON_TOP: 'floating-window:getAlwaysOnTop',
   /** 设置 Token 会话悬浮窗是否保持在所有窗口最前面 */

@@ -21,6 +21,7 @@ const preferenceChannel =
 function syncLang(lang: Lang): void {
   if (currentLang.value !== lang) currentLang.value = lang
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+  void window.api.setAppLanguage(lang).catch(() => undefined)
 }
 
 syncLang(currentLang.value)

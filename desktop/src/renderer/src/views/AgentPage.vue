@@ -10,6 +10,8 @@ import AgentPiePanel from '../components/agent/AgentPiePanel.vue'
 import AgentTrendPanel from '../components/agent/AgentTrendPanel.vue'
 import ModelPiePanel from '../components/agent/ModelPiePanel.vue'
 import ModelTrendPanel from '../components/agent/ModelTrendPanel.vue'
+import ProjectPiePanel from '../components/agent/ProjectPiePanel.vue'
+import ProjectTrendPanel from '../components/agent/ProjectTrendPanel.vue'
 import ModelTable from '../components/agent/ModelTable.vue'
 import DetailModal from '../components/agent/DetailModal.vue'
 import PageIntro from '../components/base/PageIntro.vue'
@@ -24,6 +26,7 @@ const {
   hourlyAgentStats,
   hourlyModelStats,
   modelStats,
+  projectOverview,
   isScanning,
   scanResult,
   lastScanTime,
@@ -38,11 +41,16 @@ const {
   agentModelData,
   selectedModel,
   modelAgentData,
+  selectedProjectId,
+  selectedProjectName,
+  projectDetailDimension,
+  projectDetailData,
   isLoadingDetail,
   detailLevel,
   sessionRows,
   apiCallRows,
   selectedSessionId,
+  sessionSearchQuery,
   detailPage,
   detailPageSize,
   detailTotal,
@@ -57,10 +65,14 @@ const {
   singleDayRange,
   modelColor,
   refreshAll,
+  refreshProjects,
   performScan,
   setQuickRange,
   showAgentDetail,
   showModelDetail,
+  showProjectDetail,
+  setProjectDetailDimension,
+  showSessionsForProjectDimension,
   showSessionsForAgentModel,
   showSessionsForModelAgent,
   showApiCallsForSession,
@@ -70,6 +82,7 @@ const {
   showApiRecordsForCurrentSelection,
   changeDetailPage,
   changeDetailPageSize,
+  setSessionSearchQuery,
   backToDetailSummary,
   backToSessionList,
   closeModal,
@@ -155,6 +168,19 @@ onUnmounted(() => {
       />
     </section>
 
+    <section class="chart-grid project-charts">
+      <ProjectPiePanel
+        :overview="projectOverview"
+        @open-project="showProjectDetail"
+        @projects-changed="refreshProjects"
+        @show-all-user-sessions="
+          () => showAllUserSessions('project', { trackedProjectsOnly: true })
+        "
+        @show-all-api-records="() => showAllApiRecords('project', { trackedProjectsOnly: true })"
+      />
+      <ProjectTrendPanel :overview="projectOverview" :single-day-range="singleDayRange" />
+    </section>
+
     <ModelTable
       v-model:model-filter="modelFilter"
       :models="filteredModels"
@@ -170,22 +196,30 @@ onUnmounted(() => {
     :selected-model="selectedModel"
     :agent-model-data="agentModelData"
     :model-agent-data="modelAgentData"
+    :selected-project-id="selectedProjectId"
+    :selected-project-name="selectedProjectName"
+    :project-detail-dimension="projectDetailDimension"
+    :project-detail-data="projectDetailData"
     :loading="isLoadingDetail"
     :detail-level="detailLevel"
     :session-rows="sessionRows"
     :api-call-rows="apiCallRows"
     :selected-session-id="selectedSessionId"
+    :session-search-query="sessionSearchQuery"
     :detail-page="detailPage"
     :detail-page-size="detailPageSize"
     :detail-total="detailTotal"
     :model-color="modelColor"
     @show-sessions-for-agent-model="showSessionsForAgentModel"
     @show-sessions-for-model-agent="showSessionsForModelAgent"
+    @set-project-detail-dimension="setProjectDetailDimension"
+    @show-sessions-for-project-dimension="showSessionsForProjectDimension"
     @show-api-calls-for-session="showApiCallsForSession"
     @show-filtered-user-sessions="showUserSessionsForCurrentSelection"
     @show-filtered-api-records="showApiRecordsForCurrentSelection"
     @change-detail-page="changeDetailPage"
     @change-detail-page-size="changeDetailPageSize"
+    @update-session-search="setSessionSearchQuery"
     @back-to-detail-summary="backToDetailSummary"
     @back-to-session-list="backToSessionList"
     @close="closeModal"

@@ -37,6 +37,7 @@ import {
   timestampsFromValue,
 } from './detail-utils'
 import { isIncrementalContext, normalizeScanContext } from './incremental-utils'
+import { normalizeCollectedProjectPath } from './project-path'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -177,6 +178,9 @@ export class OpenCodeScanner implements AgentScanner {
         const rootSessionId = resolveRootSessionId(sessionId, parentBySessionId)
         const subAgentName = subAgentColumn ? dbString(row[subAgentColumn]) : ''
         const title = hasTitle && typeof row.title === 'string' ? row.title.trim() : ''
+        const projectPath = hasDirectory
+          ? normalizeCollectedProjectPath(dbString(row.directory))
+          : undefined
 
         const session: TokenUsageSession = {
           agent: this.agentName,
@@ -199,6 +203,7 @@ export class OpenCodeScanner implements AgentScanner {
         if (parentSessionId) session.parentSessionId = parentSessionId
         if (rootSessionId !== sessionId || parentSessionId) session.rootSessionId = rootSessionId
         if (subAgentName) session.subAgentName = subAgentName
+        if (projectPath) session.projectPath = projectPath
         if (title) session.title = title
         sessions.push(session)
       }
@@ -225,6 +230,7 @@ export class OpenCodeScanner implements AgentScanner {
         if (meta.parentSessionId) session.parentSessionId = meta.parentSessionId
         if (meta.rootSessionId) session.rootSessionId = meta.rootSessionId
         if (meta.subAgentName) session.subAgentName = meta.subAgentName
+        if (meta.projectPath) session.projectPath = meta.projectPath
         if (meta.title) session.title = meta.title
       }
       // 全量扫描保留无 API 明细的会话元数据；增量批次只返回窗口内实际受影响的会话，
@@ -409,6 +415,7 @@ export class OpenCodeScanner implements AgentScanner {
       apiCall.rootSessionId = rootSessionId
     }
     if (session?.subAgentName) apiCall.subAgentName = session.subAgentName
+    if (session?.projectPath) apiCall.projectPath = session.projectPath
     if (role) apiCall.role = role
     return apiCall
   }

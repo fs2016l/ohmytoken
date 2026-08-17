@@ -1,6 +1,6 @@
 {
   "name": "ohmytoken",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "本地 AI Agent Token 用量观测桌面应用",
   "main": "./out/main/index.js",
   "author": "fs2016l",
@@ -34,6 +34,7 @@
     "dompurify": "^3.4.12",
     "electron-updater": "^6.8.9",
     "marked": "^18.0.5",
+    "proper-lockfile": "^4.1.2",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
@@ -41,6 +42,7 @@
     "@eslint/js": "^9.39.4",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.9.0",
+    "@types/proper-lockfile": "^4.1.4",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/eslint-config-typescript": "^14.9.0",
     "@vuepic/vue-datepicker": "^14.0.0",

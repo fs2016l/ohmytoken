@@ -12,6 +12,8 @@ import type {
   MonthlyStats,
   Overview,
   PageResult,
+  ProjectUsageDetail,
+  ProjectUsageOverview,
   ScanMode,
   ScanResult,
   TokenUsageApiCall,
@@ -21,9 +23,18 @@ import type {
 type ApiResponse<T> = { data: T }
 export type ModelFilter = 'all' | 'with-data'
 export type QuickRange = 'today' | 'week' | 'month' | 'all'
-export type ModalMode = 'agent' | 'model'
+export type ModalMode = 'agent' | 'model' | 'project'
 export type DetailLevel = 'summary' | 'sessions' | 'apiCalls'
-type ActiveDetailFilter = { agent?: string; model?: string; from?: string; to?: string }
+export type ProjectDetailDimension = 'model' | 'agent'
+type ActiveDetailFilter = {
+  agent?: string
+  model?: string
+  projectId?: string
+  trackedProjectsOnly?: boolean
+  query?: string
+  from?: string
+  to?: string
+}
 
 function normalizeOverview(data: Overview | null | undefined): Overview | null {
   return data ?? null
@@ -77,6 +88,7 @@ export function useAgentStats() {
   const hourlyModelStats = ref<HourlyUsageStats[]>([])
   const monthlyStats = ref<MonthlyStats[]>([])
   const modelStats = ref<ModelStats[]>([])
+  const projectOverview = ref<ProjectUsageOverview>({ projects: [], daily: [], hourly: [] })
   const fixedDaily = ref<DailyStats[]>([])
   const isScanning = ref(false)
   const scanResult = ref<ScanResult | null>(null)
@@ -95,12 +107,18 @@ export function useAgentStats() {
   const agentModelData = ref<AgentModelStats[]>([])
   const selectedModel = ref('')
   const modelAgentData = ref<ModelAgentStats[]>([])
+  const selectedProjectId = ref('')
+  const selectedProjectName = ref('')
+  const projectDetailDimension = ref<ProjectDetailDimension>('model')
+  const projectDetailData = ref<ProjectUsageDetail>({ byModel: [], byAgent: [] })
   const isLoadingDetail = ref(false)
   const detailLevel = ref<DetailLevel>('summary')
   const sessionRows = ref<TokenUsageUserSession[]>([])
   const apiCallRows = ref<TokenUsageApiCall[]>([])
   const selectedSessionId = ref('')
   const activeDetailFilter = ref<ActiveDetailFilter>({})
+  const sessionSearchQuery = ref('')
+  let searchTimer: number | null = null
   const sessionPage = ref(1)
   const sessionPageSize = ref(20)
   const sessionTotal = ref(0)
@@ -172,9 +190,12 @@ export function useAgentStats() {
       .map((model) => model.model),
   )
 
-  const hourlyTrendDate = computed<string | null>(() =>
-    findOnlyUsageDate([dailyStats.value, dailyModelStats.value]),
-  )
+  const hourlyTrendDate = computed<string | null>(() => {
+    const from = dateFrom.value.replace(/\//g, '-')
+    const to = dateTo.value.replace(/\//g, '-')
+    if (from && from === to) return from
+    return findOnlyUsageDate([dailyStats.value, dailyModelStats.value])
+  })
 
   const singleDayRange = computed(() => hourlyTrendDate.value !== null)
 
@@ -198,6 +219,11 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
+    if (searchTimer !== null) {
+      window.clearTimeout(searchTimer)
+      searchTimer = null
+    }
     activeDetailFilter.value = {}
     sessionPage.value = 1
     sessionTotal.value = 0
@@ -233,12 +259,26 @@ export function useAgentStats() {
     }
   }
 
+  function setSessionSearchQuery(value: string): void {
+    sessionSearchQuery.value = value
+    const { query: _previousQuery, ...baseFilter } = activeDetailFilter.value
+    const query = value.trim()
+    activeDetailFilter.value = query ? { ...baseFilter, query } : baseFilter
+    sessionPage.value = 1
+    if (searchTimer !== null) window.clearTimeout(searchTimer)
+    searchTimer = window.setTimeout(() => {
+      searchTimer = null
+      void loadSessionPage(activeDetailFilter.value)
+    }, 250)
+  }
+
   function currentApiFilter(): ActiveDetailFilter & {
     rootSessionId?: string
   } {
-    if (!selectedSessionId.value) return activeDetailFilter.value
+    const { query: _query, ...filter } = activeDetailFilter.value
+    if (!selectedSessionId.value) return filter
     return {
-      ...activeDetailFilter.value,
+      ...filter,
       agent: selectedAgent.value,
       rootSessionId: selectedSessionId.value,
     }
@@ -371,6 +411,19 @@ export function useAgentStats() {
     }
   }
 
+  async function fetchProjectStats(): Promise<void> {
+    try {
+      projectOverview.value = await window.api.getProjectUsageOverview(getDateParams())
+    } catch (error) {
+      console.error('Failed to fetch project stats:', error)
+      projectOverview.value = { projects: [], daily: [], hourly: [] }
+    }
+  }
+
+  async function refreshProjects(): Promise<void> {
+    await fetchProjectStats()
+  }
+
   async function fetchFixedData(): Promise<void> {
     try {
       const res = (await api.get('/stats/daily')) as ApiResponse<DailyStats[]>
@@ -389,6 +442,7 @@ export function useAgentStats() {
       dailyStatsReady.then(() => fetchHourlyStats()),
       fetchMonthlyStats(),
       fetchModelStats(),
+      fetchProjectStats(),
       fetchFixedData(),
       fetchComparisons(),
     ])
@@ -452,6 +506,8 @@ export function useAgentStats() {
     selectedAgent.value = agent
     selectedAgentName.value = getAgentName(agent)
     selectedModel.value = ''
+    selectedProjectId.value = ''
+    selectedProjectName.value = ''
     showModal.value = true
     isLoadingDetail.value = true
     agentModelData.value = []
@@ -474,6 +530,8 @@ export function useAgentStats() {
     selectedAgent.value = ''
     selectedAgentName.value = ''
     selectedModel.value = model
+    selectedProjectId.value = ''
+    selectedProjectName.value = ''
     showModal.value = true
     isLoadingDetail.value = true
     agentModelData.value = []
@@ -492,6 +550,69 @@ export function useAgentStats() {
     }
   }
 
+  async function showProjectDetail(projectId: string): Promise<void> {
+    const project = projectOverview.value.projects.find((item) => item.projectId === projectId)
+    if (!project) return
+    modalMode.value = 'project'
+    selectedAgent.value = ''
+    selectedAgentName.value = ''
+    selectedModel.value = ''
+    selectedProjectId.value = projectId
+    selectedProjectName.value = project.name
+    projectDetailDimension.value = 'model'
+    showModal.value = true
+    isLoadingDetail.value = true
+    agentModelData.value = []
+    modelAgentData.value = []
+    projectDetailData.value = { byModel: [], byAgent: [] }
+    resetDrilldownRows()
+    try {
+      projectDetailData.value = await window.api.getProjectUsageDetail({
+        projectId,
+        ...getDateParams(),
+      })
+    } catch (error) {
+      console.error('Failed to fetch project detail:', error)
+    } finally {
+      isLoadingDetail.value = false
+    }
+  }
+
+  function setProjectDetailDimension(dimension: ProjectDetailDimension): void {
+    projectDetailDimension.value = dimension
+    detailLevel.value = 'summary'
+    sessionRows.value = []
+    apiCallRows.value = []
+    selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
+    activeDetailFilter.value = {}
+  }
+
+  async function showSessionsForProjectDimension(
+    dimension: ProjectDetailDimension,
+    value: string,
+  ): Promise<void> {
+    if (!selectedProjectId.value) return
+    modalMode.value = 'project'
+    projectDetailDimension.value = dimension
+    selectedAgent.value = dimension === 'agent' ? value : ''
+    selectedAgentName.value = dimension === 'agent' ? getAgentName(value) : ''
+    selectedModel.value = dimension === 'model' ? value : ''
+    detailLevel.value = 'sessions'
+    sessionPage.value = 1
+    sessionTotal.value = 0
+    sessionRows.value = []
+    apiCallRows.value = []
+    selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
+    const filter = setActiveDetailFilter({
+      projectId: selectedProjectId.value,
+      ...(dimension === 'agent' ? { agent: value } : { model: value }),
+      ...getDateParams(),
+    })
+    await loadSessionPage(filter)
+  }
+
   async function showSessionsForAgentModel(agent: string, model: string): Promise<void> {
     modalMode.value = 'agent'
     selectedAgent.value = agent
@@ -503,6 +624,7 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
     const filter = setActiveDetailFilter({ agent, model, ...getDateParams() })
     await loadSessionPage(filter)
   }
@@ -518,6 +640,7 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
     const filter = setActiveDetailFilter({ agent, model, ...getDateParams() })
     await loadSessionPage(filter)
   }
@@ -535,14 +658,20 @@ export function useAgentStats() {
 
   async function showAllUserSessions(
     mode: ModalMode,
-    scope: Pick<ActiveDetailFilter, 'agent' | 'model'> = {},
+    scope: Pick<ActiveDetailFilter, 'agent' | 'model' | 'projectId' | 'trackedProjectsOnly'> = {},
   ): Promise<void> {
     const agent = scope.agent?.trim() || ''
     const model = scope.model?.trim() || ''
+    const projectId = scope.projectId?.trim() || ''
+    const trackedProjectsOnly = scope.trackedProjectsOnly === true
     modalMode.value = mode
     selectedAgent.value = agent
     selectedAgentName.value = agent ? getAgentName(agent) : ''
     selectedModel.value = model
+    if (mode !== 'project' || !projectId) {
+      selectedProjectId.value = ''
+      selectedProjectName.value = ''
+    }
     showModal.value = true
     detailLevel.value = 'sessions'
     sessionPage.value = 1
@@ -554,24 +683,33 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
     const filter = setActiveDetailFilter({
       ...getDateParams(),
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(trackedProjectsOnly ? { trackedProjectsOnly: true } : {}),
     })
     await loadSessionPage(filter)
   }
 
   async function showAllApiRecords(
     mode: ModalMode,
-    scope: Pick<ActiveDetailFilter, 'agent' | 'model'> = {},
+    scope: Pick<ActiveDetailFilter, 'agent' | 'model' | 'projectId' | 'trackedProjectsOnly'> = {},
   ): Promise<void> {
     const agent = scope.agent?.trim() || ''
     const model = scope.model?.trim() || ''
+    const projectId = scope.projectId?.trim() || ''
+    const trackedProjectsOnly = scope.trackedProjectsOnly === true
     modalMode.value = mode
     selectedAgent.value = agent
     selectedAgentName.value = agent ? getAgentName(agent) : ''
     selectedModel.value = model
+    if (mode !== 'project' || !projectId) {
+      selectedProjectId.value = ''
+      selectedProjectName.value = ''
+    }
     showModal.value = true
     detailLevel.value = 'apiCalls'
     apiPage.value = 1
@@ -583,23 +721,34 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    sessionSearchQuery.value = ''
     setActiveDetailFilter({
       ...getDateParams(),
       ...(agent ? { agent } : {}),
       ...(model ? { model } : {}),
+      ...(projectId ? { projectId } : {}),
+      ...(trackedProjectsOnly ? { trackedProjectsOnly: true } : {}),
     })
     await loadApiPage()
   }
 
   async function showUserSessionsForCurrentSelection(): Promise<void> {
     const scope =
-      modalMode.value === 'agent' ? { agent: selectedAgent.value } : { model: selectedModel.value }
+      modalMode.value === 'agent'
+        ? { agent: selectedAgent.value }
+        : modalMode.value === 'model'
+          ? { model: selectedModel.value }
+          : { projectId: selectedProjectId.value }
     await showAllUserSessions(modalMode.value, scope)
   }
 
   async function showApiRecordsForCurrentSelection(): Promise<void> {
     const scope =
-      modalMode.value === 'agent' ? { agent: selectedAgent.value } : { model: selectedModel.value }
+      modalMode.value === 'agent'
+        ? { agent: selectedAgent.value }
+        : modalMode.value === 'model'
+          ? { model: selectedModel.value }
+          : { projectId: selectedProjectId.value }
     await showAllApiRecords(modalMode.value, scope)
   }
 
@@ -634,11 +783,20 @@ export function useAgentStats() {
     sessionRows.value = []
     apiCallRows.value = []
     selectedSessionId.value = ''
+    if (searchTimer !== null) {
+      window.clearTimeout(searchTimer)
+      searchTimer = null
+    }
+    sessionSearchQuery.value = ''
     if (modalMode.value === 'agent') {
       selectedModel.value = ''
+    } else if (modalMode.value === 'model') {
+      selectedAgent.value = ''
+      selectedAgentName.value = ''
     } else {
       selectedAgent.value = ''
       selectedAgentName.value = ''
+      selectedModel.value = ''
     }
     activeDetailFilter.value = {}
   }
@@ -660,6 +818,9 @@ export function useAgentStats() {
     agentModelData.value = []
     selectedModel.value = ''
     modelAgentData.value = []
+    selectedProjectId.value = ''
+    selectedProjectName.value = ''
+    projectDetailData.value = { byModel: [], byAgent: [] }
     resetDrilldownRows()
   }
 
@@ -678,6 +839,7 @@ export function useAgentStats() {
     hourlyModelStats,
     monthlyStats,
     modelStats,
+    projectOverview,
     fixedDaily,
     isScanning,
     scanResult,
@@ -693,12 +855,17 @@ export function useAgentStats() {
     agentModelData,
     selectedModel,
     modelAgentData,
+    selectedProjectId,
+    selectedProjectName,
+    projectDetailDimension,
+    projectDetailData,
     isLoadingDetail,
     detailLevel,
     sessionRows,
     apiCallRows,
     selectedSessionId,
     activeDetailFilter,
+    sessionSearchQuery,
     detailPage,
     detailPageSize,
     detailTotal,
@@ -718,10 +885,14 @@ export function useAgentStats() {
     modelAgents,
     getDateParams,
     refreshAll,
+    refreshProjects,
     performScan,
     setQuickRange,
     showAgentDetail,
     showModelDetail,
+    showProjectDetail,
+    setProjectDetailDimension,
+    showSessionsForProjectDimension,
     showSessionsForAgentModel,
     showSessionsForModelAgent,
     showApiCallsForSession,
@@ -731,6 +902,7 @@ export function useAgentStats() {
     showApiRecordsForCurrentSelection,
     changeDetailPage,
     changeDetailPageSize,
+    setSessionSearchQuery,
     backToDetailSummary,
     backToSessionList,
     closeModal,

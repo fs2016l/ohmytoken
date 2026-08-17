@@ -17,6 +17,7 @@ import {
   timestampsFromValue,
 } from './detail-utils'
 import { isIncrementalContext, normalizeScanContext } from './incremental-utils'
+import { normalizeCollectedProjectPath } from './project-path'
 import {
   parseJsonObject,
   parseZCodeModel,
@@ -103,6 +104,7 @@ export class ZCodeScanner implements AgentScanner {
         if (!meta) continue
         if (meta.parentSessionId) session.parentSessionId = meta.parentSessionId
         if (meta.rootSessionId) session.rootSessionId = meta.rootSessionId
+        if (meta.projectPath) session.projectPath = meta.projectPath
         if (meta.title) session.title = meta.title
       }
 
@@ -233,6 +235,7 @@ export class ZCodeScanner implements AgentScanner {
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
       ...(subAgentName ? { subAgentName } : {}),
+      ...(session?.projectPath ? { projectPath: session.projectPath } : {}),
       ...(querySource ? { role: querySource } : {}),
       date: dateFromTimestamp(timestamp, fallbackDate),
       rawTimestamp,
@@ -339,6 +342,7 @@ export class ZCodeScanner implements AgentScanner {
       sessionId,
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
+      ...(session?.projectPath ? { projectPath: session.projectPath } : {}),
       role: 'assistant',
       date: dateFromTimestamp(timestamp, fallbackDate),
       rawTimestamp,
@@ -362,10 +366,18 @@ export class ZCodeScanner implements AgentScanner {
 function readSessionMetadata(db: Database.Database, agent: string): Map<string, TokenUsageSession> {
   const columns = tableColumns(db, 'session')
   if (!columns || !columns.has('id')) return new Map()
+  const projectPathColumn = [
+    'directory',
+    'cwd',
+    'workspace_path',
+    'workspace',
+    'project_path',
+  ].find((column) => columns.has(column))
 
   const selectColumns = [
     'id',
     ...optionalColumns(columns, ['parent_id', 'title', 'model', 'time_created', 'time_updated']),
+    ...(projectPathColumn ? [projectPathColumn] : []),
   ]
   const rows = queryAll(db, `SELECT ${selectColumns.join(', ')} FROM session`)
   const parentBySessionId = new Map<string, string>()
@@ -387,6 +399,9 @@ function readSessionMetadata(db: Database.Database, agent: string): Map<string, 
     const parentSessionId = parentBySessionId.get(sessionId) ?? ''
     const rootSessionId = resolveRootSessionId(sessionId, parentBySessionId)
     const title = dbString(row.title)
+    const projectPath = projectPathColumn
+      ? normalizeCollectedProjectPath(dbString(row[projectPathColumn]))
+      : undefined
 
     result.set(sessionId, {
       agent,
@@ -394,6 +409,7 @@ function readSessionMetadata(db: Database.Database, agent: string): Map<string, 
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
       ...(title ? { title } : {}),
+      ...(projectPath ? { projectPath } : {}),
       date,
       startedAt,
       endedAt,

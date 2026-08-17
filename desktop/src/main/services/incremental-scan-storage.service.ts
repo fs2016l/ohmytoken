@@ -26,6 +26,7 @@ interface AggregateRow {
   parent_session_id: string | null
   root_session_id: string | null
   sub_agent_name: string | null
+  project_path: string | null
   started_at: string
   ended_at: string
   started_at_ms: number | null
@@ -44,6 +45,7 @@ interface StoredSessionMetaRow {
   parent_session_id: string | null
   root_session_id: string | null
   sub_agent_name: string | null
+  project_path: string | null
 }
 
 export interface AgentScanPlan {
@@ -201,28 +203,38 @@ export function persistAgentScan(
 function inheritStoredRootRelations(agent: string, details: ScannerUsageDetails): void {
   const db = openDatabase()
   const findRoot = db.prepare(`
-    SELECT COALESCE(NULLIF(root_session_id, ''), session_id) AS root_session_id
+    SELECT
+      COALESCE(NULLIF(root_session_id, ''), session_id) AS root_session_id,
+      NULLIF(project_path, '') AS project_path
     FROM usage_sessions
     WHERE agent = ? AND session_id = ?
     ORDER BY ended_at_ms DESC, started_at_ms DESC, ended_at DESC
     LIMIT 1
   `)
-  const rootCache = new Map<string, string>()
-  const storedRoot = (sessionId: string): string => {
-    if (rootCache.has(sessionId)) return rootCache.get(sessionId) || ''
-    const row = findRoot.get(agent, sessionId) as { root_session_id?: string } | undefined
-    const rootSessionId = row?.root_session_id?.trim() || ''
-    rootCache.set(sessionId, rootSessionId)
-    return rootSessionId
+  const metadataCache = new Map<string, { rootSessionId: string; projectPath: string }>()
+  const storedMetadata = (sessionId: string): { rootSessionId: string; projectPath: string } => {
+    const cached = metadataCache.get(sessionId)
+    if (cached) return cached
+    const row = findRoot.get(agent, sessionId) as
+      { root_session_id?: string; project_path?: string } | undefined
+    const metadata = {
+      rootSessionId: row?.root_session_id?.trim() || '',
+      projectPath: row?.project_path?.trim() || '',
+    }
+    metadataCache.set(sessionId, metadata)
+    return metadata
   }
 
   for (const item of [...details.apiCalls, ...details.sessions]) {
     const parentSessionId = item.parentSessionId?.trim()
     if (!parentSessionId) continue
-    const parentRoot = storedRoot(parentSessionId)
-    const existingRoot = storedRoot(item.sessionId)
-    const resolvedRoot = parentRoot || existingRoot
+    const parentMeta = storedMetadata(parentSessionId)
+    const existingMeta = storedMetadata(item.sessionId)
+    const resolvedRoot = parentMeta.rootSessionId || existingMeta.rootSessionId
     if (resolvedRoot && resolvedRoot !== item.sessionId) item.rootSessionId = resolvedRoot
+    if (!item.projectPath) {
+      item.projectPath = parentMeta.projectPath || existingMeta.projectPath || undefined
+    }
   }
 }
 
@@ -234,7 +246,7 @@ function collectStoredMetadata(
   if (rows.length === 0) return
   const db = openDatabase()
   const get = db.prepare(
-    `SELECT title, parent_session_id, root_session_id, sub_agent_name
+    `SELECT title, parent_session_id, root_session_id, sub_agent_name, project_path
      FROM usage_sessions
      WHERE agent = ? AND session_id = ? AND date = ? AND model = ?`,
   )
@@ -268,6 +280,7 @@ function rebuildSessions(
        MAX(NULLIF(parent_session_id, '')) AS parent_session_id,
        MAX(COALESCE(NULLIF(root_session_id, ''), session_id)) AS root_session_id,
        MAX(NULLIF(sub_agent_name, '')) AS sub_agent_name,
+       MAX(NULLIF(project_path, '')) AS project_path,
        MIN(timestamp) AS started_at,
        MAX(timestamp) AS ended_at,
        MIN(CASE WHEN event_timestamp_ms > 0 THEN event_timestamp_ms END) AS started_at_ms,
@@ -296,12 +309,14 @@ function rebuildSessions(
     const rootSessionId =
       fresh?.rootSessionId ?? row.root_session_id ?? old?.root_session_id ?? sessionId
     const subAgentName = fresh?.subAgentName ?? row.sub_agent_name ?? old?.sub_agent_name
+    const projectPath = fresh?.projectPath ?? row.project_path ?? old?.project_path
     rebuilt.push({
       agent,
       sessionId,
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
       ...(subAgentName ? { subAgentName } : {}),
+      ...(projectPath ? { projectPath } : {}),
       ...(fresh?.title || old?.title ? { title: fresh?.title || old?.title || undefined } : {}),
       date,
       startedAt:
