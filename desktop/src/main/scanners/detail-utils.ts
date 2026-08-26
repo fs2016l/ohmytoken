@@ -148,6 +148,22 @@ export function buildRecordsFromSessions(
   })
 }
 
+/** 沿 parent 链解析顶层会话；检测到环时退回当前会话，避免错误串联。 */
+export function resolveRootSessionId(
+  sessionId: string,
+  parentBySessionId: ReadonlyMap<string, string>,
+): string {
+  let current = sessionId
+  const seen = new Set<string>()
+  while (true) {
+    if (seen.has(current)) return sessionId
+    seen.add(current)
+    const parent = parentBySessionId.get(current)
+    if (!parent) return current
+    current = parent
+  }
+}
+
 function emptyTotals(): TokenTotals {
   return {
     inputTokens: 0,

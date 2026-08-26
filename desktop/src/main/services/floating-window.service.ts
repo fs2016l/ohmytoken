@@ -37,8 +37,11 @@ let floatingWindow: BrowserWindow | null = null
 let config: FloatingWindowConfig | null = null
 const state = loadState()
 let closingForAppQuit = false
+let reportedVisibility: boolean | null = null
 
 function notifyVisibilityChanged(visible: boolean): void {
+  if (reportedVisibility === visible) return
+  reportedVisibility = visible
   config?.onVisibilityChanged?.(visible)
 }
 
@@ -171,8 +174,15 @@ function createFloatingWindow(): BrowserWindow {
     }
   })
   window.on('closed', () => {
-    floatingWindow = null
+    const wasCurrentWindow = floatingWindow === window
+    if (wasCurrentWindow) floatingWindow = null
+    const preserveForNextLaunch = closingForAppQuit
     closingForAppQuit = false
+    if (wasCurrentWindow && !preserveForNextLaunch) {
+      state.visible = false
+      saveState()
+      notifyVisibilityChanged(false)
+    }
   })
   void loadFloatingRenderer(window).catch((error) => {
     console.error('[floating-window] 页面加载失败:', error)
@@ -216,7 +226,9 @@ export function closeFloatingWindow(): void {
 }
 
 export function isFloatingWindowVisible(): boolean {
-  return !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()
+  return (
+    state.visible && !!floatingWindow && !floatingWindow.isDestroyed() && floatingWindow.isVisible()
+  )
 }
 
 export function isFloatingWindowAlwaysOnTop(): boolean {

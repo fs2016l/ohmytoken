@@ -1,10 +1,4 @@
-/**
- * Z Code Scanner（智谱 GLM Coding Plan）。
- *
- * 新版 Z Code 以 ~/.zcode/cli/db/db.sqlite 的 model_usage 为权威用量表。
- * input_tokens 已包含缓存输入，computed_total_tokens 才是总量口径，不能
- * 再把 cache_read 加一次。全量扫描还会补齐升级前仅存在于 message 的历史记录。
- */
+/** Z Code 扫描器：model_usage 为权威源，全量时补齐尚未迁移的 message 历史。 */
 import { existsSync } from 'fs'
 import Database from 'better-sqlite3'
 import { formatDateFromMs } from '../lib/date-utils'
@@ -14,6 +8,7 @@ import {
   buildSessionsFromApiCalls,
   dateFromTimestamp,
   hourFromTimestamp,
+  resolveRootSessionId,
   timestampsFromValue,
 } from './detail-utils'
 import { isIncrementalContext, normalizeScanContext } from './incremental-utils'
@@ -34,14 +29,10 @@ import type {
   TokenUsageRecord,
   TokenUsageSession,
 } from './types'
+import { normalizeZCodeTokenBuckets } from './zcode-usage'
 
 type DbValue = number | string | bigint | Uint8Array | null | undefined
 type QueryParam = string | number | bigint | null
-
-interface ModelUsageReadResult {
-  apiCalls: TokenUsageApiCall[]
-  referencedMessageIds: Set<string>
-}
 
 export class ZCodeScanner implements AgentScanner {
   readonly agentName = 'zcode'
@@ -81,8 +72,7 @@ export class ZCodeScanner implements AgentScanner {
         )
         apiCalls.push(...modelUsage.apiCalls)
 
-        // 新版增量只读 model_usage。全量额外补齐迁移前没有对应
-        // model_usage 行的历史 assistant message。
+        // 新版增量只读 model_usage；全量补齐尚未迁移的 message 历史。
         if (!isIncrementalContext(scanContext)) {
           apiCalls.push(
             ...this.readMessageApiCalls(
@@ -131,7 +121,7 @@ export class ZCodeScanner implements AgentScanner {
     columns: Set<string>,
     sessionById: ReadonlyMap<string, TokenUsageSession>,
     context: ScannerScanContext,
-  ): ModelUsageReadResult {
+  ) {
     const selectColumns = [
       'id',
       'session_id',
@@ -166,7 +156,11 @@ export class ZCodeScanner implements AgentScanner {
       )
       for (const rawRow of statement.iterate(...params)) {
         const row = rawRow as Record<string, DbValue>
-        const call = this.modelUsageRowToApiCall(row, sessionById)
+        const call = this.modelUsageRowToApiCall(
+          row,
+          sessionById,
+          !columns.has('computed_total_tokens'),
+        )
         if (!call) continue
         byId.set(call.apiCallId, call)
         const messageId = dbString(row.assistant_message_id)
@@ -196,6 +190,7 @@ export class ZCodeScanner implements AgentScanner {
   private modelUsageRowToApiCall(
     row: Record<string, DbValue>,
     sessionById: ReadonlyMap<string, TokenUsageSession>,
+    legacyInclusiveSchema: boolean,
   ): TokenUsageApiCall | null {
     const sourceId =
       dbString(row.id) ||
@@ -211,13 +206,18 @@ export class ZCodeScanner implements AgentScanner {
     const cacheWrite = dbToken(row.cache_creation_input_tokens)
     const computedTotal = dbToken(row.computed_total_tokens)
     const providerTotal = dbToken(row.provider_total_tokens)
-    const total =
-      computedTotal > 0
-        ? computedTotal
-        : providerTotal > 0
-          ? providerTotal
-          : input + output + reasoning
-    if (total <= 0) return null
+    const split = normalizeZCodeTokenBuckets(
+      {
+        inputTokens: input,
+        outputTokens: output,
+        cacheReadTokens: cacheRead,
+        cacheWriteTokens: cacheWrite,
+        reasoningTokens: reasoning,
+      },
+      computedTotal || providerTotal,
+      legacyInclusiveSchema ? 'input-and-output' : 'none',
+    )
+    if (split.totalTokens <= 0) return null
 
     const timestampValue =
       positiveDbValue(row.started_at) ?? positiveDbValue(row.completed_at) ?? null
@@ -242,12 +242,7 @@ export class ZCodeScanner implements AgentScanner {
       timestamp,
       hour: hourFromTimestamp(timestamp),
       model: dbString(row.model_id) || session?.model || 'unknown',
-      inputTokens: input,
-      outputTokens: output,
-      cacheReadTokens: cacheRead,
-      cacheWriteTokens: cacheWrite,
-      totalTokens: total,
-      reasoningTokens: reasoning,
+      ...split,
     }
   }
 
@@ -320,9 +315,19 @@ export class ZCodeScanner implements AgentScanner {
     const cacheRead = readJsonToken(cache, 'read')
     const cacheWrite = readJsonToken(cache, 'write')
     const sourceTotal = readJsonToken(tokens, 'total')
-    // Z Code 的 input 包含 cache 输入；无 total 时不能再加 cache。
-    const total = sourceTotal > 0 ? sourceTotal : input + output + reasoning
-    if (total <= 0) return null
+    const split = normalizeZCodeTokenBuckets(
+      {
+        inputTokens: input,
+        outputTokens: output,
+        cacheReadTokens: cacheRead,
+        cacheWriteTokens: cacheWrite,
+        reasoningTokens: reasoning,
+      },
+      sourceTotal,
+      // 旧 message 采样中 input 包含 cache，而 reasoning 是独立于 output 的字段。
+      'input-only',
+    )
+    if (split.totalTokens <= 0) return null
 
     const sourceId = dbString(row.id)
     const sessionId = dbString(row.session_id) || `zcode-message:${sourceId || 'unknown'}`
@@ -353,12 +358,7 @@ export class ZCodeScanner implements AgentScanner {
         readJsonString(data, 'model') ||
         session?.model ||
         'unknown',
-      inputTokens: input,
-      outputTokens: output,
-      cacheReadTokens: cacheRead,
-      cacheWriteTokens: cacheWrite,
-      totalTokens: total,
-      reasoningTokens: reasoning,
+      ...split,
     }
   }
 }
@@ -491,19 +491,4 @@ function positiveDbValue(value: DbValue): number | string | bigint | null {
   if (typeof value === 'bigint' && value > 0n) return value
   if (typeof value === 'string' && Number.parseInt(value, 10) > 0) return value
   return null
-}
-
-function resolveRootSessionId(
-  sessionId: string,
-  parentBySessionId: ReadonlyMap<string, string>,
-): string {
-  let current = sessionId
-  const seen = new Set<string>()
-  while (true) {
-    if (seen.has(current)) return sessionId
-    seen.add(current)
-    const parent = parentBySessionId.get(current)
-    if (!parent) return current
-    current = parent
-  }
 }

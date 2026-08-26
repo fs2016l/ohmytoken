@@ -5,11 +5,12 @@
  * rollout JSONL 中的 event_msg:token_count。状态库只保存会话级累计值，不能直接
  * 当作 API 明细或日聚合事实源。
  *
- * totalTokens = input + output（cached_input_tokens 已含在 input_tokens 中，不重复加）。
+ * 落库前会把 input/cache 与 output/reasoning 拆成互斥分桶，
+ * totalTokens 始终由五个内部分项求和。
  */
-import { existsSync, readdirSync, readFileSync } from 'fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'fs'
 import { createHash } from 'crypto'
-import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path'
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path'
 import type { Dirent } from 'fs'
 import Database from 'better-sqlite3'
 import type {
@@ -20,9 +21,11 @@ import type {
   TokenUsageSession,
   ScannerScanContext,
 } from './types'
-import { readUtf8Lines } from '../lib/line-reader'
+import { readByteSnippet, readUtf8Lines } from '../lib/line-reader'
+import { timestampEpochMs } from '../lib/date-utils'
 import {
   getCodexArchivedSessionsDir,
+  getCodexCleanupArchiveDir,
   getCodexHomeDir,
   getCodexSessionIndexFile,
   getCodexSessionsDir,
@@ -40,9 +43,11 @@ import {
 import {
   addCodexUsage,
   assertCodexCumulativeMatches,
+  codexUsageSum,
   codexUsageSignature,
   emptyCodexUsage,
   hasTokenUsage,
+  normalizeCodexUsageExclusive,
   readCodexUsage,
   subtractCodexUsage,
   type CodexUsageSnapshot,
@@ -59,6 +64,11 @@ import {
   shouldScanFile,
 } from './incremental-utils'
 import { extractProjectPath } from './project-path'
+import {
+  getSourceStatesByType,
+  type ScanSourceStateRow,
+  type ScanSourceStateUpdate,
+} from '../services/scan-source-state.service'
 
 type DbValue = number | string | bigint | Uint8Array | null
 
@@ -86,8 +96,69 @@ interface ParsedCodexSession extends CodexSessionRelation {
   apiCalls: TokenUsageApiCall[]
 }
 
+interface CodexParserCheckpointState {
+  sessionId: string
+  sessionMetaSeen: boolean
+  copiedSessionMetaSeen: boolean
+  currentModel: string
+  sessionDate: string
+  sessionTitle: string
+  projectPath: string
+  parentSessionId: string
+  forkedFromSessionId: string
+  historyMode: string
+  subAgentHistoryStartOrdinal: number | null
+  subAgentName: string
+  isThreadSpawnSubAgent: boolean
+  subAgentBoundaryApplied: boolean
+  previousAcceptedCumulative: string
+  previousCumulativeSum: number
+  previousCumulative: CodexUsageSnapshot | null
+  completedCumulative: CodexUsageSnapshot
+  acceptedUsage: CodexUsageSnapshot
+  inheritedCumulativeBaseline: CodexUsageSnapshot | null
+  lastEventMs: number
+}
+
+interface CodexParserCheckpoint {
+  offset: number
+  prefix: string
+  state: CodexParserCheckpointState
+}
+
+interface CodexFileCursor {
+  version: 3
+  endOffset: number
+  checkpoints: CodexParserCheckpoint[]
+  smallPrefixHash?: string
+}
+
+interface PendingCursorCommit {
+  sourceId: string
+  filePath: string
+  size: number
+  mtimeMs: number
+  eventWatermarkMs: number
+  cursor: CodexFileCursor
+}
+
+const CODEX_CHECKPOINT_BYTES = 4 * 1024 * 1024
+const CODEX_MAX_CHECKPOINTS = 64
+const CODEX_CHECKPOINT_PREFIX_CHARS = 96
+const CODEX_MAX_LINE_BYTES = 4 * 1024 * 1024
+const CODEX_ROLLOUT_CURSOR_VERSION = 3
+
 export class CodexScanner implements AgentScanner {
   readonly agentName = 'codex'
+
+  private readonly sourceStates = new Map<string, ScanSourceStateRow>()
+  private sourceStatesLoaded: boolean
+  private pendingCursorCommits: PendingCursorCommit[] = []
+
+  constructor(sourceStates?: readonly ScanSourceStateRow[]) {
+    this.sourceStatesLoaded = sourceStates !== undefined
+    for (const state of sourceStates ?? []) this.sourceStates.set(state.source_id, state)
+  }
 
   isAvailable(): boolean {
     return (
@@ -101,51 +172,64 @@ export class CodexScanner implements AgentScanner {
     return (await this.scanDetailed(context)).records
   }
 
+  /** 游标只在用量扫描成功后交给落库事务。 */
+  takeScanStateUpdates(): ScanSourceStateUpdate[] {
+    const commits = this.pendingCursorCommits
+    this.pendingCursorCommits = []
+    return commits.map((commit) => ({
+      agent: this.agentName,
+      source_id: commit.sourceId,
+      source_type: 'codex-rollout',
+      source_scope: '',
+      current_path: commit.filePath,
+      source_size: commit.size,
+      source_mtime_ms: commit.mtimeMs,
+      cursor_offset: commit.cursor.endOffset,
+      cursor_json: JSON.stringify(commit.cursor),
+      fingerprint: '',
+      event_watermark_ms: commit.eventWatermarkMs,
+    }))
+  }
+
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const sessions: TokenUsageSession[] = []
     const apiCalls: TokenUsageApiCall[] = []
+    this.pendingCursorCommits = []
     if (!this.isAvailable()) return { records, sessions, apiCalls }
+
+    if (isIncrementalContext(scanContext) && !this.sourceStatesLoaded) {
+      for (const state of getSourceStatesByType(this.agentName, 'codex-rollout')) {
+        this.sourceStates.set(state.source_id, state)
+      }
+      this.sourceStatesLoaded = true
+    }
 
     const sessionIndexTitles = readSessionIndexTitles()
     const titleBySessionId = new Map<string, string>()
     const relationBySessionId = new Map<string, CodexSessionRelation>()
-    const visitedFiles = new Set<string>()
-    const acceptedSessionIds = new Set<string>()
+    const apiCallById = new Map<string, TokenUsageApiCall>()
+    const acceptedSourceIds = new Set<string>()
 
-    for (const meta of readThreadMetadata(scanContext)) {
-      if (!meta.rolloutPath || !existsSync(meta.rolloutPath)) continue
-      const parsed = this.parseSessionFile(
-        {
-          sessionFile: meta.rolloutPath,
-          rootDir: getCodexHomeDir(),
-          fallbackDate: dateFromThreadMeta(meta),
-          sessionId: meta.sessionId,
-          title: sessionIndexTitles.get(meta.sessionId) || meta.title || '',
-          model: meta.model,
-        },
-        scanContext,
-      )
-      visitedFiles.add(canonicalPath(meta.rolloutPath))
-      if (acceptedSessionIds.has(parsed.sessionId)) continue
-      acceptedSessionIds.add(parsed.sessionId)
-      relationBySessionId.set(parsed.sessionId, parsed)
-      const title = sessionIndexTitles.get(parsed.sessionId) || meta.title || parsed.title
+    for (const parseContext of this.collectRolloutContexts(scanContext)) {
+      const sourceId = codexRolloutSourceId(parseContext.sessionFile, parseContext.sessionId)
+      if (acceptedSourceIds.has(sourceId)) continue
+      acceptedSourceIds.add(sourceId)
+      const parsed = this.parseRolloutWithCursor(parseContext, scanContext)
+      if (!parsed) continue
+      const existingRelation = relationBySessionId.get(parsed.sessionId)
+      relationBySessionId.set(parsed.sessionId, {
+        parentSessionId: parsed.parentSessionId || existingRelation?.parentSessionId,
+        subAgentName: parsed.subAgentName || existingRelation?.subAgentName,
+        isThreadSpawn: parsed.isThreadSpawn || existingRelation?.isThreadSpawn,
+      })
+      const title = sessionIndexTitles.get(parsed.sessionId) || parseContext.title || parsed.title
       if (title) titleBySessionId.set(parsed.sessionId, title)
-      apiCalls.push(...parsed.apiCalls)
+      for (const apiCall of parsed.apiCalls) apiCallById.set(apiCall.apiCallId, apiCall)
     }
 
-    for (const parseContext of this.buildDirectoryFallbackContexts(visitedFiles, scanContext)) {
-      const parsed = this.parseSessionFile(parseContext, scanContext)
-      if (acceptedSessionIds.has(parsed.sessionId)) continue
-      acceptedSessionIds.add(parsed.sessionId)
-      relationBySessionId.set(parsed.sessionId, parsed)
-      const title = sessionIndexTitles.get(parsed.sessionId) || parsed.title
-      if (title) titleBySessionId.set(parsed.sessionId, title)
-      apiCalls.push(...parsed.apiCalls)
-    }
-
+    apiCalls.push(...apiCallById.values())
     applyCodexSessionRelations(apiCalls, relationBySessionId)
     const detailSessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(detailSessions, titleBySessionId)
@@ -155,6 +239,108 @@ export class CodexScanner implements AgentScanner {
     return { records, sessions, apiCalls }
   }
 
+  private collectRolloutContexts(scanContext: ScannerScanContext): ParseContext[] {
+    const contexts: ParseContext[] = []
+    const visitedFiles = new Set<string>()
+
+    for (const meta of readThreadMetadata(scanContext)) {
+      if (!meta.rolloutPath || !existsSync(meta.rolloutPath)) continue
+      const canonical = canonicalPath(meta.rolloutPath)
+      if (visitedFiles.has(canonical)) continue
+      visitedFiles.add(canonical)
+      contexts.push({
+        sessionFile: meta.rolloutPath,
+        rootDir: getCodexHomeDir(),
+        fallbackDate: dateFromThreadMeta(meta),
+        sessionId: meta.sessionId,
+        title: meta.title,
+        model: meta.model,
+      })
+    }
+
+    contexts.push(...this.buildDirectoryFallbackContexts(visitedFiles, scanContext))
+    return selectPreferredCodexRollouts(contexts)
+  }
+
+  private parseRolloutWithCursor(
+    context: ParseContext,
+    scanContext: ScannerScanContext,
+  ): ParsedCodexSession | null {
+    const file = context.sessionFile
+    let fileStat: import('fs').Stats
+    try {
+      fileStat = statSync(file)
+    } catch (error) {
+      throw new Error(`Codex rollout 文件不可读 (${file}): ${(error as Error).message}`)
+    }
+
+    const sourceId = codexRolloutSourceId(file, context.sessionId)
+    const stored = isIncrementalContext(scanContext) ? this.sourceStates.get(sourceId) : undefined
+    const cursor = stored ? decodeCodexCursor(stored.cursor_json) : null
+    let resume: { startOffset: number; state: CodexParserCheckpointState } | null = null
+
+    const storedMatchesFile =
+      stored !== undefined && canonicalPath(stored.current_path) === canonicalPath(file)
+    if (stored && cursor && storedMatchesFile && isIncrementalContext(scanContext)) {
+      if (
+        fileStat.size === stored.source_size &&
+        fileStat.mtimeMs === stored.source_mtime_ms &&
+        cursor.endOffset === stored.source_size &&
+        stored.event_watermark_ms > 0 &&
+        stored.event_watermark_ms < scanContext.sinceMs
+      ) {
+        this.registerCursorCommit(sourceId, file, fileStat, cursor, stored.event_watermark_ms)
+        return null
+      }
+      resume = selectCodexResumePoint(file, fileStat.size, cursor, scanContext.sinceMs)
+    }
+
+    const outcome = this.parseSessionFile(context, scanContext, resume)
+    const checkpoints: CodexParserCheckpoint[] = []
+    if (resume && cursor) {
+      for (const checkpoint of cursor.checkpoints) {
+        if (checkpoint.offset < resume.startOffset) {
+          checkpoints.push(checkpoint)
+        }
+      }
+    }
+    checkpoints.push(...outcome.checkpoints)
+    checkpoints.push({ offset: outcome.endOffset, prefix: '', state: outcome.finalState })
+
+    const uniqueCheckpoints = new Map<number, CodexParserCheckpoint>()
+    for (const checkpoint of checkpoints) uniqueCheckpoints.set(checkpoint.offset, checkpoint)
+    const sortedCheckpoints = [...uniqueCheckpoints.values()].sort((a, b) => a.offset - b.offset)
+    const trimmed = sortedCheckpoints.slice(-CODEX_MAX_CHECKPOINTS)
+    const newCursor: CodexFileCursor = {
+      version: CODEX_ROLLOUT_CURSOR_VERSION,
+      endOffset: outcome.endOffset,
+      checkpoints: trimmed,
+    }
+    if (!trimmed.some((checkpoint) => checkpoint.prefix)) {
+      const prefixHash = computeCodexPrefixHash(file, outcome.endOffset)
+      if (prefixHash) newCursor.smallPrefixHash = prefixHash
+    }
+    this.registerCursorCommit(sourceId, file, fileStat, newCursor, outcome.finalState.lastEventMs)
+    return outcome.session
+  }
+
+  private registerCursorCommit(
+    sourceId: string,
+    filePath: string,
+    fileStat: import('fs').Stats,
+    cursor: CodexFileCursor,
+    eventWatermarkMs: number,
+  ): void {
+    this.pendingCursorCommits.push({
+      sourceId,
+      filePath,
+      size: cursor.endOffset,
+      mtimeMs: fileStat.mtimeMs,
+      eventWatermarkMs,
+      cursor,
+    })
+  }
+
   private buildDirectoryFallbackContexts(
     visitedFiles: Set<string>,
     scanContext: ScannerScanContext,
@@ -162,6 +348,7 @@ export class CodexScanner implements AgentScanner {
     const contexts: ParseContext[] = []
     const sessionsDir = getCodexSessionsDir()
     const archivedDir = getCodexArchivedSessionsDir()
+    const cleanupArchiveDir = getCodexCleanupArchiveDir()
 
     if (existsSync(sessionsDir)) {
       for (const file of listJsonlFiles(sessionsDir)) {
@@ -187,6 +374,18 @@ export class CodexScanner implements AgentScanner {
       }
     }
 
+    if (existsSync(cleanupArchiveDir)) {
+      for (const file of listJsonlFiles(cleanupArchiveDir)) {
+        if (visitedFiles.has(canonicalPath(file))) continue
+        if (!shouldScanFile(file, scanContext)) continue
+        contexts.push({
+          sessionFile: file,
+          rootDir: cleanupArchiveDir,
+          fallbackDate: 'unknown',
+        })
+      }
+    }
+
     return contexts
   }
 
@@ -199,10 +398,18 @@ export class CodexScanner implements AgentScanner {
   private parseSessionFile(
     context: ParseContext,
     scanContext: ScannerScanContext,
-  ): ParsedCodexSession {
+    resume: { startOffset: number; state: CodexParserCheckpointState } | null,
+  ): {
+    session: ParsedCodexSession
+    checkpoints: CodexParserCheckpoint[]
+    endOffset: number
+    finalState: CodexParserCheckpointState
+  } {
     const apiCalls: TokenUsageApiCall[] = []
     const fallbackSessionId = relative(context.rootDir, context.sessionFile).split(sep).join('/')
     let sessionId = context.sessionId || fallbackSessionId
+    let sessionMetaSeen = false
+    let copiedSessionMetaSeen = false
     let currentModel = context.model || 'unknown'
     let sessionDate = context.fallbackDate
     let sessionTitle = context.title || ''
@@ -210,15 +417,105 @@ export class CodexScanner implements AgentScanner {
     let subAgentName = ''
     let projectPath = ''
     let isThreadSpawnSubAgent = false
+    let forkedFromSessionId = ''
+    let historyMode = ''
+    let subAgentHistoryStartOrdinal: number | null = null
     let previousAcceptedCumulative = ''
+    let previousCumulativeSum = -1
+    let previousCumulative: CodexUsageSnapshot | null = null
+    let completedCumulative = emptyCodexUsage()
     let finalCumulative: CodexUsageSnapshot | null = null
     let acceptedUsage = emptyCodexUsage()
     let inheritedCumulativeBaseline: CodexUsageSnapshot | null = null
     let subAgentBoundaryApplied = false
+    let lastEventMs = 0
+
+    if (resume) {
+      const state = resume.state
+      sessionId = state.sessionId || sessionId
+      sessionMetaSeen = state.sessionMetaSeen
+      copiedSessionMetaSeen = state.copiedSessionMetaSeen
+      currentModel = state.currentModel || currentModel
+      sessionDate = state.sessionDate || sessionDate
+      sessionTitle = state.sessionTitle
+      projectPath = state.projectPath
+      parentSessionId = state.parentSessionId
+      forkedFromSessionId = state.forkedFromSessionId
+      historyMode = state.historyMode
+      subAgentHistoryStartOrdinal = state.subAgentHistoryStartOrdinal
+      subAgentName = state.subAgentName
+      isThreadSpawnSubAgent = state.isThreadSpawnSubAgent
+      subAgentBoundaryApplied = state.subAgentBoundaryApplied
+      previousAcceptedCumulative = state.previousAcceptedCumulative
+      previousCumulativeSum = state.previousCumulativeSum
+      previousCumulative = state.previousCumulative
+      completedCumulative = state.completedCumulative
+      acceptedUsage = state.acceptedUsage
+      inheritedCumulativeBaseline = state.inheritedCumulativeBaseline
+      lastEventMs = state.lastEventMs
+    }
+
+    const snapshotState = (): CodexParserCheckpointState => ({
+      sessionId,
+      sessionMetaSeen,
+      copiedSessionMetaSeen,
+      currentModel,
+      sessionDate,
+      sessionTitle,
+      projectPath,
+      parentSessionId,
+      forkedFromSessionId,
+      historyMode,
+      subAgentHistoryStartOrdinal,
+      subAgentName,
+      isThreadSpawnSubAgent,
+      subAgentBoundaryApplied,
+      previousAcceptedCumulative,
+      previousCumulativeSum,
+      previousCumulative: previousCumulative ? { ...previousCumulative } : null,
+      completedCumulative: { ...completedCumulative },
+      acceptedUsage: { ...acceptedUsage },
+      inheritedCumulativeBaseline: inheritedCumulativeBaseline
+        ? { ...inheritedCumulativeBaseline }
+        : null,
+      lastEventMs,
+    })
+
+    const resetInheritedUsage = (): void => {
+      apiCalls.length = 0
+      previousAcceptedCumulative = ''
+      previousCumulativeSum = -1
+      previousCumulative = null
+      completedCumulative = emptyCodexUsage()
+      finalCumulative = null
+      acceptedUsage = emptyCodexUsage()
+      inheritedCumulativeBaseline = null
+    }
+
+    const checkpoints: CodexParserCheckpoint[] = []
+    const startOffset = resume?.startOffset ?? 0
+    let lastCheckpointOffset = startOffset
+    let endOffset = startOffset
 
     try {
-      for (const { line } of readUtf8Lines(context.sessionFile)) {
+      for (const { line, byteOffset, byteLength, truncated } of readUtf8Lines(
+        context.sessionFile,
+        256 * 1024,
+        startOffset,
+        CODEX_MAX_LINE_BYTES,
+      )) {
+        endOffset = byteOffset + byteLength
+        if (byteOffset - lastCheckpointOffset >= CODEX_CHECKPOINT_BYTES) {
+          checkpoints.push({
+            offset: byteOffset,
+            prefix: line.slice(0, CODEX_CHECKPOINT_PREFIX_CHARS),
+            state: snapshotState(),
+          })
+          lastCheckpointOffset = byteOffset
+        }
+        if (truncated) continue
         if (line.length === 0) continue
+        if (!isCodexRelevantLine(line)) continue
         let obj: unknown
         try {
           obj = JSON.parse(line)
@@ -227,17 +524,36 @@ export class CodexScanner implements AgentScanner {
         }
         if (!isObject(obj)) continue
         const type = readString(obj.type)
+        const ordinal = readCodexOrdinal(obj.ordinal)
 
         if (type === 'session_meta') {
           const payload = obj.payload
           if (isObject(payload)) {
-            if (!context.sessionId) sessionId = readString(payload.id) || sessionId
-            projectPath = projectPath || extractProjectPath(payload) || ''
-            const relation = readCodexSessionRelation(payload)
-            parentSessionId = relation.parentSessionId || parentSessionId
-            subAgentName = relation.subAgentName || subAgentName
-            isThreadSpawnSubAgent = relation.isThreadSpawn || isThreadSpawnSubAgent
+            if (!sessionMetaSeen) {
+              // 官方 recorder 以文件中的第一个 SessionMeta 为 rollout 身份；fork
+              // 复制进来的父 SessionMeta 只能视为历史，不能覆盖子线程 ID/关系。
+              sessionMetaSeen = true
+              sessionId = readString(payload.id) || sessionId
+              projectPath = extractProjectPath(payload) || projectPath
+              const relation = readCodexSessionRelation(payload)
+              parentSessionId = relation.parentSessionId || parentSessionId
+              subAgentName = relation.subAgentName || subAgentName
+              isThreadSpawnSubAgent = relation.isThreadSpawn || isThreadSpawnSubAgent
+              forkedFromSessionId = readString(payload.forked_from_id)
+              historyMode = readString(payload.history_mode)
+              subAgentHistoryStartOrdinal = readCodexOrdinal(payload.subagent_history_start_ordinal)
+            } else {
+              copiedSessionMetaSeen = true
+            }
           }
+        }
+
+        // paginated rollout 明确给出子线程自有历史的起始 ordinal。起点之前是
+        // 继承自父线程的投影，不能用于模型、标题或 token 归属。
+        if (subAgentHistoryStartOrdinal !== null && !subAgentBoundaryApplied) {
+          if (ordinal === null || ordinal < subAgentHistoryStartOrdinal) continue
+          resetInheritedUsage()
+          subAgentBoundaryApplied = true
         }
 
         if (type === 'turn_context') {
@@ -258,14 +574,10 @@ export class CodexScanner implements AgentScanner {
         // 子 Agent 真正开始工作的边界；边界前的 token_count 已在父会话统计过。
         if (
           type === 'inter_agent_communication_metadata' &&
-          isThreadSpawnSubAgent &&
+          (isThreadSpawnSubAgent || Boolean(forkedFromSessionId) || copiedSessionMetaSeen) &&
           !subAgentBoundaryApplied
         ) {
-          apiCalls.length = 0
-          previousAcceptedCumulative = ''
-          finalCumulative = null
-          acceptedUsage = emptyCodexUsage()
-          inheritedCumulativeBaseline = null
+          resetInheritedUsage()
           subAgentBoundaryApplied = true
         }
 
@@ -275,10 +587,11 @@ export class CodexScanner implements AgentScanner {
             sessionTitle = keepFirstSessionTitle(sessionTitle, readString(payload.message))
           }
           if (isObject(payload) && payload.type === 'token_count') {
+            const eventMs = codexEventTimestampMs(obj.timestamp)
+            if (eventMs > lastEventMs) lastEventMs = eventMs
             const info = payload.info
             if (!isObject(info) || !isObject(info.last_token_usage)) continue
             const cumulative = readCodexUsage(info.total_token_usage)
-            if (cumulative) finalCumulative = cumulative
             const cumulativeSignature = cumulative ? codexUsageSignature(cumulative) : ''
             if (cumulativeSignature && cumulativeSignature === previousAcceptedCumulative) {
               continue
@@ -287,9 +600,49 @@ export class CodexScanner implements AgentScanner {
             const { timestamp, rawTimestamp } = timestampsFromValue(obj.timestamp, sessionDate)
             const usage = readCodexUsage(info.last_token_usage)
             if (!usage || !hasTokenUsage(usage)) continue
-            acceptedUsage = addCodexUsage(acceptedUsage, usage)
-            if (isThreadSpawnSubAgent && !inheritedCumulativeBaseline && cumulative) {
-              inheritedCumulativeBaseline = subtractCodexUsage(cumulative, acceptedUsage)
+
+            if (cumulative && previousCumulativeSum >= 0) {
+              const cumulativeSum = codexUsageSum(cumulative)
+              if (cumulativeSum < previousCumulativeSum) {
+                const beginsNewCycle = sameCodexUsage(cumulative, usage)
+                const looksStale =
+                  cumulativeSum * 100 >= previousCumulativeSum * 98 ||
+                  cumulativeSum + 2 * codexUsageSum(usage) >= previousCumulativeSum
+                if (!beginsNewCycle && looksStale) continue
+                if (previousCumulative) {
+                  completedCumulative = addCodexUsage(
+                    completedCumulative,
+                    normalizeCodexUsageExclusive(previousCumulative),
+                  )
+                }
+              }
+            }
+
+            if (cumulative) finalCumulative = cumulative
+            const exclusiveUsage = normalizeCodexUsageExclusive(usage)
+            if (
+              usage.cacheReadTokens > usage.inputTokens ||
+              usage.cacheReadTokens + usage.cacheWriteTokens > usage.inputTokens ||
+              usage.reasoningTokens > usage.outputTokens ||
+              (cumulative !== null &&
+                (cumulative.cacheReadTokens + cumulative.cacheWriteTokens >
+                  cumulative.inputTokens ||
+                  cumulative.reasoningTokens > cumulative.outputTokens))
+            ) {
+              throw new Error(
+                `Codex token 字段重叠关系无效 (${context.sessionFile}, ${rawTimestamp || timestamp})`,
+              )
+            }
+            acceptedUsage = addCodexUsage(acceptedUsage, exclusiveUsage)
+            if (
+              (isThreadSpawnSubAgent || Boolean(forkedFromSessionId) || subAgentBoundaryApplied) &&
+              !inheritedCumulativeBaseline &&
+              cumulative
+            ) {
+              inheritedCumulativeBaseline = subtractCodexUsage(
+                normalizeCodexUsageExclusive(cumulative),
+                acceptedUsage,
+              )
             }
             const apiCall: TokenUsageApiCall = {
               agent: this.agentName,
@@ -307,16 +660,27 @@ export class CodexScanner implements AgentScanner {
               timestamp,
               hour: hourFromTimestamp(timestamp),
               model: currentModel,
-              inputTokens: usage.inputTokens,
-              outputTokens: usage.outputTokens,
-              cacheReadTokens: usage.cacheReadTokens,
-              cacheWriteTokens: 0,
-              totalTokens: usage.inputTokens + usage.outputTokens,
-              reasoningTokens: usage.reasoningTokens,
+              inputTokens: exclusiveUsage.inputTokens,
+              outputTokens: exclusiveUsage.outputTokens,
+              cacheReadTokens: exclusiveUsage.cacheReadTokens,
+              cacheWriteTokens: exclusiveUsage.cacheWriteTokens,
+              totalTokens:
+                exclusiveUsage.inputTokens +
+                exclusiveUsage.outputTokens +
+                exclusiveUsage.cacheReadTokens +
+                exclusiveUsage.cacheWriteTokens +
+                exclusiveUsage.reasoningTokens,
+              reasoningTokens: exclusiveUsage.reasoningTokens,
             }
             // 累计校验使用 acceptedUsage；窗口外 API 对象无需留在数组中。
             if (isApiCallInWindow(apiCall, scanContext)) apiCalls.push(apiCall)
-            if (cumulativeSignature) previousAcceptedCumulative = cumulativeSignature
+            if (cumulativeSignature) {
+              previousAcceptedCumulative = cumulativeSignature
+              if (cumulative) {
+                previousCumulativeSum = codexUsageSum(cumulative)
+                previousCumulative = cumulative
+              }
+            }
           }
         }
       }
@@ -328,17 +692,25 @@ export class CodexScanner implements AgentScanner {
       assertCodexCumulativeMatches(
         context.sessionFile,
         acceptedUsage,
-        finalCumulative,
-        isThreadSpawnSubAgent ? inheritedCumulativeBaseline : null,
+        addCodexUsage(completedCumulative, normalizeCodexUsageExclusive(finalCumulative)),
+        isThreadSpawnSubAgent || Boolean(forkedFromSessionId) || subAgentBoundaryApplied
+          ? inheritedCumulativeBaseline
+          : null,
       )
     }
+    const finalState = snapshotState()
     return {
-      sessionId,
-      title: sessionTitle,
-      apiCalls,
-      ...(parentSessionId ? { parentSessionId } : {}),
-      ...(subAgentName ? { subAgentName } : {}),
-      ...(isThreadSpawnSubAgent ? { isThreadSpawn: true } : {}),
+      session: {
+        sessionId,
+        title: sessionTitle,
+        apiCalls,
+        ...(parentSessionId ? { parentSessionId } : {}),
+        ...(subAgentName ? { subAgentName } : {}),
+        ...(isThreadSpawnSubAgent ? { isThreadSpawn: true } : {}),
+      },
+      checkpoints,
+      endOffset,
+      finalState,
     }
   }
 }
@@ -358,10 +730,162 @@ function codexApiCallId(
     usage.inputTokens,
     usage.outputTokens,
     usage.cacheReadTokens,
+    usage.cacheWriteTokens,
     usage.reasoningTokens,
+    usage.reportedTotalTokens,
   ].join('\u0000')
   const digest = createHash('sha256').update(identity).digest('hex').slice(0, 32)
   return `${sessionId}:${digest}`
+}
+
+function codexEventTimestampMs(value: unknown): number {
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint') {
+    return 0
+  }
+  const timestamp = timestampEpochMs(value)
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
+}
+
+function codexRolloutSourceId(file: string, explicitSessionId?: string): string {
+  if (explicitSessionId) return `id:${explicitSessionId}`
+  const stem = basename(file).replace(/\.jsonl$/i, '')
+  const uuid = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(stem)
+  if (uuid) return `id:${uuid[1].toLowerCase()}`
+  const digest = createHash('sha256').update(canonicalPath(file)).digest('hex').slice(0, 32)
+  return `path:${digest}`
+}
+
+/** 同一线程可能同时保留旧 rollout 与续写后的完整副本；优先读取字节数最大的版本。 */
+function selectPreferredCodexRollouts(contexts: ParseContext[]): ParseContext[] {
+  const selected = new Map<string, { context: ParseContext; size: number; index: number }>()
+  for (const [index, context] of contexts.entries()) {
+    const sourceId = codexRolloutSourceId(context.sessionFile, context.sessionId)
+    let size = -1
+    try {
+      size = statSync(context.sessionFile).size
+    } catch {
+      // 真正解析时会抛出带文件路径的明确错误。
+    }
+    const current = selected.get(sourceId)
+    if (!current) {
+      selected.set(sourceId, { context, size, index })
+    } else if (size > current.size) {
+      selected.set(sourceId, {
+        context: mergeCodexParseContext(context, current.context),
+        size,
+        index: current.index,
+      })
+    } else {
+      current.context = mergeCodexParseContext(current.context, context)
+    }
+  }
+  return [...selected.values()]
+    .sort((left, right) => left.index - right.index)
+    .map((entry) => entry.context)
+}
+
+function mergeCodexParseContext(preferred: ParseContext, metadata: ParseContext): ParseContext {
+  return {
+    ...preferred,
+    fallbackDate:
+      preferred.fallbackDate !== 'unknown' ? preferred.fallbackDate : metadata.fallbackDate,
+    sessionId: preferred.sessionId || metadata.sessionId,
+    title: metadata.title || preferred.title,
+    model: preferred.model || metadata.model,
+  }
+}
+
+function decodeCodexCursor(json: string): CodexFileCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(json)
+    if (!isObject(parsed) || parsed.version !== CODEX_ROLLOUT_CURSOR_VERSION) return null
+    if (!Number.isSafeInteger(parsed.endOffset) || (parsed.endOffset as number) < 0) return null
+    if (!Array.isArray(parsed.checkpoints)) return null
+    const checkpoints: CodexParserCheckpoint[] = []
+    for (const item of parsed.checkpoints) {
+      if (!isObject(item) || !Number.isSafeInteger(item.offset) || !isObject(item.state)) continue
+      if ((item.offset as number) < 0 || (item.offset as number) > (parsed.endOffset as number))
+        continue
+      checkpoints.push(item as unknown as CodexParserCheckpoint)
+    }
+    if (checkpoints.length === 0) return null
+    return {
+      version: CODEX_ROLLOUT_CURSOR_VERSION,
+      endOffset: parsed.endOffset as number,
+      checkpoints: checkpoints.sort((left, right) => left.offset - right.offset),
+      ...(typeof parsed.smallPrefixHash === 'string'
+        ? { smallPrefixHash: parsed.smallPrefixHash }
+        : {}),
+    }
+  } catch {
+    return null
+  }
+}
+
+function selectCodexResumePoint(
+  file: string,
+  fileSize: number,
+  cursor: CodexFileCursor,
+  sinceMs: number,
+): { startOffset: number; state: CodexParserCheckpointState } | null {
+  if (fileSize < cursor.endOffset) return null
+
+  let chosenIndex = -1
+  for (let index = 0; index < cursor.checkpoints.length; index += 1) {
+    const checkpoint = cursor.checkpoints[index]
+    if (checkpoint.offset > fileSize) break
+    if ((checkpoint.state.lastEventMs ?? 0) <= sinceMs) chosenIndex = index
+    else break
+  }
+  if (chosenIndex < 0) return null
+
+  // 最终 EOF 检查点没有行前缀；优先退到最近一个可直接校验的行边界。
+  let chosen = cursor.checkpoints[chosenIndex]
+  while (!chosen.prefix && chosenIndex > 0) {
+    chosenIndex -= 1
+    chosen = cursor.checkpoints[chosenIndex]
+  }
+  if (chosen.prefix) {
+    const snippet = readByteSnippet(file, chosen.offset)
+    if (!snippet || !snippet.startsWith(chosen.prefix)) return null
+  } else if (
+    !cursor.smallPrefixHash ||
+    computeCodexPrefixHash(file, cursor.endOffset) !== cursor.smallPrefixHash
+  ) {
+    return null
+  }
+  return { startOffset: chosen.offset, state: chosen.state }
+}
+
+function computeCodexPrefixHash(file: string, length: number): string {
+  const hash = createHash('sha256')
+  let fd: number | null = null
+  try {
+    fd = openSync(file, 'r')
+    const buffer = Buffer.allocUnsafe(256 * 1024)
+    let remaining = Math.max(0, length)
+    let position = 0
+    while (remaining > 0) {
+      const bytesToRead = Math.min(buffer.length, remaining)
+      const bytesRead = readSync(fd, buffer, 0, bytesToRead, position)
+      if (bytesRead <= 0) break
+      hash.update(buffer.subarray(0, bytesRead))
+      position += bytesRead
+      remaining -= bytesRead
+    }
+    if (remaining > 0) return ''
+    return hash.digest('hex')
+  } catch {
+    return ''
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd)
+      } catch {
+        // 文件读取失败时保留原始异常结果。
+      }
+    }
+  }
 }
 
 function readThreadMetadata(context: ScannerScanContext): CodexThreadMeta[] {
@@ -596,6 +1120,29 @@ function keepFirstSessionTitle(current: string, next: string): string {
 
 function preferSessionTitle(current: string, next: string): string {
   return next || current
+}
+
+const CODEX_RELEVANT_LINE =
+  /"type":\s*"(session_meta|turn_context|event_msg|inter_agent_communication_metadata)"/
+
+function isCodexRelevantLine(line: string): boolean {
+  return CODEX_RELEVANT_LINE.test(line)
+}
+
+function sameCodexUsage(left: CodexUsageSnapshot, right: CodexUsageSnapshot): boolean {
+  return (
+    left.inputTokens === right.inputTokens &&
+    left.outputTokens === right.outputTokens &&
+    left.cacheReadTokens === right.cacheReadTokens &&
+    left.cacheWriteTokens === right.cacheWriteTokens &&
+    left.reasoningTokens === right.reasoningTokens
+  )
+}
+
+function readCodexOrdinal(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const ordinal = typeof value === 'number' ? value : Number(value)
+  return Number.isSafeInteger(ordinal) && ordinal >= 0 ? ordinal : null
 }
 
 /** 递归收集目录下所有 .jsonl 文件（按路径排序，保证遍历顺序稳定） */

@@ -16,6 +16,7 @@ useAuth()
 
 const isChangingFloatingWindow = ref(false)
 const isFloatingWindowVisible = ref(false)
+let floatingWindowVisibilityRequestId = 0
 const floatingWindowActionLabel = computed(() =>
   isFloatingWindowVisible.value
     ? label('Close mini window', '关闭小窗')
@@ -23,8 +24,12 @@ const floatingWindowActionLabel = computed(() =>
 )
 
 async function refreshFloatingWindowVisibility(): Promise<void> {
+  const requestId = ++floatingWindowVisibilityRequestId
   try {
-    isFloatingWindowVisible.value = await window.api.isFloatingWindowVisible()
+    const visible = await window.api.isFloatingWindowVisible()
+    if (requestId === floatingWindowVisibilityRequestId) {
+      isFloatingWindowVisible.value = visible
+    }
   } catch (error) {
     console.error('[floating-window] 读取可见状态失败:', error)
   }
@@ -40,7 +45,7 @@ async function toggleFloatingWindow(): Promise<void> {
     } else {
       await window.api.showFloatingWindow()
     }
-    isFloatingWindowVisible.value = !visible
+    await refreshFloatingWindowVisibility()
   } catch (error) {
     console.error('[floating-window] 切换失败:', error)
     await refreshFloatingWindowVisibility()
@@ -237,10 +242,11 @@ let unsubFloatingWindowVisibility: (() => void) | null = null
 onMounted(() => {
   void updater.init()
   void reloadNotifications()
-  void refreshFloatingWindowVisibility()
   unsubFloatingWindowVisibility = window.api.onFloatingWindowVisibilityChanged((visible) => {
+    floatingWindowVisibilityRequestId += 1
     isFloatingWindowVisible.value = visible
   })
+  void refreshFloatingWindowVisibility()
   unsubSse = window.api.onSsePushMessage(onPushMessage)
   document.addEventListener('click', closeNotifyPanel)
   window.addEventListener('focus', handleWindowFocus)

@@ -6,6 +6,7 @@ import type {
 } from '../../shared/models'
 import { isoLocalDateTime } from '../lib/date-utils'
 import type { AgentScanner } from '../scanners'
+import { validateScannerUsageDetails } from '../scanners/token-usage'
 import {
   buildAgentScanPlan,
   incrementalFromDisplay,
@@ -40,8 +41,11 @@ export async function performScanWithScanners(
         ? await scanner.scanDetailed(plan.context)
         : legacyDetails(await scanner.scan(plan.context))
 
+      validateScannerUsageDetails(scanner.agentName, details)
+      const sourceStateUpdates = scanner.takeScanStateUpdates?.() ?? []
+
       // 每个 Agent 扫描完立即原子提交，避免跨 Agent 持有全部 API 对象。
-      persistAgentScan(scanner.agentName, plan.context, details)
+      persistAgentScan(scanner.agentName, plan.context, details, sourceStateUpdates)
       allRecords.push(...details.records)
       scannedAgents.push(scanner.agentName)
       if (details.records.length === 0) detectedAgents.push(scanner.agentName)

@@ -35,6 +35,7 @@ import {
   normalizeScanContext,
 } from './incremental-utils'
 import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
+import { tokenBuckets } from './token-usage'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -50,12 +51,19 @@ type UsageTableName = 'token_usage' | 'local_runtime_token_usage'
 export class MiniMaxCodeScanner implements AgentScanner {
   readonly agentName = 'minimax-code'
 
-  private resolveDbPath(): string | null {
-    return getMavisDbCandidates().find(existsSync) ?? null
+  private resolveDbPaths(): string[] {
+    const seen = new Set<string>()
+    return getMavisDbCandidates().filter((candidate) => {
+      if (!existsSync(candidate)) return false
+      const key = databaseSourceKey(candidate)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   }
 
   isAvailable(): boolean {
-    return this.resolveDbPath() !== null
+    return this.resolveDbPaths().length > 0
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -67,18 +75,63 @@ export class MiniMaxCodeScanner implements AgentScanner {
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
     const titleBySessionId = new Map<string, string>()
-    const dbPath = this.resolveDbPath()
-    if (!dbPath) return { records, sessions: [], apiCalls }
+    const dbPaths = this.resolveDbPaths()
+    if (dbPaths.length === 0) return { records, sessions: [], apiCalls }
 
+    const failures: string[] = []
+    const dedup = createMiniMaxDedupState()
+    let recognizedDatabaseCount = 0
+    for (const dbPath of dbPaths) {
+      try {
+        const result = this.scanDatabase(dbPath, scanContext, dedup)
+        if (!result.recognized) {
+          failures.push(`${dbPath}: 未找到兼容的用量表`)
+          continue
+        }
+        recognizedDatabaseCount += 1
+        apiCalls.push(...result.apiCalls)
+        for (const [sessionId, title] of result.titles) {
+          if (!titleBySessionId.has(sessionId)) titleBySessionId.set(sessionId, title)
+        }
+      } catch (error) {
+        failures.push(`${dbPath}: ${(error as Error).message}`)
+      }
+    }
+
+    if (recognizedDatabaseCount === 0) {
+      throw new Error(`MiniMax Code 扫描失败: ${failures.join('; ')}`)
+    }
+
+    const batchApiCalls = filterApiCallsForContext(apiCalls, scanContext)
+    const sessions = buildSessionsFromApiCalls(this.agentName, batchApiCalls)
+    applySessionTitles(sessions, titleBySessionId)
+    records.push(...buildRecordsFromSessions(this.agentName, sessions))
+
+    return {
+      records,
+      sessions,
+      apiCalls: batchApiCalls,
+    }
+  }
+
+  private scanDatabase(
+    dbPath: string,
+    scanContext: ScannerScanContext,
+    dedup: MiniMaxDedupState,
+  ): { recognized: boolean; apiCalls: TokenUsageApiCall[]; titles: Map<string, string> } {
+    const apiCalls: TokenUsageApiCall[] = []
+    const titles = new Map<string, string>()
+    const pendingContentFingerprints = new Set<string>()
+    const pendingIdentityFingerprints = new Set<string>()
+    const sourceKey = databaseSourceKey(dbPath)
     let db: Database.Database | null = null
     try {
       db = new Database(dbPath, { readonly: true })
       db.exec('PRAGMA busy_timeout = 5000')
 
       const usageTable = resolveUsageTable(db)
-      if (!usageTable) {
-        throw new Error('兼容的用量表不存在（token_usage / local_runtime_token_usage）')
-      }
+      if (!usageTable) return { recognized: false, apiCalls, titles }
+      const callIdPrefix = databaseCallIdPrefix(dbPath, usageTable)
 
       // 动态检测列
       const columns = new Map<string, string>()
@@ -154,11 +207,14 @@ export class MiniMaxCodeScanner implements AgentScanner {
         let model = hasModel && typeof row.model === 'string' ? row.model : 'unknown'
         if (!model) model = 'unknown'
 
-        const input = hasInput ? toLong(row.input_tokens) : 0
-        const output = hasOutput ? toLong(row.output_tokens) : 0
-        const reasoning = hasReasoning ? toLong(row.reasoning_tokens) : 0
-        const cacheRd = hasCacheRead ? toLong(row.cache_read_tokens) : 0
-        const cacheWr = hasCacheWrite ? toLong(row.cache_write_tokens) : 0
+        const buckets = tokenBuckets({
+          inputTokens: hasInput ? row.input_tokens : 0,
+          outputTokens: hasOutput ? row.output_tokens : 0,
+          reasoningTokens: hasReasoning ? row.reasoning_tokens : 0,
+          cacheReadTokens: hasCacheRead ? row.cache_read_tokens : 0,
+          cacheWriteTokens: hasCacheWrite ? row.cache_write_tokens : 0,
+        })
+        if (buckets.totalTokens <= 0) continue
 
         const date = ts > 0 ? formatDateFromMs(ts) : 'unknown'
         const { timestamp, rawTimestamp } = timestampsFromValue(ts, date)
@@ -176,21 +232,45 @@ export class MiniMaxCodeScanner implements AgentScanner {
           continue
         }
         const sessionId = sourceSessionId ?? `aggregate:${date}:${model}`
-        const rowId =
-          firstString(row.id, row.request_id, row.message_id) ?? String(toLong(row.__rowid))
+        const stableRowId = firstString(row.id, row.request_id, row.message_id)
+        const rowId = stableRowId ?? String(toLong(row.__rowid))
         const sessionTitle = sourceSessionId ? sessionMetadata.titles.get(sourceSessionId) : ''
         const tokenUsageTitle = titleColumn ? dbString(row[titleColumn]) : ''
         const title = sessionTitle || tokenUsageTitle
+        if (sourceSessionId && title && !titles.has(sourceSessionId)) {
+          titles.set(sourceSessionId, title)
+        }
+
+        const contentFingerprint = usageFingerprint(
+          sourceSessionId,
+          ts,
+          model,
+          buckets.inputTokens,
+          buckets.outputTokens,
+          buckets.cacheReadTokens,
+          buckets.cacheWriteTokens,
+          buckets.reasoningTokens,
+        )
+        const identityFingerprint = stableRowId
+          ? usageIdentityFingerprint(sourceSessionId, stableRowId)
+          : ''
+        if (
+          isDuplicateFromAnotherDatabase(dedup.contentSources, contentFingerprint, sourceKey) ||
+          (identityFingerprint &&
+            isDuplicateFromAnotherDatabase(dedup.identitySources, identityFingerprint, sourceKey))
+        ) {
+          continue
+        }
+        pendingContentFingerprints.add(contentFingerprint)
+        if (identityFingerprint) pendingIdentityFingerprints.add(identityFingerprint)
+
         const projectPath =
           (projectPathColumn ? normalizeCollectedProjectPath(row[projectPathColumn]) : undefined) ||
           (sourceSessionId ? sessionMetadata.projectPaths.get(sourceSessionId) : '')
-        if (sourceSessionId && title && !titleBySessionId.has(sourceSessionId)) {
-          titleBySessionId.set(sourceSessionId, title)
-        }
 
         apiCalls.push({
           agent: this.agentName,
-          apiCallId: rowId,
+          apiCallId: `${callIdPrefix}:${rowId}`,
           sessionId,
           ...(projectPath ? { projectPath } : {}),
           date,
@@ -198,33 +278,79 @@ export class MiniMaxCodeScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
-          inputTokens: input,
-          outputTokens: output,
-          cacheReadTokens: cacheRd,
-          cacheWriteTokens: cacheWr,
           // MiniMax 官方口径 total = input + output + cacheRead + cacheWrite + reasoning
           // 已用 token_usage.raw 字段验证：raw.total == 五项之和（全表 162/162 行吻合）
-          totalTokens: input + output + cacheRd + cacheWr + reasoning,
-          reasoningTokens: reasoning,
+          ...buckets,
         })
       }
-    } catch (e) {
-      throw new Error(`MiniMax Code 扫描失败: ${(e as Error).message}`)
     } finally {
       if (db) db.close()
     }
-
-    const batchApiCalls = filterApiCallsForContext(apiCalls, scanContext)
-    const sessions = buildSessionsFromApiCalls(this.agentName, batchApiCalls)
-    applySessionTitles(sessions, titleBySessionId)
-    records.push(...buildRecordsFromSessions(this.agentName, sessions))
-
-    return {
-      records,
-      sessions,
-      apiCalls: batchApiCalls,
+    for (const fingerprint of pendingContentFingerprints) {
+      dedup.contentSources.set(fingerprint, sourceKey)
     }
+    for (const fingerprint of pendingIdentityFingerprints) {
+      dedup.identitySources.set(fingerprint, sourceKey)
+    }
+    return { recognized: true, apiCalls, titles }
   }
+}
+
+interface MiniMaxDedupState {
+  contentSources: Map<string, string>
+  identitySources: Map<string, string>
+}
+
+function createMiniMaxDedupState(): MiniMaxDedupState {
+  return {
+    contentSources: new Map<string, string>(),
+    identitySources: new Map<string, string>(),
+  }
+}
+
+function databaseSourceKey(dbPath: string): string {
+  return process.platform === 'win32' ? dbPath.toLowerCase() : dbPath
+}
+
+function databaseCallIdPrefix(dbPath: string, usageTable: UsageTableName): string {
+  if (usageTable === 'local_runtime_token_usage') return 'runtime'
+  const normalizedPath = dbPath.replaceAll('\\', '/').toLowerCase()
+  return normalizedPath.includes('/.mavis/') ? 'legacy-mavis' : 'legacy-minimax'
+}
+
+function usageFingerprint(
+  sessionId: string | null,
+  timestampMs: number,
+  model: string,
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheWrite: number,
+  reasoning: number,
+): string {
+  return JSON.stringify([
+    sessionId ?? '',
+    timestampMs,
+    model,
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    reasoning,
+  ])
+}
+
+function usageIdentityFingerprint(sessionId: string | null, rowId: string): string {
+  return JSON.stringify([sessionId ?? '', rowId])
+}
+
+function isDuplicateFromAnotherDatabase(
+  sources: Map<string, string>,
+  fingerprint: string,
+  sourceKey: string,
+): boolean {
+  const previousSource = sources.get(fingerprint)
+  return Boolean(previousSource && previousSource !== sourceKey)
 }
 
 /** 执行 SELECT，返回对象数组（列名 → 值） */
@@ -249,8 +375,8 @@ function resolveUsageTable(db: Database.Database): UsageTableName | null {
   const names = new Set(
     rows.map((row) => dbString(row.name)).filter((name): name is UsageTableName => Boolean(name)),
   )
-  if (names.has('token_usage')) return 'token_usage'
   if (names.has('local_runtime_token_usage')) return 'local_runtime_token_usage'
+  if (names.has('token_usage')) return 'token_usage'
   return null
 }
 

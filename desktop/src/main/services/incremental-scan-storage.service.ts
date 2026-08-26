@@ -8,7 +8,8 @@ import { formatLocalTimestampFromMs, timestampEpochMs } from '../lib/date-utils'
 import { eventTimestampMs, SCAN_LOOKBACK_MS } from '../scanners/incremental-utils'
 import type { ScannerScanContext } from '../scanners/types'
 import { insertRecords } from './data-storage.service'
-import { SCANNER_REVISION } from './incremental-scan.constants'
+import { scannerRevisionForAgent } from './incremental-scan.constants'
+import { saveSourceState, type ScanSourceStateUpdate } from './scan-source-state.service'
 import { openDatabase } from './sqlite-storage.service'
 import { insertApiCallRows, insertSessionRows } from './usage-detail-storage.service'
 
@@ -67,7 +68,11 @@ export function buildAgentScanPlan(
   }
 
   const state = getAgentScanState(agent)
-  if (!state || state.initialized !== 1 || state.scanner_revision !== SCANNER_REVISION) {
+  if (
+    !state ||
+    state.initialized !== 1 ||
+    state.scanner_revision !== scannerRevisionForAgent(agent)
+  ) {
     return {
       effectiveMode: 'full',
       context: { mode: 'full', scanStartedAtMs },
@@ -101,6 +106,7 @@ export function persistAgentScan(
   agent: string,
   context: ScannerScanContext,
   details: ScannerUsageDetails,
+  sourceStateUpdates: readonly ScanSourceStateUpdate[] = [],
 ): void {
   const db = openDatabase()
   const persist = db.transaction(() => {
@@ -162,6 +168,19 @@ export function persistAgentScan(
     rebuildSessions(agent, sessionKeys, details.sessions, oldMetadata)
     rebuildRecords(agent, recordKeys, details.records)
 
+    for (const state of sourceStateUpdates) {
+      if (state.agent !== agent) {
+        throw new Error(`来源状态 Agent 不匹配: ${state.agent} != ${agent}`)
+      }
+      saveSourceState(
+        {
+          ...state,
+          last_success_ms: state.last_success_ms ?? context.scanStartedAtMs,
+        },
+        db,
+      )
+    }
+
     const previousEventWatermark = oldState?.event_watermark_ms ?? 0
     const batchEventWatermark = details.apiCalls.reduce(
       (max, call) => Math.max(max, eventTimestampMs(call)),
@@ -186,7 +205,7 @@ export function persistAgentScan(
          last_mode = excluded.last_mode`,
     ).run(
       agent,
-      SCANNER_REVISION,
+      scannerRevisionForAgent(agent),
       eventWatermark,
       context.scanStartedAtMs,
       context.mode === 'full' ? context.scanStartedAtMs : previousFullSuccess,

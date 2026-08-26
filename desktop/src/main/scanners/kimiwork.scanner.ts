@@ -34,6 +34,7 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { extractProjectPath } from './project-path'
+import { tokenBuckets } from './token-usage'
 
 interface ParsedKimiSession {
   sessionId: string
@@ -117,6 +118,8 @@ export class KimiWorkScanner implements AgentScanner {
         projectPath = projectPath || extractProjectPath(obj) || ''
         sessionTitle = keepFirstSessionTitle(sessionTitle, extractKimiTitle(obj))
         if (obj.type !== 'usage.record') continue
+        // Kimi Work 的 session 级记录是 turn 明细的重复汇总，不能再次计入。
+        if (obj.usageScope === 'session') continue
 
         const model: string = typeof obj.model === 'string' ? obj.model : 'unknown'
         const time = toLong(obj.time)
@@ -127,10 +130,13 @@ export class KimiWorkScanner implements AgentScanner {
 
         const usage = obj.usage
         if (!isObject(usage)) continue
-        const inputOther = toLong(usage.inputOther)
-        const output = toLong(usage.output)
-        const cacheRead = toLong(usage.inputCacheRead)
-        const cacheWrite = toLong(usage.inputCacheCreation)
+        const buckets = tokenBuckets({
+          inputTokens: usage.inputOther,
+          outputTokens: usage.output,
+          cacheReadTokens: usage.inputCacheRead,
+          cacheWriteTokens: usage.inputCacheCreation,
+        })
+        if (buckets.totalTokens <= 0) continue
 
         const sourceId =
           typeof obj.id === 'string' && obj.id.length > 0
@@ -147,13 +153,8 @@ export class KimiWorkScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
-          inputTokens: inputOther,
-          outputTokens: output,
-          cacheReadTokens: cacheRead,
-          cacheWriteTokens: cacheWrite,
-          // inputOther 与 inputCacheRead 独立，total 包含 cacheRead/cacheWrite
-          totalTokens: inputOther + output + cacheRead + cacheWrite,
-          reasoningTokens: 0,
+          // inputOther 与 inputCacheRead 独立，total 包含 cacheRead/cacheWrite。
+          ...buckets,
         }
         // wire.jsonl 可能长期追加；边读边丢弃窗口外调用，内存只随本次窗口增长。
         if (isApiCallInWindow(apiCall, context)) apiCalls.push(apiCall)
@@ -318,16 +319,9 @@ function resolveKimiSessionMeta(
 
   const state = readKimiState(statePath)
   if (state === null) {
-    const fallbackId =
-      source.kind === 'kimi-cli' ? basename(sessionDir) : conversationDirSessionId(sessionDir)
+    const fallbackId = conversationDirSessionId(sessionDir)
     if (!fallbackId) return null
     return { sessionId: fallbackId, stateTitle: '' }
-  }
-
-  if (source.kind === 'kimi-cli') {
-    const sessionId = basename(sessionDir)
-    if (!sessionId) return null
-    return { sessionId, stateTitle: state.title, projectPath: state.projectPath }
   }
 
   if (state.sessionKind !== KIMI_ALLOWED_SESSION_KIND) return null

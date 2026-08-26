@@ -27,4 +27,6 @@ export interface AgentScanner {
   scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]>
   /** 扫描日聚合、会话汇总和 API 轮次明细；未实现时回退 scan() */
   scanDetailed?(context?: ScannerScanContext): Promise<ScannerUsageDetails>
+  /** 返回本轮来源游标；由扫描落库事务与用量数据一起提交。 */
+  takeScanStateUpdates?(): import('../services/scan-source-state.service').ScanSourceStateUpdate[]
 }

@@ -28,6 +28,7 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { extractProjectPath } from './project-path'
+import { tokenBuckets } from './token-usage'
 
 export class ClaudeCodeScanner implements AgentScanner {
   readonly agentName = 'claude-code'
@@ -65,7 +66,7 @@ export class ClaudeCodeScanner implements AgentScanner {
       shouldScanFile(file, scanContext),
     )
 
-    const seenIds = new Set<string>()
+    const seenIds = new Map<string, TokenUsageApiCall>()
     const titleBySessionId = new Map<string, string>()
 
     for (const file of jsonlFiles) {
@@ -110,12 +111,13 @@ export class ClaudeCodeScanner implements AgentScanner {
           const model: string = typeof msg.model === 'string' ? msg.model : 'unknown'
           if (model === '<synthetic>') continue
 
-          const input = toLong(usage.input_tokens)
-          const output = toLong(usage.output_tokens)
-          if (input === 0 && output === 0) continue
-
-          const cacheRead = toLong(usage.cache_read_input_tokens)
-          const cacheWrite = toLong(usage.cache_creation_input_tokens)
+          const buckets = tokenBuckets({
+            inputTokens: usage.input_tokens,
+            outputTokens: usage.output_tokens,
+            cacheReadTokens: usage.cache_read_input_tokens,
+            cacheWriteTokens: usage.cache_creation_input_tokens,
+          })
+          if (buckets.totalTokens === 0) continue
 
           const rawTimestamp =
             typeof obj.timestamp === 'string' || typeof obj.timestamp === 'number'
@@ -140,13 +142,8 @@ export class ClaudeCodeScanner implements AgentScanner {
             timestamp,
             hour: hourFromTimestamp(timestamp),
             model,
-            inputTokens: input,
-            outputTokens: output,
-            cacheReadTokens: cacheRead,
-            cacheWriteTokens: cacheWrite,
-            // Anthropic API: 4 字段互斥，total = 全部相加
-            totalTokens: input + output + cacheRead + cacheWrite,
-            reasoningTokens: 0,
+            // Anthropic API 的四个字段是互斥分桶。
+            ...buckets,
           }
           // 大型活跃 JSONL 仍需从头流式读取以提取标题与稳定行号，但窗口外明细
           // 在解析当下就丢弃，避免先构造整段历史 API 数组再二次过滤。
@@ -155,8 +152,12 @@ export class ClaudeCodeScanner implements AgentScanner {
           // 只让窗口内调用参与去重；否则同 ID 的窗口外历史副本可能先占位，
           // 错误压掉后续窗口内的更新副本。
           if (msgId) {
-            if (seenIds.has(msgId)) continue
-            seenIds.add(msgId)
+            const existing = seenIds.get(msgId)
+            if (existing) {
+              mergeClaudeDuplicate(existing, apiCall)
+              continue
+            }
+            seenIds.set(msgId, apiCall)
           }
           apiCalls.push(apiCall)
         }
@@ -182,14 +183,32 @@ export class ClaudeCodeScanner implements AgentScanner {
   }
 }
 
-/** 将可能是 number/string 的值转为整数（对应 Java JsonNode.asLong(0)） */
-function toLong(v: unknown): number {
-  if (typeof v === 'number') return Math.trunc(v) || 0
-  if (typeof v === 'string') {
-    const n = parseInt(v, 10)
-    return Number.isFinite(n) ? n : 0
+/** Claude 流式写入会为同一 message.id 保存多个逐步增长的 usage 快照。 */
+function mergeClaudeDuplicate(kept: TokenUsageApiCall, incoming: TokenUsageApiCall): void {
+  const keptTotal = kept.totalTokens
+  const incomingTotal = incoming.totalTokens
+  kept.inputTokens = Math.max(kept.inputTokens, incoming.inputTokens)
+  kept.outputTokens = Math.max(kept.outputTokens, incoming.outputTokens)
+  kept.cacheReadTokens = Math.max(kept.cacheReadTokens, incoming.cacheReadTokens)
+  kept.cacheWriteTokens = Math.max(kept.cacheWriteTokens, incoming.cacheWriteTokens)
+  kept.reasoningTokens = Math.max(kept.reasoningTokens, incoming.reasoningTokens)
+  kept.totalTokens =
+    kept.inputTokens +
+    kept.outputTokens +
+    kept.cacheReadTokens +
+    kept.cacheWriteTokens +
+    kept.reasoningTokens
+  if (
+    incomingTotal > keptTotal ||
+    (incomingTotal === keptTotal && incoming.timestamp > kept.timestamp)
+  ) {
+    kept.date = incoming.date
+    kept.rawTimestamp = incoming.rawTimestamp
+    kept.timestamp = incoming.timestamp
+    kept.hour = incoming.hour
+    kept.model = incoming.model
+    kept.projectPath = incoming.projectPath || kept.projectPath
   }
-  return 0
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

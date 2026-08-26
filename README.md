@@ -79,5 +79,15 @@ Oh My Token 可以统计多种Agent的token用量。
   <br><br>
   <kbd>MiniMax Code</kbd>&nbsp;&nbsp;
   <kbd>KimiWork</kbd>&nbsp;&nbsp;
+  <kbd>Kimi Code</kbd>&nbsp;&nbsp;
   <kbd>WorkBuddy</kbd>
+  <br><br>
+  <kbd>Gemini CLI</kbd>&nbsp;&nbsp;
+  <kbd>Qwen Code</kbd>&nbsp;&nbsp;
+  <kbd>OpenClaw</kbd>&nbsp;&nbsp;
+  <kbd>Grok</kbd>
+  <br><br>
+  <kbd>Zed Agent</kbd>&nbsp;&nbsp;
+  <kbd>Goose</kbd>&nbsp;&nbsp;
+  <kbd>Hermes</kbd>
 </p>

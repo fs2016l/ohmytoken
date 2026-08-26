@@ -846,7 +846,6 @@ const versionString = computed(() => currentVersion.value || settings.version)
   border-top: 1px solid var(--border);
 }
 
-/* Row icon (borrowed from kelp card style) */
 .row-icon {
   flex-shrink: 0;
   width: 36px;

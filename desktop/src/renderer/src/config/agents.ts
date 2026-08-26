@@ -6,6 +6,14 @@ export const agentOrder = [
   'zcode',
   'workbuddy',
   'kimiwork',
+  'kimi-code',
+  'gemini',
+  'qwen',
+  'openclaw',
+  'grok',
+  'zed',
+  'goose',
+  'hermes',
 ] as const
 
 export type KnownAgent = (typeof agentOrder)[number]
@@ -18,6 +26,14 @@ export const agentColors: Record<string, string> = {
   zcode: '#22c55e',
   workbuddy: '#f472b6',
   kimiwork: '#60a5fa',
+  'kimi-code': '#3b82f6',
+  gemini: '#38bdf8',
+  qwen: '#a855f7',
+  openclaw: '#f97316',
+  grok: '#64748b',
+  zed: '#eab308',
+  goose: '#14b8a6',
+  hermes: '#ef4444',
 }
 
 export const modelPalette = [
@@ -40,6 +56,14 @@ export const agentNames: Record<string, string> = {
   zcode: 'Z Code',
   workbuddy: 'WorkBuddy',
   kimiwork: 'KimiWork',
+  'kimi-code': 'Kimi Code',
+  gemini: 'Gemini CLI',
+  qwen: 'Qwen Code',
+  openclaw: 'OpenClaw',
+  grok: 'Grok',
+  zed: 'Zed Agent',
+  goose: 'Goose',
+  hermes: 'Hermes',
 }
 
 export function getAgentName(agent: string): string {

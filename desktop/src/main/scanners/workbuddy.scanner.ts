@@ -37,9 +37,10 @@ import {
   timestampFromValue,
   timestampsFromValue,
 } from './detail-utils'
-import { normalizeScanContext, shouldScanFile } from './incremental-utils'
+import { normalizeScanContext } from './incremental-utils'
 import { loadWorkBuddyProjectScan, normalizeWorkBuddyModel } from './workbuddy-jsonl'
 import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
+import { tokenBuckets, tokenCount } from './token-usage'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -85,6 +86,16 @@ export class WorkBuddyScanner implements AgentScanner {
       traceApiCallEntries,
       projectScan.coveredRootSessionIds,
     )
+    const coveredDetailedSessions = new Set(projectScan.coveredRootSessionIds)
+    for (const apiCall of apiCalls) {
+      coveredDetailedSessions.add(apiCall.rootSessionId ?? apiCall.sessionId)
+      coveredDetailedSessions.add(apiCall.sessionId)
+    }
+    apiCalls.push(
+      ...this.loadSessionUsageApiCalls(sessions).filter(
+        (apiCall) => !coveredDetailedSessions.has(apiCall.sessionId),
+      ),
+    )
     // project JSONL 已在解析时按事件窗口过滤。trace 是会持续改写的累计快照：
     // 只要文件 mtime 命中窗口，就保留其原始 startedAt 与稳定文件 ID做 upsert；
     // 不把 mtime 冒充事件时间，从而不会误删窗口外的旧日期/模型分组。
@@ -106,6 +117,7 @@ export class WorkBuddyScanner implements AgentScanner {
     sessions: Map<string, SessionInfo>,
     context: ScannerScanContext,
   ): TraceApiCallEntry[] {
+    void context
     const entries: TraceApiCallEntry[] = []
     const tracesDir = getWorkBuddyTracesDir()
     if (!existsSync(tracesDir)) return entries
@@ -131,7 +143,8 @@ export class WorkBuddyScanner implements AgentScanner {
       for (const jf of jsonFiles) {
         if (!jf.isFile() || !jf.name.endsWith('.json')) continue
         const traceFile = join(pidFullPath, jf.name)
-        if (!shouldScanFile(traceFile, context)) continue
+        // trace 是累计快照；每次扫描全部元数据，才能正确阻止
+        // session_usage 在未改写的旧 trace 上二次补算。
         let text: string
         try {
           text = readFileSync(traceFile, 'utf8')
@@ -158,9 +171,9 @@ export class WorkBuddyScanner implements AgentScanner {
 
         if (isObject(trace.modelInfo)) {
           const mi = trace.modelInfo
-          input = toLong(mi.totalInputTokens)
-          output = toLong(mi.totalOutputTokens)
-          cached = toLong(mi.totalCachedTokens)
+          input = tokenCount(mi.totalInputTokens)
+          output = tokenCount(mi.totalOutputTokens)
+          cached = Math.min(tokenCount(mi.totalCachedTokens), input)
           if (Array.isArray(mi.models) && mi.models.length > 0) {
             model = typeof mi.models[0] === 'string' ? mi.models[0] : null
           }
@@ -194,6 +207,11 @@ export class WorkBuddyScanner implements AgentScanner {
         const date = dateFromTimestamp(timestamp, fallbackDate)
         const effectiveSessionId = sessionId ?? `aggregate:${date}:${model}`
         const freshInput = freshWorkBuddyInputTokens(input, cached)
+        const buckets = tokenBuckets({
+          inputTokens: freshInput,
+          outputTokens: output,
+          cacheReadTokens: cached,
+        })
         const projectPath =
           extractProjectPath(root) || (sessionId ? sessions.get(sessionId)?.projectPath : undefined)
         const apiCall: TokenUsageApiCall = {
@@ -206,12 +224,7 @@ export class WorkBuddyScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
-          inputTokens: freshInput,
-          outputTokens: output,
-          cacheReadTokens: cached,
-          cacheWriteTokens: 0,
-          totalTokens: freshInput + cached + output,
-          reasoningTokens: 0,
+          ...buckets,
         }
         const effectiveRootSessionId = rootSessionId ?? sessionId
         if (effectiveRootSessionId && effectiveRootSessionId !== effectiveSessionId) {
@@ -222,6 +235,60 @@ export class WorkBuddyScanner implements AgentScanner {
     }
 
     return entries
+  }
+
+  /**
+   * session_usage 是会话级累计快照，只用来补充没有 projects/trace 明细的会话。
+   * ID 按会话保持稳定，使 updated_at 跨过增量回看窗口时仍会替换旧快照。
+   */
+  private loadSessionUsageApiCalls(
+    sessions: ReadonlyMap<string, SessionInfo>,
+  ): TokenUsageApiCall[] {
+    const dbPath = getWorkBuddyDb()
+    if (!existsSync(dbPath)) return []
+    let db: Database.Database | null = null
+    try {
+      db = new Database(dbPath, { readonly: true })
+      db.exec('PRAGMA busy_timeout = 5000')
+      if (!tableExists(db, 'session_usage')) return []
+      const columns = tableColumnNames(db, 'session_usage')
+      if (!['session_id', 'used', 'updated_at'].every((name) => columns.has(name))) return []
+
+      const apiCalls: TokenUsageApiCall[] = []
+      for (const row of queryAll(
+        db,
+        `SELECT session_id, used, updated_at
+         FROM session_usage
+         WHERE used IS NOT NULL AND used > 0
+           AND updated_at IS NOT NULL AND updated_at > 0`,
+      )) {
+        const sessionId = dbString(row.session_id)
+        const used = tokenCount(row.used)
+        const updatedAt = normalizeWorkBuddyTimestamp(row.updated_at)
+        if (!sessionId || used <= 0 || updatedAt <= 0) continue
+        const session = sessions.get(sessionId)
+        const model = normalizeWorkBuddyModel(session?.model || 'auto')
+        const fallbackDate = formatDateFromMs(updatedAt)
+        const { timestamp, rawTimestamp } = timestampsFromValue(updatedAt, fallbackDate)
+        apiCalls.push({
+          agent: this.agentName,
+          apiCallId: `workbuddy-usage:${sessionId}`,
+          sessionId,
+          ...(session?.projectPath ? { projectPath: session.projectPath } : {}),
+          date: dateFromTimestamp(timestamp, fallbackDate),
+          rawTimestamp,
+          timestamp,
+          hour: hourFromTimestamp(timestamp),
+          model,
+          ...tokenBuckets({ inputTokens: used }),
+        })
+      }
+      return apiCalls
+    } catch (e) {
+      throw new Error(`WorkBuddy session_usage 不可读: ${(e as Error).message}`)
+    } finally {
+      if (db) db.close()
+    }
   }
 
   /** 从 workbuddy.db 的 sessions 表加载 session 信息。
@@ -242,6 +309,7 @@ export class WorkBuddyScanner implements AgentScanner {
     try {
       db = new Database(dbPath, { readonly: true })
       db.exec('PRAGMA busy_timeout = 5000')
+      if (!tableExists(db, 'sessions')) return sessions
       const columns = new Map<string, string>()
       for (const row of queryAll(db, 'PRAGMA table_info(sessions)')) {
         const name = row.name
@@ -263,19 +331,28 @@ export class WorkBuddyScanner implements AgentScanner {
         'workspace',
         'project_path',
       ])
-      const selectCols = ['id', 'model', 'created_at']
+      const idColumn = firstExistingColumn(columns, ['id', 'session_id'])
+      if (!idColumn) return sessions
+      const modelColumn = firstExistingColumn(columns, ['model', 'model_id', 'model_name'])
+      const createdAtColumn = firstExistingColumn(columns, [
+        'created_at',
+        'createdAt',
+        'start_time',
+      ])
+      const selectCols = [
+        `${idColumn} AS id`,
+        modelColumn ? `${modelColumn} AS model` : 'NULL AS model',
+        createdAtColumn ? `${createdAtColumn} AS created_at` : 'NULL AS created_at',
+      ]
       if (titleColumn) selectCols.push(titleColumn)
       if (customTitleColumn && customTitleColumn !== titleColumn) selectCols.push(customTitleColumn)
       if (projectPathColumn) selectCols.push(projectPathColumn)
 
-      for (const row of queryAll(
-        db,
-        `SELECT ${selectCols.join(', ')} FROM sessions WHERE model IS NOT NULL`,
-      )) {
-        const id = typeof row.id === 'string' ? row.id : null
-        const model = typeof row.model === 'string' ? row.model : null
-        const createdAt = toLong(row.created_at)
-        if (id === null || model === null) continue
+      for (const row of queryAll(db, `SELECT ${selectCols.join(', ')} FROM sessions`)) {
+        const id = dbString(row.id)
+        const model = normalizeWorkBuddyModel(dbString(row.model) || 'auto')
+        const createdAt = normalizeWorkBuddyTimestamp(row.created_at)
+        if (!id) continue
         const date = createdAt > 0 ? formatDateFromMs(createdAt) : 'unknown'
         const rawTitle = titleColumn ? dbString(row[titleColumn]) : ''
         const customTitle = customTitleColumn ? dbString(row[customTitleColumn]) : ''
@@ -307,15 +384,20 @@ function queryAll(db: Database.Database, sql: string): Record<string, DbValue>[]
   return db.prepare(sql).all() as Record<string, DbValue>[]
 }
 
-/** 将值转为整数（兼容 DB 值与 JSON 解析值） */
-function toLong(v: unknown): number {
-  if (typeof v === 'number') return Math.trunc(v) || 0
-  if (typeof v === 'bigint') return Number(v) || 0
-  if (typeof v === 'string') {
-    const n = parseInt(v, 10)
-    return Number.isFinite(n) ? n : 0
-  }
-  return 0
+function tableExists(db: Database.Database, table: string): boolean {
+  return (
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1")
+      .get(table) !== undefined
+  )
+}
+
+function tableColumnNames(db: Database.Database, table: string): Set<string> {
+  return new Set(
+    queryAll(db, `PRAGMA table_info(${table})`)
+      .map((row) => dbString(row.name).toLowerCase())
+      .filter(Boolean),
+  )
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -324,6 +406,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function dbString(value: DbValue): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeWorkBuddyTimestamp(value: DbValue): number {
+  const parsed = tokenCount(value)
+  if (parsed <= 0) return 0
+  return parsed <= 10_000_000_000 ? parsed * 1000 : parsed
 }
 
 function cleanWorkBuddyTitle(value: string): string {
