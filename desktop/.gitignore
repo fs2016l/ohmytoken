@@ -10,8 +10,12 @@ out-test/
 dist/
 dist-ssr/
 
+# electron-builder 构建资源：只跟踪经过审核的公开签名配置，不存放证书或私钥
+build/*
+!build/entitlements.mac.plist
+!build/entitlements.mac.inherit.plist
+
 # electron-builder 打包产物
-build/
 release/
 
 # Vite / TS

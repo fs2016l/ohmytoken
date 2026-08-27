@@ -49,15 +49,20 @@ nsis:
   # 与 com 后端 ReleaseArtifactContract 保持一致；version 与应用内嵌版本同源。
   artifactName: ${name}-${version}-windows-${arch}-setup.${ext}
 mac:
+  # macOS 使用已在 Apple Developer 注册的独立 Bundle ID；Windows 继续沿用顶层 appId。
+  appId: net.ohmytoken.desktop
   icon: src/renderer/public/brand/app-icon.icns
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
   target:
     - target: dmg
       arch: [x64, arm64]
     # electron-updater 的 MacUpdater 只接受 ZIP；DMG 仅用于官网手动安装。
     - target: zip
       arch: [x64, arm64]
-  notarize: false
+  notarize: true
   artifactName: ${name}-${version}-macos-${arch}.${ext}
 dmg:
   artifactName: ${name}-${version}-macos-${arch}.${ext}
