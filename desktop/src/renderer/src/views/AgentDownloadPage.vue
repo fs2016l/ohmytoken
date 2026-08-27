@@ -504,37 +504,34 @@ onMounted(loadAgents)
 
 .agent-filter-bar {
   display: flex;
-  width: 100%;
-  max-width: 100%;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
+  width: fit-content;
+  max-width: 100%;
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   background: var(--surface-container);
-  box-shadow: var(--shadow-card);
 }
 
 .agent-filter-btn {
   display: inline-flex;
-  min-width: 0;
   align-items: center;
-  gap: 7px;
-  padding: 7px 11px;
-  border: 1px solid transparent;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   color: var(--text-muted);
-  background: transparent;
+  background: var(--surface);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: var(--weight-medium);
   cursor: pointer;
   transition:
     color 0.18s ease,
     background 0.18s ease,
     border-color 0.18s ease,
-    transform 0.18s ease;
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .agent-filter-logo {
@@ -549,6 +546,7 @@ onMounted(loadAgents)
   background: #fff;
   font-size: 10px;
   font-weight: var(--weight-semibold);
+  line-height: 1;
 }
 
 .agent-filter-logo img {
@@ -558,10 +556,11 @@ onMounted(loadAgents)
 }
 
 .agent-filter-btn:hover {
-  border-color: var(--border-strong);
   color: var(--primary);
+  border-color: var(--primary);
   background: var(--surface-container-high);
   transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .agent-filter-btn:active {
@@ -569,10 +568,15 @@ onMounted(loadAgents)
 }
 
 .agent-filter-btn.active {
-  border-color: var(--primary);
   color: var(--primary-on);
   background: var(--primary);
+  border-color: var(--primary);
   font-weight: var(--weight-semibold);
+}
+
+.agent-filter-btn.active:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
 }
 
 .agent-filter-btn.active .agent-filter-logo {

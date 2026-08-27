@@ -1,5 +1,5 @@
 import { autoUpdater } from 'electron-updater'
-import type { BrowserWindow } from 'electron'
+import { app, type BrowserWindow } from 'electron'
 import { recordDiagnosticEvent, reportDiagnosticError } from './diagnostic-log.service'
 import { getDesktopRuntimeConfig } from './runtime-config.service'
 
@@ -9,8 +9,30 @@ autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = false
 // 非静默安装完成后自动启动新版本。
 autoUpdater.autoRunAppAfterInstall = true
-// 更新源由 com 后台动态下发；打包文件中的地址只是不可用的占位，避免开源 Agent 固化业务域名。
-autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+
+/**
+ * electron-updater 默认 User-Agent 不包含宿主操作系统版本，com 下载统计只能根据
+ * 安装包目标平台推断出 Windows/macOS，无法展示具体版本。这里使用后端现有
+ * UserAgentOsParser 能识别的标准平台片段，无需为公开下载接口增加额外参数。
+ */
+function updaterUserAgent(): string {
+  const systemVersion = process.getSystemVersion()
+  const platform =
+    process.platform === 'win32'
+      ? `Windows NT ${systemVersion}; Win64; ${process.arch}`
+      : process.platform === 'darwin'
+        ? `Mac OS X ${systemVersion.replace(/\./g, '_')}; ${process.arch}`
+        : `Linux ${systemVersion}; ${process.arch}`
+  return `OhMyTokenAgent/${app.getVersion()} (${platform}) Electron/${process.versions.electron}`
+}
+
+function configureUpdaterRequestHeaders(): void {
+  autoUpdater.requestHeaders = {
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    'User-Agent': updaterUserAgent(),
+  }
+}
 
 /** 推送到 renderer 的事件通道名（与 channels.ts 的 IPC.UPDATE_EVENT 保持一致） */
 const IPC_CHANNEL_UPDATE_EVENT = 'updater:event'
@@ -29,6 +51,8 @@ let lastProgressBucket = -1
 let configuredFeedUrl = ''
 
 async function configureUpdaterFeed(forceRefresh: boolean): Promise<void> {
+  // 同一组 Header 会用于更新清单和安装包下载请求。
+  configureUpdaterRequestHeaders()
   const config = await getDesktopRuntimeConfig(forceRefresh)
   if (configuredFeedUrl === config.updaterFeedUrl) return
   autoUpdater.setFeedURL({ provider: 'generic', url: config.updaterFeedUrl, channel: 'latest' })

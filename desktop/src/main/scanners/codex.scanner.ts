@@ -114,6 +114,7 @@ interface CodexParserCheckpointState {
   previousAcceptedCumulative: string
   previousCumulativeSum: number
   previousCumulative: CodexUsageSnapshot | null
+  cumulativeSegmentBaseline: CodexUsageSnapshot
   completedCumulative: CodexUsageSnapshot
   acceptedUsage: CodexUsageSnapshot
   inheritedCumulativeBaseline: CodexUsageSnapshot | null
@@ -127,7 +128,7 @@ interface CodexParserCheckpoint {
 }
 
 interface CodexFileCursor {
-  version: 3
+  version: 4
   endOffset: number
   checkpoints: CodexParserCheckpoint[]
   smallPrefixHash?: string
@@ -146,7 +147,7 @@ const CODEX_CHECKPOINT_BYTES = 4 * 1024 * 1024
 const CODEX_MAX_CHECKPOINTS = 64
 const CODEX_CHECKPOINT_PREFIX_CHARS = 96
 const CODEX_MAX_LINE_BYTES = 4 * 1024 * 1024
-const CODEX_ROLLOUT_CURSOR_VERSION = 3
+const CODEX_ROLLOUT_CURSOR_VERSION = 4
 
 export class CodexScanner implements AgentScanner {
   readonly agentName = 'codex'
@@ -391,7 +392,8 @@ export class CodexScanner implements AgentScanner {
 
   /**
    * 解析单个 Codex rollout JSONL。
-   * last_token_usage 是最近一次 API 快照；total_token_usage 是会话累计值。
+   * last_token_usage 是最近一次 API 快照；total_token_usage 是当前计数段累计值，
+   * 同一 rollout 内也可能因 Codex 应用重启而重新起算。
    * Codex 会重复写入相同累计快照，因此只在累计值变化时接纳 last_token_usage，
    * 并在文件解析结束后用最终累计值校验所有明细之和。
    */
@@ -423,6 +425,7 @@ export class CodexScanner implements AgentScanner {
     let previousAcceptedCumulative = ''
     let previousCumulativeSum = -1
     let previousCumulative: CodexUsageSnapshot | null = null
+    let cumulativeSegmentBaseline = emptyCodexUsage()
     let completedCumulative = emptyCodexUsage()
     let finalCumulative: CodexUsageSnapshot | null = null
     let acceptedUsage = emptyCodexUsage()
@@ -449,6 +452,7 @@ export class CodexScanner implements AgentScanner {
       previousAcceptedCumulative = state.previousAcceptedCumulative
       previousCumulativeSum = state.previousCumulativeSum
       previousCumulative = state.previousCumulative
+      cumulativeSegmentBaseline = state.cumulativeSegmentBaseline
       completedCumulative = state.completedCumulative
       acceptedUsage = state.acceptedUsage
       inheritedCumulativeBaseline = state.inheritedCumulativeBaseline
@@ -473,6 +477,7 @@ export class CodexScanner implements AgentScanner {
       previousAcceptedCumulative,
       previousCumulativeSum,
       previousCumulative: previousCumulative ? { ...previousCumulative } : null,
+      cumulativeSegmentBaseline: { ...cumulativeSegmentBaseline },
       completedCumulative: { ...completedCumulative },
       acceptedUsage: { ...acceptedUsage },
       inheritedCumulativeBaseline: inheritedCumulativeBaseline
@@ -486,6 +491,7 @@ export class CodexScanner implements AgentScanner {
       previousAcceptedCumulative = ''
       previousCumulativeSum = -1
       previousCumulative = null
+      cumulativeSegmentBaseline = emptyCodexUsage()
       completedCumulative = emptyCodexUsage()
       finalCumulative = null
       acceptedUsage = emptyCodexUsage()
@@ -603,18 +609,35 @@ export class CodexScanner implements AgentScanner {
 
             if (cumulative && previousCumulativeSum >= 0) {
               const cumulativeSum = codexUsageSum(cumulative)
-              if (cumulativeSum < previousCumulativeSum) {
-                const beginsNewCycle = sameCodexUsage(cumulative, usage)
+              const beginsNewCumulativeSegment = sameCodexUsage(cumulative, usage)
+              const cumulativeWentBack = cumulativeSum < previousCumulativeSum
+              // Codex 的累计计数器会在应用重启等边界重新起算。新计数段的首个调用
+              // 可能比上一段总量更大，因此不能只靠“累计值下降”识别重置；
+              // total_token_usage 与 last_token_usage 完全相等同样表示当前累计仅含本次调用。
+              if (beginsNewCumulativeSegment || cumulativeWentBack) {
                 const looksStale =
                   cumulativeSum * 100 >= previousCumulativeSum * 98 ||
                   cumulativeSum + 2 * codexUsageSum(usage) >= previousCumulativeSum
-                if (!beginsNewCycle && looksStale) continue
+                if (!beginsNewCumulativeSegment && looksStale) continue
                 if (previousCumulative) {
                   completedCumulative = addCodexUsage(
                     completedCumulative,
-                    normalizeCodexUsageExclusive(previousCumulative),
+                    normalizeCodexUsageExclusive(
+                      subtractCodexUsageOrThrow(
+                        previousCumulative,
+                        cumulativeSegmentBaseline,
+                        context.sessionFile,
+                      ),
+                    ),
                   )
                 }
+                // 回退后 Codex 可能从旧累计快照续算，而不是从 0 开始。该基线已在
+                // 前一计数段统计过；当前段结束时只校验并计入基线之后的新增量。
+                cumulativeSegmentBaseline = subtractCodexUsageOrThrow(
+                  cumulative,
+                  usage,
+                  context.sessionFile,
+                )
               }
             }
 
@@ -692,7 +715,16 @@ export class CodexScanner implements AgentScanner {
       assertCodexCumulativeMatches(
         context.sessionFile,
         acceptedUsage,
-        addCodexUsage(completedCumulative, normalizeCodexUsageExclusive(finalCumulative)),
+        addCodexUsage(
+          completedCumulative,
+          normalizeCodexUsageExclusive(
+            subtractCodexUsageOrThrow(
+              finalCumulative,
+              cumulativeSegmentBaseline,
+              context.sessionFile,
+            ),
+          ),
+        ),
         isThreadSpawnSubAgent || Boolean(forkedFromSessionId) || subAgentBoundaryApplied
           ? inheritedCumulativeBaseline
           : null,
@@ -1137,6 +1169,16 @@ function sameCodexUsage(left: CodexUsageSnapshot, right: CodexUsageSnapshot): bo
     left.cacheWriteTokens === right.cacheWriteTokens &&
     left.reasoningTokens === right.reasoningTokens
   )
+}
+
+function subtractCodexUsageOrThrow(
+  total: CodexUsageSnapshot,
+  baseline: CodexUsageSnapshot,
+  sessionFile: string,
+): CodexUsageSnapshot {
+  const delta = subtractCodexUsage(total, baseline)
+  if (delta) return delta
+  throw new Error(`Codex token 累计基线无效 (${sessionFile})`)
 }
 
 function readCodexOrdinal(value: unknown): number | null {
