@@ -43,11 +43,18 @@ if (process.platform === 'win32') {
   app.setAppUserModelId(appUserModelId)
 }
 
-function getAppIconPath(): string {
-  const iconFile = process.platform === 'win32' ? 'app-icon.ico' : 'app-icon-256.png'
+function getBrandIconPath(iconFile: string): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'brand', iconFile)
     : join(__dirname, '../../src/renderer/public/brand', iconFile)
+}
+
+function getAppIconPath(): string {
+  return getBrandIconPath(process.platform === 'win32' ? 'app-icon.ico' : 'app-icon-256.png')
+}
+
+function getTrayIconPath(): string {
+  return process.platform === 'darwin' ? getBrandIconPath('trayTemplate.png') : getAppIconPath()
 }
 
 // 不调用 app.getPath，可在 ready 前注册，确保启动阶段主进程异常也会被观察到。
@@ -225,7 +232,7 @@ if (!gotLock) {
 
     configureTray({
       getMainWindow,
-      getIconPath: getAppIconPath,
+      getIconPath: getTrayIconPath,
       isFloatingWindowVisible,
       toggleFloatingWindow: () => {
         if (isFloatingWindowVisible()) closeFloatingWindow()
