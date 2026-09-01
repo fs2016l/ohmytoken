@@ -56,7 +56,122 @@ jobs:
             exit 1
           fi
 
-  build:
+  build-windows:
+    name: Build and sign Windows x64
+    needs: validate
+    if: >-
+      github.repository == 'fs2016l/ohmytoken' &&
+      github.actor == 'fs2016l' &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+      )
+    runs-on: [self-hosted, Windows, X64, ohmytoken-signing]
+    environment:
+      name: windows-signing
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: desktop
+
+    env:
+      CI: true
+      WINDOWS_CERT_SHA1: B466B505CD7DC9691E8DE86BDAC5D74DC71DAE26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Check Certum signing certificate
+        shell: pwsh
+        run: |
+          $certificate = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert |
+            Where-Object Thumbprint -eq $env:WINDOWS_CERT_SHA1
+
+          if ($null -eq $certificate) {
+            throw "Certum signing certificate $env:WINDOWS_CERT_SHA1 is unavailable. Connect SimplySign Desktop before running the release."
+          }
+          if (-not $certificate.HasPrivateKey) {
+            throw "Certum signing certificate is present, but its SimplySign private key is unavailable."
+          }
+          if ($certificate.NotAfter -le (Get-Date)) {
+            throw "Certum signing certificate expired on $($certificate.NotAfter.ToString('u'))."
+          }
+
+          Write-Output "Certum signing certificate is available until $($certificate.NotAfter.ToString('u'))."
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Package and sign Windows installer
+        run: npx electron-builder --config electron-builder.windows-signing.yml --win nsis --x64 --publish never
+
+      - name: Verify Windows signatures
+        shell: pwsh
+        run: |
+          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+            -Filter signtool.exe -Recurse -ErrorAction Stop |
+            Where-Object FullName -Match '\\x64\\signtool\.exe$' |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+
+          if ($null -eq $signTool) {
+            throw 'The x64 Windows SDK signtool.exe was not found.'
+          }
+
+          $application = Get-ChildItem release -Filter ohmytoken.exe -Recurse |
+            Where-Object FullName -Match '\\win-unpacked\\ohmytoken\.exe$'
+          $installer = Get-ChildItem release -Filter 'ohmytoken-*-windows-x64-setup.exe' -Recurse
+          $signedFiles = @($application) + @($installer)
+
+          if (@($application).Count -ne 1) {
+            throw "Expected one packaged ohmytoken.exe, found $(@($application).Count)."
+          }
+          if (@($installer).Count -ne 1) {
+            throw "Expected one Windows installer, found $(@($installer).Count)."
+          }
+
+          foreach ($file in $signedFiles) {
+            & $signTool.FullName verify /pa /all /v $file.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "signtool verification failed for $($file.FullName)."
+            }
+
+            $signature = Get-AuthenticodeSignature -LiteralPath $file.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Authenticode status for $($file.FullName) is $($signature.Status)."
+            }
+            if ($signature.SignerCertificate.Thumbprint -ne $env:WINDOWS_CERT_SHA1) {
+              throw "Unexpected signing certificate on $($file.FullName)."
+            }
+            if ($null -eq $signature.TimeStamperCertificate) {
+              throw "The signature on $($file.FullName) has no trusted timestamp."
+            }
+          }
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-x64
+          path: desktop/release/**/ohmytoken-*-windows-x64-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  build-macos:
     name: Build ${{ matrix.label }}
     needs: validate
     runs-on: ${{ matrix.os }}
@@ -65,11 +180,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: Windows x64
-            os: windows-2025
-            artifact: windows-x64
-            builder_args: "--win nsis --x64"
-
           - label: macOS Intel x64
             os: macos-15-intel
             artifact: macos-x64
@@ -104,14 +214,7 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Package Windows installer
-        if: runner.os == 'Windows'
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder ${{ matrix.builder_args }} --publish never
-
       - name: Package, sign, and notarize macOS installer
-        if: runner.os == 'macOS'
         shell: bash
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
@@ -143,7 +246,6 @@ jobs:
               -c.mac.forceCodeSigning=true
 
       - name: Verify macOS signature and notarization
-        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
@@ -165,7 +267,6 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
-            desktop/release/**/ohmytoken-*-windows-x64-setup.exe
             desktop/release/**/ohmytoken-*-macos-x64.dmg
             desktop/release/**/ohmytoken-*-macos-x64.zip
             desktop/release/**/ohmytoken-*-macos-arm64.dmg
@@ -177,7 +278,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build-windows, build-macos]
     runs-on: ubuntu-24.04
 
     permissions:

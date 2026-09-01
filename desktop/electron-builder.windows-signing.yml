@@ -1,0 +1,10 @@
+extends: ./electron-builder.yml
+
+win:
+  forceCodeSigning: true
+  signtoolOptions:
+    certificateSha1: B466B505CD7DC9691E8DE86BDAC5D74DC71DAE26
+    publisherName: 'CN="Shanhuan (Zibo) Environmental Engineering Technology Co., Ltd.", O="Shanhuan (Zibo) Environmental Engineering Technology Co., Ltd.", L=淄博市, S=山东省, C=CN'
+    signingHashAlgorithms:
+      - sha256
+    rfc3161TimeStampServer: http://time.certum.pl
