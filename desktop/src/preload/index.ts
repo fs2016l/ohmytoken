@@ -286,8 +286,8 @@ const api = {
   openDiagnosticLogs: (): Promise<void> =>
     ipcRenderer.invoke(IPC.DIAGNOSTICS_OPEN_LOGS) as Promise<void>,
 
-  authLogin: (): Promise<AuthActionResult> =>
-    ipcRenderer.invoke(IPC.AUTH_LOGIN) as Promise<AuthActionResult>,
+  authLogin: (language: 'zh' | 'en'): Promise<AuthActionResult> =>
+    ipcRenderer.invoke(IPC.AUTH_LOGIN, language) as Promise<AuthActionResult>,
   authLogout: (): Promise<AuthActionResult> =>
     ipcRenderer.invoke(IPC.AUTH_LOGOUT) as Promise<AuthActionResult>,
   authStatus: (): Promise<boolean> => ipcRenderer.invoke(IPC.AUTH_STATUS) as Promise<boolean>,

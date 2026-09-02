@@ -590,8 +590,8 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
 
   ipcMain.handle(
     IPC.AUTH_LOGIN,
-    wrapHandler(async () => {
-      const ok = await startPkceLogin(windowGetter)
+    wrapHandler(async (_event, language?: string) => {
+      const ok = await startPkceLogin(windowGetter, language === 'en' ? 'en' : 'zh')
       return ok ? { ok } : { ok, message: '无法打开系统浏览器' }
     }),
   )

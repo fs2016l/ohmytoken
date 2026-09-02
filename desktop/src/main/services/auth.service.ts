@@ -20,6 +20,8 @@ interface ActiveLogin {
   timeoutHandle: NodeJS.Timeout | null
 }
 
+type LoginLanguage = 'zh' | 'en'
+
 let activeLogin: ActiveLogin | null = null
 let activeLoginStart: Promise<boolean> | null = null
 
@@ -630,7 +632,10 @@ async function handleLoopbackCallback(
   }
 }
 
-async function startPkceLoginInternal(windowGetter: () => BrowserWindow | null): Promise<boolean> {
+async function startPkceLoginInternal(
+  windowGetter: () => BrowserWindow | null,
+  language: LoginLanguage,
+): Promise<boolean> {
   closeLogin()
   const { codeVerifier, codeChallenge, state } = generatePkceMaterial()
   let redirectUri = ''
@@ -686,6 +691,7 @@ async function startPkceLoginInternal(windowGetter: () => BrowserWindow | null):
         const runtimeConfig = await getDesktopRuntimeConfig(true)
         const loginUrl = new URL(runtimeConfig.desktopLoginUrl)
         loginUrl.searchParams.set('session_id', session.sessionId)
+        loginUrl.searchParams.set('lang', language)
         await shell.openExternal(loginUrl.toString())
         settleLaunch(true)
       } catch (e) {
@@ -701,9 +707,12 @@ async function startPkceLoginInternal(windowGetter: () => BrowserWindow | null):
  * 登录启动 single-flight：头像无需被禁用，但同一次网络启动尚未结束时的重复点击
  * 复用同一 Promise，避免无限累积授权请求和连续弹出大量系统浏览器窗口。
  */
-export function startPkceLogin(windowGetter: () => BrowserWindow | null): Promise<boolean> {
+export function startPkceLogin(
+  windowGetter: () => BrowserWindow | null,
+  language: LoginLanguage = 'zh',
+): Promise<boolean> {
   if (activeLoginStart) return activeLoginStart
-  const request = startPkceLoginInternal(windowGetter).finally(() => {
+  const request = startPkceLoginInternal(windowGetter, language).finally(() => {
     if (activeLoginStart === request) activeLoginStart = null
   })
   activeLoginStart = request

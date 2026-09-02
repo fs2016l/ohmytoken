@@ -346,6 +346,10 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+html[data-window-kind='main'] {
+  scrollbar-gutter: stable;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;

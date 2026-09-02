@@ -447,13 +447,13 @@
   padding-inline: var(--space-3);
 }
 
-#app .vendor-filter-bar {
+#app :is(.vendor-filter-bar, .agent-filter-bar) {
   gap: var(--space-2);
   margin: var(--space-0);
   padding: var(--space-2);
 }
 
-#app .vendor-filter-btn {
+#app :is(.vendor-filter-btn, .agent-filter-btn) {
   gap: var(--space-1);
   padding-inline: var(--space-3);
 }

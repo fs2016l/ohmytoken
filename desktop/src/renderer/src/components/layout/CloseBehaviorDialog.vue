@@ -79,9 +79,7 @@ onUnmounted(() => {
               <span class="status-dot"></span>
             </div>
             <div>
-              <span class="dialog-eyebrow">OHMYTOKEN</span>
               <h2 id="close-dialog-title">{{ tr('closeDialogTitle') }}</h2>
-              <p>{{ tr('closeDialogSubtitle') }}</p>
             </div>
           </header>
 
@@ -97,11 +95,7 @@ onUnmounted(() => {
                 <span class="material-symbols-outlined">dock_to_right</span>
               </span>
               <span class="choice-copy">
-                <span class="choice-title-row">
-                  <strong>{{ tr('backgroundOptionTitle') }}</strong>
-                  <small>{{ tr('recommended') }}</small>
-                </span>
-                <span>{{ tr('backgroundOptionDesc') }}</span>
+                <strong>{{ tr('backgroundOptionTitle') }}</strong>
               </span>
               <span class="choice-arrow material-symbols-outlined">arrow_forward</span>
             </button>
@@ -117,7 +111,6 @@ onUnmounted(() => {
               </span>
               <span class="choice-copy">
                 <strong>{{ tr('quitOptionTitle') }}</strong>
-                <span>{{ tr('quitOptionDesc') }}</span>
               </span>
               <span class="choice-arrow material-symbols-outlined">arrow_forward</span>
             </button>
@@ -248,28 +241,12 @@ onUnmounted(() => {
   border-radius: 999px;
 }
 
-.dialog-eyebrow {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--primary);
-  font-size: 10px;
-  font-weight: var(--weight-bold);
-  letter-spacing: 0.18em;
-}
-
 .dialog-header h2 {
   margin: 0;
   color: var(--text);
   font-size: 24px;
   line-height: 1.2;
   letter-spacing: -0.02em;
-}
-
-.dialog-header p {
-  margin: 7px 0 0;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.55;
 }
 
 .choice-grid {
@@ -344,28 +321,6 @@ onUnmounted(() => {
 
 .choice-copy strong {
   font-size: 14px;
-  font-weight: var(--weight-semibold);
-}
-
-.choice-copy > span:last-child {
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.choice-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.choice-title-row small {
-  padding: 3px 7px;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 13%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
-  border-radius: 999px;
-  font-size: 10px;
   font-weight: var(--weight-semibold);
 }
 

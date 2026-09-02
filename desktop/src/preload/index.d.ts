@@ -285,7 +285,7 @@ export interface AppAPI {
 
   openDiagnosticLogs(): Promise<void>
 
-  authLogin(): Promise<AuthActionResult>
+  authLogin(language: 'zh' | 'en'): Promise<AuthActionResult>
   authLogout(): Promise<AuthActionResult>
   authStatus(): Promise<boolean>
   authSession(): Promise<AuthSessionResult>

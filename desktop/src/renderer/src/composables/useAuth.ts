@@ -146,7 +146,7 @@ function ensureIpcSubscribed(): void {
 export function useAuth() {
   async function login(): Promise<void> {
     try {
-      const result = await window.api.authLogin()
+      const result = await window.api.authLogin(appSettings.language)
       if (!result.ok) {
         throw new Error(result.message || '无法启动登录')
       }

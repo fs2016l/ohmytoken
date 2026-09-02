@@ -522,7 +522,7 @@
   border-color: var(--primary-border);
 }
 
-#app .vendor-filter-bar {
+#app :is(.vendor-filter-bar, .agent-filter-bar) {
   gap: 5px;
   margin: 0 0 12px;
   padding: 5px;
@@ -532,7 +532,7 @@
   box-shadow: var(--shadow-card);
 }
 
-#app .vendor-filter-btn {
+#app :is(.vendor-filter-btn, .agent-filter-btn) {
   min-height: 32px;
   gap: 5px;
   padding: 0 10px;
@@ -544,7 +544,7 @@
   font-weight: var(--weight-semibold);
 }
 
-#app .vendor-filter-btn:hover {
+#app :is(.vendor-filter-btn, .agent-filter-btn):hover {
   color: var(--text);
   background: var(--surface-container);
   border-color: var(--border);
@@ -552,7 +552,7 @@
   box-shadow: none;
 }
 
-#app .vendor-filter-btn.active {
+#app :is(.vendor-filter-btn, .agent-filter-btn).active {
   color: var(--primary);
   background: var(--primary-soft);
   border-color: var(--primary-border);
