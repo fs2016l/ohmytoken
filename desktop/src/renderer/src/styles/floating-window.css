@@ -1,0 +1,408 @@
+html.floating-window-root,
+body.floating-window-body,
+.floating-window-body #app {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+  overflow: hidden;
+}
+.floating-window-body {
+  padding: 12px;
+}
+/* The sliding edge enters the 12px window gutter; clip at the viewport, not #app. */
+.floating-window-body #app {
+  overflow: visible;
+}
+.floating-window {
+  --floating-window-shadow: 0 4px 10px -2px rgb(15 23 42 / 24%), 0 1px 3px rgb(15 23 42 / 16%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--shell);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  box-shadow: var(--floating-window-shadow);
+  font-size: 12px;
+  line-height: 18px;
+}
+html[data-theme='dark'] .floating-window {
+  --floating-window-shadow: 0 4px 10px -2px rgb(0 0 0 / 42%), 0 1px 3px rgb(0 0 0 / 28%);
+}
+.floating-header-block {
+  flex: 0 0 auto;
+}
+.floating-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.floating-drag-title {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: stretch;
+  flex: 1;
+  min-width: 0;
+}
+.floating-drag-title .floating-brand {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+:where(.floating-window, .floating-menu, .floating-follow-dialog) button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.floating-drag-title strong {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.floating-icon-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+  transition:
+    background-color var(--motion-hover) var(--motion-ease),
+    color var(--motion-hover) var(--motion-ease),
+    transform 90ms var(--motion-ease);
+  -webkit-app-region: no-drag;
+}
+.floating-icon-button:hover,
+.floating-icon-button.selected {
+  background: var(--primary-soft);
+}
+.floating-icon-button:active:not(:disabled) {
+  transform: scale(0.88);
+}
+.floating-icon-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.floating-icon-button.selected {
+  color: var(--primary);
+}
+/* 置顶：描边 ↔ 实心交叉淡入，选中时钉入式倾斜。 */
+.floating-pin-button .floating-pin-glyph {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  transform-origin: 50% 55%;
+  transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.floating-pin-button.selected .floating-pin-glyph {
+  transform: rotate(38deg);
+}
+.floating-pin-button .pin-filled,
+.floating-pin-button .pin-outline {
+  position: absolute;
+  inset: 0;
+  transition: opacity 200ms var(--motion-ease);
+}
+.floating-pin-button .pin-filled {
+  opacity: 0;
+}
+.floating-pin-button .pin-outline {
+  opacity: 1;
+}
+.floating-pin-button.selected .pin-filled {
+  opacity: 1;
+}
+.floating-pin-button.selected .pin-outline {
+  opacity: 0;
+}
+.floating-pin-button.pin-pulse .floating-pin-glyph {
+  animation: floating-pin-tack 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes floating-pin-tack {
+  0% {
+    transform: rotate(38deg) scale(0.85);
+  }
+  55% {
+    transform: rotate(38deg) scale(1.06);
+  }
+  100% {
+    transform: rotate(38deg) scale(1);
+  }
+}
+/* 收起：同族形变——两线合拢、箭头翻转到外侧张开。 */
+.floating-collapse-button.collapsed-state {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.floating-window--resizing .floating-collapse-button:disabled {
+  opacity: 1;
+}
+.floating-collapse-glyph {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+.floating-collapse-glyph .collapse-line,
+.floating-collapse-glyph .collapse-chevron {
+  transition: transform var(--motion-detail) ease-in-out;
+}
+.floating-collapse-glyph .collapse-chevron {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.floating-collapse-button.collapsed-state .collapse-line-a {
+  transform: translateY(1.75px);
+}
+.floating-collapse-button.collapsed-state .collapse-line-b {
+  transform: translateY(-1.75px);
+}
+.floating-collapse-button.collapsed-state .collapse-chevron-top {
+  transform: rotate(180deg) translateY(-0.9px);
+}
+.floating-collapse-button.collapsed-state .collapse-chevron-bottom {
+  transform: rotate(180deg) translateY(0.9px);
+}
+.floating-announcement {
+  margin: 4px 16px 0;
+}
+.floating-content {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 0fr) minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  transition: grid-template-rows var(--announcement-duration) ease-in-out;
+}
+.floating-content--announcement {
+  grid-template-rows: minmax(0, 1fr) minmax(0, 0fr);
+}
+.floating-announcement-region,
+.floating-monitor {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.floating-announcement-body {
+  height: 100%;
+  min-height: 0;
+}
+.floating-announcement-region {
+  visibility: hidden;
+  transition: visibility 0s var(--announcement-duration);
+}
+.floating-content--announcement .floating-announcement-region {
+  visibility: visible;
+  transition-delay: 0s;
+}
+.floating-monitor {
+  display: flex;
+  flex-direction: column;
+  visibility: visible;
+  transition: visibility 0s;
+}
+.floating-content--announcement .floating-monitor {
+  visibility: hidden;
+  transition-delay: var(--announcement-duration);
+}
+.floating-tabs {
+  position: relative;
+  padding: 12px 20px 8px;
+  flex: 0 0 auto;
+}
+.floating-tabs .selection-control {
+  width: 100%;
+}
+.floating-tabs .selection-option {
+  flex: 1;
+}
+.floating-quota-attention {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warning);
+  top: 29px;
+  left: calc(75% + 12px);
+  pointer-events: none;
+}
+.floating-pane {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.floating-scroll {
+  overflow-anchor: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 14px 0;
+}
+.floating-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.floating-card {
+  --floating-card-hover-duration: var(--motion-hover);
+  --floating-card-hover-ease: var(--motion-ease);
+  --floating-card-shadow:
+    0 1px 2px color-mix(in srgb, var(--text) 4%, transparent),
+    0 3px 8px color-mix(in srgb, var(--text) 5%, transparent);
+  --floating-card-shadow-hover:
+    0 2px 4px color-mix(in srgb, var(--text) 5%, transparent),
+    0 6px 14px color-mix(in srgb, var(--text) 9%, transparent);
+  background: var(--surface-low);
+  box-shadow: var(--floating-card-shadow);
+  transition:
+    box-shadow var(--floating-card-hover-duration) var(--floating-card-hover-ease),
+    translate var(--floating-card-hover-duration) var(--floating-card-hover-ease);
+}
+html[data-theme='dark'] .floating-card {
+  --floating-card-shadow: 0 1px 2px rgb(0 0 0 / 16%), 0 3px 8px rgb(0 0 0 / 20%);
+  --floating-card-shadow-hover: 0 2px 4px rgb(0 0 0 / 20%), 0 6px 14px rgb(0 0 0 / 28%);
+}
+html .floating-card:is(.session-card, .floating-quota-account) {
+  --floating-card-shadow-hover: var(--card-hover-shadow);
+  --floating-card-hover-duration: var(--motion-page);
+  --floating-card-hover-ease: var(--card-hover-ease);
+}
+@media (hover: hover) {
+  html:not(.floating-reorder-active)
+    .floating-card:hover:not(.session-card--dragging, .session-card-drag-preview) {
+    box-shadow: var(--floating-card-shadow-hover);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  html:not(.floating-reorder-active)
+    .floating-card:hover:not(.session-card--dragging, .session-card-drag-preview) {
+    translate: 0 -1px;
+  }
+}
+.floating-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+html.floating-reorder-active,
+html.floating-reorder-active body,
+html.floating-reorder-active body * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+.floating-link:hover {
+  color: var(--primary);
+}
+.floating-footer {
+  flex: 0 0 auto;
+  min-height: 38px;
+  margin-top: 8px;
+  padding: 4px 20px 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.floating-footer > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.floating-footer > span::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+  background: var(--icon-default);
+}
+.floating-footer .floating-row {
+  gap: 2px;
+}
+.floating-footer option {
+  background: var(--surface);
+}
+.floating-error {
+  margin: 8px 12px;
+  color: var(--error);
+  font-size: 12px;
+  line-height: 18px;
+}
+.floating-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.floating-menu {
+  min-width: 160px;
+  padding: 4px;
+}
+.floating-menu button {
+  padding: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border-radius: 6px;
+}
+.floating-menu button:hover {
+  background: var(--bg-hover);
+}
+.floating-window .network-refresh {
+  width: 28px;
+  height: 28px;
+}
+.floating-refresh-control {
+  display: flex;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+.floating-header .network-refresh {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+.floating-window--collapsed .floating-header {
+  border-bottom: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .floating-content,
+  .floating-announcement-region,
+  .floating-monitor,
+  .floating-card {
+    transition: none;
+  }
+  .floating-window * {
+    scroll-behavior: auto;
+  }
+  .floating-icon-button,
+  .floating-pin-button .floating-pin-glyph,
+  .floating-pin-button .pin-filled,
+  .floating-pin-button .pin-outline,
+  .floating-collapse-glyph .collapse-line,
+  .floating-collapse-glyph .collapse-chevron {
+    transition: none;
+  }
+  .floating-pin-button.pin-pulse .floating-pin-glyph {
+    animation: none;
+  }
+}

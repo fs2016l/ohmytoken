@@ -1,0 +1,17 @@
+gifenc 1.0.3
+Copyright (c) 2017 Matt DesLauriers
+License: MIT (see gifenc-MIT.txt)
+Project: https://github.com/mattdesl/gifenc
+Version source: https://registry.npmjs.org/gifenc/-/gifenc-1.0.3.tgz
+
+This application bundles gifenc's GIF encoder and palette mapping functions,
+without modifying their source. It uses its own median-cut palette generator.
+The PnnQuant-derived quantizer is not used and is removed from the output by
+tree shaking; the export integration build checks that it is absent.
+
+LZWEncoder source credits preserved from the included source:
+Kevin Weiner (original Java version), Thibault Imbert (AS3 version),
+Johan Nordberg (JS version), Matt DesLauriers (V8/JS optimizations),
+Mathieu Henri (JS optimization).
+Acknowledgements: David Rowley (GIFCOMPR.C); Spencer W. Thomas, Jim McKie,
+Steve Davies, Ken Turkowski, James A. Woods, Joe Orost (compress.c).

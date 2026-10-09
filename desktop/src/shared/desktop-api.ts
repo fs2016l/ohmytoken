@@ -21,7 +21,7 @@ export type AuthSessionResult =
   | { status: 'authenticated'; user: DesktopUserInfo }
   | { status: 'anonymous' }
   | { status: 'invalid' }
-  | { status: 'unavailable'; message?: string }
+  | { status: 'unavailable'; message?: string; cachedUser?: DesktopUserInfo }
 
 export interface DesktopFeedbackSubmitParams {
   category: string
@@ -32,10 +32,15 @@ export interface DesktopFeedbackSubmitParams {
 }
 
 export interface DesktopMessageSyncResult {
-  ok: boolean
-  message?: string
-  messages: CustomMessageData[]
-  activeMessageUids: string[]
+  revision: string
+  mainMessages: CustomMessageData[]
+  floatingMessages: CustomMessageData[]
+}
+
+export interface DesktopHeartbeatResult {
+  serverTime: number
+  announcementRevision: string
+  onlineWindowSeconds: number
 }
 
 export interface DesktopMessageEventInput {

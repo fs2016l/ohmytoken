@@ -3,6 +3,7 @@
  * 跨 Scanner 的核心数据模型
  */
 export interface TokenUsageRecord {
+  costSummary?: import('./usage-cost').UsageCostRollup
   agent: string
   date: string // "yyyy-MM-dd" 或 "unknown"
   model: string
@@ -18,11 +19,55 @@ export interface TokenUsageRecord {
 /** 关闭主窗口后的全局行为；主进程持久化，所有 renderer 共用同一份偏好。 */
 export type CloseBehavior = 'ask' | 'background' | 'quit'
 
+/** 单次 API 的原生生成计时或明确标注的响应均速估算，时长均为毫秒。 */
+export interface GenerationTiming {
+  /** 默认是原生流速；响应均速估算不能混用流输出时长。 */
+  speedKind?: 'response-estimate'
+  /** 日志中可观察的响应区间，包含首输出等待和其他客户端开销。 */
+  responseDurationMs?: number
+  /** 累计用量来源携带的原生单次调用身份；逐调用用量默认使用外层身份。 */
+  apiCallId?: string
+  /** 个别来源只有响应落库排序时间，不能标为精确生成完成时间。 */
+  timeSource?: 'recorded'
+  completedAtMs: number
+  timeToFirstTokenMs?: number
+  streamDurationMs?: number
+  /** 与流计时范围一致的输出量，包含该范围内的推理 Token。 */
+  generatedTokens?: number
+}
+
+/** 会话最近一条原生计时样本或带响应均速估算的用量记录。 */
+export interface LatestGeneration {
+  speedKind?: 'response-estimate'
+  responseDurationMs?: number
+  timeSource?: 'recorded'
+  apiCallId: string
+  sessionId: string
+  model: string
+  completedAtMs: number
+  timeToFirstTokenMs?: number
+  streamDurationMs?: number
+  generatedTokens?: number
+  tokensPerSecond?: number
+}
+
+/** 原生轮级首 Token，身份与单次 API 计时分开；每个会话仅保留最近有效一轮。 */
+export interface LatestTurnFirstToken {
+  sessionId: string
+  turnId: string
+  completedAtMs: number
+  timeToFirstTokenMs: number
+}
+
 /**
  * 会话级 Token 用量汇总。
  * 一条记录代表某个智能体中一个会话在某个模型下的汇总用量。
  */
 export interface TokenUsageSession {
+  latestGeneration?: LatestGeneration
+  latestTurnFirstToken?: LatestTurnFirstToken
+  turns?: { count: number; complete: boolean }
+  costSummary?: import('./usage-cost').UsageCostRollup
   agent: string
   sessionId: string
   /** 子会话所属的直接父会话；顶层用户会话为空。 */
@@ -45,6 +90,7 @@ export interface TokenUsageSession {
   totalTokens: number
   reasoningTokens: number
   apiCallCount: number
+  apiCallCountComplete?: boolean
   cost?: number
 }
 
@@ -52,6 +98,11 @@ export interface TokenUsageSession {
  * 会话内单次 API / prompt 轮次的 Token 用量明细。
  */
 export interface TokenUsageApiCall {
+  generationTiming?: GenerationTiming
+  /** 来源明确标记的请求身份；自动任务与用户请求分别保留。 */
+  turn?: { id: string; userInitiated: boolean; complete?: false }
+  evidence?: import('./usage-cost').UsageEvidence
+  costAssessment?: import('./usage-cost').UsageCostAssessment
   agent: string
   apiCallId: string
   sessionId: string
@@ -93,6 +144,10 @@ export interface PageResult<T> {
 
 /** 会话明细查询过滤条件 */
 export interface UsageDetailFilter {
+  onlyFavorites?: boolean
+  agents?: string[]
+  models?: string[]
+  projectIds?: string[]
   agent?: string
   model?: string
   rootSessionId?: string
@@ -106,6 +161,38 @@ export interface UsageDetailFilter {
 }
 
 export interface UsageDetailPageFilter extends UsageDetailFilter, PaginationRequest {}
+
+export type SessionSort =
+  | 'title'
+  | 'agent'
+  | 'model'
+  | 'tokens'
+  | 'input'
+  | 'output'
+  | 'cache'
+  | 'reasoning'
+  | 'cost'
+  | 'calls'
+  | 'turns'
+  | 'change'
+  | 'recent'
+export interface SessionWorkspaceFilter extends UsageDetailPageFilter {
+  sortBy?: SessionSort
+  sortDirection?: 'asc' | 'desc'
+  /** Display exchange rate, used only for comparable cost ordering. */
+  costExchangeRate?: number
+  /** Token baseline for the same root and filters in a different calendar range. */
+  comparison?: { from: string; to: string }
+}
+export interface SessionWorkspaceSummary {
+  totalTokens: number
+  apiCallCount: number
+  apiCallCountComplete: boolean
+  costSummary?: import('./usage-cost').UsageCostRollup
+}
+export interface SessionWorkspacePage extends PageResult<TokenUsageUserSession> {
+  summary: SessionWorkspaceSummary
+}
 
 /** API 明细查询过滤条件 */
 export interface UsageApiCallFilter {
@@ -125,7 +212,9 @@ export interface UsageApiRecordFilter {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  models?: string[]
   projectId?: string
+  projectIds?: string[]
   trackedProjectsOnly?: boolean
   from?: string
   to?: string
@@ -142,9 +231,12 @@ export interface TokenUsageSessionChild extends TokenUsageSession {
 /** 用户新建的顶层会话，children 承载子 agent / 子会话数据。 */
 export interface TokenUsageUserSession extends TokenUsageSession {
   rootSessionId: string
+  /** Participants ordered by their latest activity in the selected scope, newest first. */
   agents: string[]
   models: string[]
+  modelTotals?: Record<string, number>
   children: TokenUsageSessionChild[]
+  comparisonTokens?: number
 }
 
 /** 小时级统计（agentTokens 字段沿用 DailyStats 的前端数据结构） */
@@ -155,9 +247,9 @@ export interface HourlyUsageStats {
   totalTokens: number
 }
 
-/** 分钟级 Token 趋势中的单个时间桶。 */
+/** Token 趋势中的单个时间桶。 */
 export interface MinuteUsagePoint {
-  /** 对齐到本地展示所用分钟的 Unix 毫秒时间戳。 */
+  /** 对齐到时间桶的 Unix 毫秒时间戳。 */
   timestamp: number
   dimensionTokens: Record<string, number>
   totalTokens: number
@@ -166,14 +258,14 @@ export interface MinuteUsagePoint {
 /**
  * 可缩放 Token 趋势。
  *
- * points 始终以一分钟为最小粒度，renderer 可按可视范围动态聚合为分钟 /
- * 小时 / 天粒度；缩放回小时内时仍能恢复到一分钟精度。
+ * points 只包含有用量的秒；界面按可视范围合并，空闲区间按需补零。
  */
 export interface UsageTrendStats {
   from: number
   to: number
   groupBy: 'agent' | 'model'
-  bucketMinutes: 1
+  bucketMinutes: number
+  bucketSeconds?: number
   points: MinuteUsagePoint[]
   dimensionTotals: Record<string, number>
   totalTokens: number
@@ -189,6 +281,10 @@ export interface ScannerUsageDetails {
   records: TokenUsageRecord[]
   sessions: TokenUsageSession[]
   apiCalls: TokenUsageApiCall[]
+  /** 原生响应自带计时和用量，但没有与用量表共享的请求 ID 时独立传递。 */
+  latestGenerations?: LatestGeneration[]
+  /** 不与某次 API 共用边界的原生轮级首 Token。 */
+  latestTurnFirstTokens?: LatestTurnFirstToken[]
 }
 
 /** 扫描模式：默认增量；full 仅用于首次基线或用户显式恢复。 */
@@ -222,6 +318,14 @@ export interface DailyStats {
   totalTokens: number
 }
 
+export interface UsageTurnStats {
+  turns: number
+  coveredSessions: number
+  unknownSessions: number
+  dimensions: Record<string, number>
+  days: Array<{ date: string; turns: number; dimensions: Record<string, number> }>
+}
+
 /**
  * 每月统计（对应 Java: MonthlyStats.java）
  */
@@ -247,6 +351,7 @@ export interface ModelStats {
  */
 export interface AgentModelStats {
   model: string
+  costSummary?: import('./usage-cost').UsageCostRollup
   totalTokens: number
   inputTokens: number
   outputTokens: number
@@ -260,6 +365,7 @@ export interface AgentModelStats {
  */
 export interface ModelAgentStats {
   agent: string
+  costSummary?: import('./usage-cost').UsageCostRollup
   totalTokens: number
   inputTokens: number
   outputTokens: number
@@ -270,23 +376,46 @@ export interface ModelAgentStats {
 
 /** 用户保存的项目目录。path 保留用于界面展示，normalizedPath 用于归属匹配。 */
 export interface TrackedProject {
+  notes?: string
   id: string
   name: string
   path: string
   normalizedPath: string
   createdAt: number
+  source?: 'manual' | 'discovered'
+  ignored?: boolean
+  directories?: string[]
 }
 
 export interface ProjectUsageStat {
   projectId: string
   name: string
   path: string
+  source?: 'manual' | 'discovered'
   totalTokens: number
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
   cacheWriteTokens: number
   reasoningTokens: number
+}
+
+export interface ProjectWorkspaceItem extends ProjectUsageStat {
+  notes: string
+  /** Participants ordered by their latest activity in the selected scope, newest first. */
+  agents: string[]
+  agentTotals: Record<string, number>
+  models: string[]
+  modelTotals: Record<string, number>
+  sessionCount: number
+  apiCallCount: number
+  apiCallCountComplete: boolean
+  costSummary?: import('./usage-cost').UsageCostRollup
+  turns: { count: number; complete: boolean }
+  lastActivity: string
+}
+export interface ProjectWorkspacePage extends PageResult<ProjectWorkspaceItem> {
+  summary: SessionWorkspaceSummary & { sessionCount: number }
 }
 
 export interface ProjectDailyStats {

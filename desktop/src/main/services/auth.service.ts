@@ -6,10 +6,8 @@ import { join } from 'path'
 import { IPC } from '../ipc/channels'
 import { agentIdentityHeaders } from '../../shared/agent-client'
 import { ensureAgentClientRegistered } from './client-registration.service'
-import { getDesktopRuntimeConfig } from './runtime-config.service'
-import { getOhmytokenApiBase } from './server-config.service'
-
-const OHMYTOKEN_API_BASE = getOhmytokenApiBase()
+import { getDesktopRuntimeConfig, resolveDesktopApiUrl } from './runtime-config.service'
+import type { DesktopUserInfo } from '../../shared/desktop-api'
 
 const CLIENT_ID = 'ohmytoken-desktop'
 
@@ -23,7 +21,7 @@ interface ActiveLogin {
 type LoginLanguage = 'zh' | 'en'
 
 let activeLogin: ActiveLogin | null = null
-let activeLoginStart: Promise<boolean> | null = null
+let activeLoginStart: Promise<LoginLaunchResult> | null = null
 
 let onLoginSuccessCallback: (() => void) | null = null
 
@@ -54,6 +52,8 @@ export interface AuthSession {
   accessTokenExpiresAt: number
   refreshToken: string
   refreshTokenExpiresAt: number
+  /** Last server-verified profile, encrypted with its own login session for offline reads. */
+  cachedUser?: DesktopUserInfo
 }
 
 interface DesktopTokenData {
@@ -143,10 +143,16 @@ function scheduleRefreshRetry(): void {
 }
 
 export function saveAuthSession(session: AuthSession): void {
-  memorySession = { ...session }
+  const cachedUser =
+    session.cachedUser ??
+    (memorySession?.sessionId === session.sessionId ? memorySession.cachedUser : undefined)
+  memorySession = { ...session, ...(cachedUser ? { cachedUser: { ...cachedUser } } : {}) }
   sessionRevision += 1
   scheduleAuthRefresh(session)
+  persistAuthSession(memorySession)
+}
 
+function persistAuthSession(session: AuthSession): void {
   if (!safeStorage.isEncryptionAvailable()) {
     console.warn('[auth] safeStorage 不可用，会话仅保存在内存中，应用重启后需要重新登录')
     return
@@ -166,6 +172,30 @@ export function saveAuthSession(session: AuthSession): void {
       void 0
     }
   }
+}
+
+export function getCachedAuthUser(): DesktopUserInfo | undefined {
+  const session = loadAuthSession()
+  const user = session?.cachedUser
+  if (
+    !session ||
+    session.refreshTokenExpiresAt <= Date.now() ||
+    !user ||
+    !Number.isSafeInteger(user.id) ||
+    user.id <= 0 ||
+    typeof user.username !== 'string'
+  )
+    return
+  return { ...user }
+}
+
+/** Metadata writes do not change the credential revision or invalidate an in-flight token rotation. */
+export function rememberAuthUser(sessionId: string, user: DesktopUserInfo): boolean {
+  const session = loadAuthSession()
+  if (!session || session.sessionId !== sessionId) return false
+  memorySession = { ...session, cachedUser: { ...user } }
+  persistAuthSession(memorySession)
+  return true
 }
 
 export function loadAuthSession(): AuthSession | null {
@@ -279,7 +309,7 @@ async function requestTokenRefresh(current: AuthSession): Promise<AuthSession> {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
     const validityStartedAt = Date.now()
-    const response = await fetch(OHMYTOKEN_API_BASE + '/desktop/oauth/refresh', {
+    const response = await fetch(await resolveDesktopApiUrl('oauthRefresh'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -405,7 +435,7 @@ async function revokeRemoteSession(session: AuthSession): Promise<void> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    await fetch(OHMYTOKEN_API_BASE + '/desktop/oauth/revoke', {
+    await fetch(await resolveDesktopApiUrl('oauthRevoke'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -471,7 +501,7 @@ async function exchangeCodeForToken(
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const response = await fetch(`${OHMYTOKEN_API_BASE}/desktop/oauth/token`, {
+    const response = await fetch(await resolveDesktopApiUrl('oauthToken'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -501,7 +531,7 @@ async function createLoginSession(
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const response = await fetch(`${OHMYTOKEN_API_BASE}/desktop/oauth/session`, {
+    const response = await fetch(await resolveDesktopApiUrl('oauthSession'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -632,10 +662,30 @@ async function handleLoopbackCallback(
   }
 }
 
+interface LoginLaunchResult {
+  ok: boolean
+  message?: string
+}
+
+function loginPreparationErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    if (
+      error.message === '服务保护组件暂不可用，请稍后重试' ||
+      error.message === '请求过于频繁，请稍后再试'
+    ) {
+      return error.message
+    }
+    if (error.name === 'AbortError' || error.message === 'fetch failed') {
+      return '无法连接登录服务，请检查网络或配套服务'
+    }
+  }
+  return '登录服务暂不可用，请稍后重试'
+}
+
 async function startPkceLoginInternal(
   windowGetter: () => BrowserWindow | null,
   language: LoginLanguage,
-): Promise<boolean> {
+): Promise<LoginLaunchResult> {
   closeLogin()
   const { codeVerifier, codeChallenge, state } = generatePkceMaterial()
   let redirectUri = ''
@@ -650,9 +700,9 @@ async function startPkceLoginInternal(
   })
   activeLogin = { server, timeoutHandle: null }
 
-  let launchResolver: ((value: boolean) => void) | null = null
+  let launchResolver: ((value: LoginLaunchResult) => void) | null = null
   let launchSettled = false
-  const settleLaunch = (value: boolean): void => {
+  const settleLaunch = (value: LoginLaunchResult): void => {
     if (launchSettled) return
     launchSettled = true
     launchResolver?.(value)
@@ -661,24 +711,25 @@ async function startPkceLoginInternal(
   server.on('error', (err) => {
     console.error('[auth] loopback server 启动/运行失败:', err)
     closeLogin(server)
-    settleLaunch(false)
+    settleLaunch({ ok: false, message: '无法启动本地登录回调，请稍后重试' })
   })
 
-  return await new Promise<boolean>((resolve) => {
+  return await new Promise<LoginLaunchResult>((resolve) => {
     launchResolver = resolve
     server.listen(0, '127.0.0.1', async () => {
       redirectUri = buildRedirectUri(server)
       if (!redirectUri) {
         console.error('[auth] 无法获取 loopback server 端口，放弃登录')
         closeLogin(server)
-        settleLaunch(false)
+        settleLaunch({ ok: false, message: '无法启动本地登录回调，请稍后重试' })
         return
       }
 
+      let openingBrowser = false
       try {
         const session = await createLoginSession(redirectUri, state, codeChallenge)
         if (activeLogin?.server !== server) {
-          settleLaunch(false)
+          settleLaunch({ ok: false, message: '登录已取消，请重试' })
           return
         }
 
@@ -692,12 +743,18 @@ async function startPkceLoginInternal(
         const loginUrl = new URL(runtimeConfig.desktopLoginUrl)
         loginUrl.searchParams.set('session_id', session.sessionId)
         loginUrl.searchParams.set('lang', language)
+        openingBrowser = true
         await shell.openExternal(loginUrl.toString())
-        settleLaunch(true)
+        settleLaunch({ ok: true })
       } catch (e) {
         console.error('[auth] 启动登录流程失败:', e)
         closeLogin(server)
-        settleLaunch(false)
+        settleLaunch({
+          ok: false,
+          message: openingBrowser
+            ? '无法打开系统浏览器，请检查默认浏览器设置'
+            : loginPreparationErrorMessage(e),
+        })
       }
     })
   })
@@ -710,7 +767,7 @@ async function startPkceLoginInternal(
 export function startPkceLogin(
   windowGetter: () => BrowserWindow | null,
   language: LoginLanguage = 'zh',
-): Promise<boolean> {
+): Promise<LoginLaunchResult> {
   if (activeLoginStart) return activeLoginStart
   const request = startPkceLoginInternal(windowGetter, language).finally(() => {
     if (activeLoginStart === request) activeLoginStart = null

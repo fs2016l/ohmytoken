@@ -8,23 +8,16 @@ export type UserInfo = DesktopUserInfo
 const currentUser = ref<UserInfo | null>(null)
 const isHydrating = ref(true)
 let firstCheckDone = false
+let authRevision = 0
+let initialCheckStarted = false
 
 const isLoggedIn = computed(() => currentUser.value !== null)
 
-async function clearInvalidToken(): Promise<void> {
-  try {
-    const result = await window.api.authLogout()
-    if (!result.ok) {
-      console.warn('[useAuth] 清理失效登录凭据失败:', result.message)
-    }
-  } catch (e) {
-    console.warn('[useAuth] 清理失效登录凭据失败:', e)
-  }
-}
-
 async function checkStatus(): Promise<void> {
+  const revision = authRevision
   try {
     const session = await window.api.authSession()
+    if (revision !== authRevision) return
     switch (session.status) {
       case 'authenticated':
         currentUser.value = session.user
@@ -33,12 +26,16 @@ async function checkStatus(): Promise<void> {
         currentUser.value = null
         return
       case 'invalid':
-        await clearInvalidToken()
+        // Only the main-process refresh flow invalidates credentials. A stale renderer result
+        // must never revoke a newer login session.
         currentUser.value = null
         return
       case 'unavailable':
+        if (session.cachedUser) currentUser.value = session.cachedUser
         console.warn('[useAuth] 暂时无法验证登录状态:', session.message ?? '服务暂时不可用')
     }
+  } catch (error) {
+    console.warn('[useAuth] 登录状态暂时不可用:', error)
   } finally {
     if (!firstCheckDone) {
       firstCheckDone = true
@@ -50,86 +47,14 @@ async function checkStatus(): Promise<void> {
 let ipcSubscribed = false
 
 function handleLoginSuccess(): void {
+  authRevision++
+  currentUser.value = null
   void checkStatus()
 }
 
 function handleLogoutEvent(): void {
+  authRevision++
   currentUser.value = null
-}
-
-function showPushNotification(title: string, body: string): void {
-  if (!appSettings.systemNotificationsEnabled) return
-  if (!('Notification' in window)) return
-  if (Notification.permission === 'granted') {
-    new Notification(title, { body })
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then((permission) => {
-      if (permission === 'granted') {
-        new Notification(title, { body })
-      }
-    })
-  }
-}
-
-function handleSsePushMessage(message: Record<string, unknown>): void {
-  const type = message.type as string | undefined
-  const isEn = localStorage.getItem('app-lang') === 'en'
-  switch (type) {
-    case 'news': {
-      if (isEn) {
-        const title = (message.titleEn as string) || (message.titleZh as string) || 'New Update'
-        const summary = (message.summaryEn as string) || (message.summaryZh as string) || ''
-        showPushNotification(title, summary)
-      } else {
-        const title = (message.titleZh as string) || (message.titleEn as string) || '新消息'
-        const summary = (message.summaryZh as string) || ''
-        showPushNotification(title, summary)
-      }
-      break
-    }
-    case 'plan': {
-      const scope = message.scope as string
-      if (scope === 'provider') {
-        const nameZh = (message.providerNameZh as string) || ''
-        const nameEn = (message.providerNameEn as string) || nameZh
-        showPushNotification(
-          isEn ? 'Plan Update' : '套餐更新',
-          isEn ? `${nameEn} plans updated` : `${nameZh} 套餐已更新`,
-        )
-      } else {
-        showPushNotification(
-          isEn ? 'Plan Update' : '套餐更新',
-          isEn ? 'All plan list updated' : '套餐列表已更新',
-        )
-      }
-      break
-    }
-    case 'release':
-      showPushNotification(
-        isEn ? `Update v${message.version ?? ''}` : `版本更新 v${message.version ?? ''}`,
-        (message.message as string) || (isEn ? 'New version available' : '有新版本可更新'),
-      )
-      break
-    case 'custom': {
-      if (message.operation !== 'published') break
-      const title = isEn
-        ? (message.titleEn as string) || (message.titleZh as string) || 'Message'
-        : (message.titleZh as string) || (message.titleEn as string) || '消息通知'
-      const body = isEn
-        ? (message.contentEn as string) || (message.contentZh as string) || ''
-        : (message.contentZh as string) || (message.contentEn as string) || ''
-      showPushNotification(title, body)
-      break
-    }
-    case 'broadcast':
-      showPushNotification(isEn ? 'Broadcast' : '广播消息', (message.message as string) || '')
-      break
-    case 'notification':
-      showPushNotification(isEn ? 'Notice' : '通知', (message.message as string) || '')
-      break
-    case 'connected':
-      break
-  }
 }
 
 function ensureIpcSubscribed(): void {
@@ -137,7 +62,6 @@ function ensureIpcSubscribed(): void {
   ipcSubscribed = true
   window.api.onAuthLoginSuccess(handleLoginSuccess)
   window.api.onAuthLogoutEvent(handleLogoutEvent)
-  window.api.onSsePushMessage(handleSsePushMessage)
   window.addEventListener('focus', () => {
     if (currentUser.value) void checkStatus()
   })
@@ -157,6 +81,7 @@ export function useAuth() {
   }
 
   async function logout(): Promise<void> {
+    authRevision++
     const result = await window.api.authLogout()
     if (!result.ok) {
       throw new Error(result.message || '登出失败')
@@ -165,8 +90,11 @@ export function useAuth() {
   }
 
   onMounted(() => {
-    void checkStatus()
     ensureIpcSubscribed()
+    if (!initialCheckStarted) {
+      initialCheckStarted = true
+      void checkStatus()
+    }
   })
 
   return {

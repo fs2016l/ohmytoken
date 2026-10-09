@@ -207,7 +207,7 @@
 }
 
 #app .quick-tabs button.active {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   box-shadow: inset 0 0 0 1px var(--primary-border);
 }
@@ -378,7 +378,7 @@
 }
 
 #app .legend-visibility-button.is-all {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   border-color: var(--primary-border);
 }
@@ -480,7 +480,7 @@
 }
 
 #app .filter-chips button.active {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   box-shadow: inset 0 0 0 1px var(--primary-border);
 }

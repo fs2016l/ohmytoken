@@ -28,9 +28,8 @@ import {
   redactDiagnosticText as redactText,
   type DiagnosticRedactionOptions,
 } from './diagnostic-redaction'
-import { getOhmytokenApiBase } from './server-config.service'
+import { resolveDesktopApiUrl } from './runtime-config.service'
 
-const API_BASE = getOhmytokenApiBase()
 const MAX_LOG_FILE_BYTES = 5 * 1024 * 1024
 const MAX_MANUAL_UPLOAD_LOG_BYTES = MAX_LOG_FILE_BYTES
 const ROTATED_FILE_COUNT = 3
@@ -793,8 +792,9 @@ async function sendDiagnosticReport(
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), mode === 'manual' ? 60_000 : 15_000)
   try {
+    const apiUrl = await resolveDesktopApiUrl('diagnosticSubmit')
     const send = (authorization: string | undefined, requestIdentity: AgentRequestIdentity) =>
-      fetch(`${API_BASE}/desktop/diagnostic-report/submit`, {
+      fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

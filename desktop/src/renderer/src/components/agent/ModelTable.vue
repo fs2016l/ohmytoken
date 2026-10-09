@@ -275,7 +275,7 @@ tbody tr:hover td {
   margin-left: 6px;
   padding: 2px 6px;
   color: var(--text-soft);
-  background: rgba(149, 142, 160, 0.12);
+  background: var(--surface-container);
   border-radius: 4px;
   font-family: var(--font-sans);
   font-size: var(--type-caption);

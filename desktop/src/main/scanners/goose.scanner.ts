@@ -1,6 +1,7 @@
 /** 读取 Goose 会话数据库并生成统一用量记录。 */
 import { existsSync } from 'fs'
 import Database from 'better-sqlite3'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -19,6 +20,7 @@ import {
 } from './detail-utils'
 import { normalizeScanContext } from './incremental-utils'
 import { tokenBuckets, tokenCount } from './token-usage'
+import { gooseGenerationTimingReader } from './goose-generation-timing'
 
 export class GooseScanner implements AgentScanner {
   readonly agentName = 'goose'
@@ -62,10 +64,12 @@ export class GooseScanner implements AgentScanner {
       if (!columns.has('id')) return { records, sessions: [], apiCalls }
 
       const select = (name: string): string => (columns.has(name) ? name : 'NULL AS ' + name)
+      const readGenerationTiming = gooseGenerationTimingReader(db)
       const sql = `
         SELECT
           id,
           ${select('model_config_json')},
+          ${select('provider_name')},
           ${select('created_at')},
           ${select('total_tokens')},
           ${select('input_tokens')},
@@ -117,7 +121,13 @@ export class GooseScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
+          generationTiming: readGenerationTiming(sessionId, model),
           ...buckets,
+          evidence: usageEvidence({
+            granularity: 'aggregate',
+            modelSource: 'session',
+            bucketQuality: 'uncertain',
+          }),
         })
       }
     } catch (e) {

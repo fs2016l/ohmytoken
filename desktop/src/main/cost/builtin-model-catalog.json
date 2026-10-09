@@ -1,0 +1,3177 @@
+{
+  "schemaVersion": 3,
+  "vendors": [
+    {
+      "vendor": "openai",
+      "families": ["codex", "o1", "o3", "o4", "gpt-oss"],
+      "numberedFamilies": ["gpt"],
+      "brandMatchPatterns": ["^(?:openai|.*(?:gpt|codex|astra).*|o[0-9](?:-|\\b).*)$"]
+    },
+    {
+      "vendor": "anthropic",
+      "families": ["claude"],
+      "brandMatchPatterns": ["^.*claude.*$"]
+    },
+    {
+      "vendor": "google",
+      "families": ["gemini"],
+      "brandMatchPatterns": ["^.*gemini.*$"]
+    },
+    {
+      "vendor": "alibaba",
+      "families": ["qwen"],
+      "brandMatchPatterns": ["^.*(?:qwen|qwq|tongyi).*$"]
+    },
+    {
+      "vendor": "zhipu",
+      "numberedFamilies": ["glm"],
+      "brandMatchPatterns": ["^(?:glm.*|.*chatglm.*)$"]
+    },
+    {
+      "vendor": "deepseek",
+      "families": ["deepseek"],
+      "brandMatchPatterns": ["^.*deepseek.*$"]
+    },
+    {
+      "vendor": "minimax",
+      "families": ["minimax"],
+      "brandMatchPatterns": ["^.*(?:minimax|mini-m|abab).*$"]
+    },
+    {
+      "vendor": "moonshot",
+      "families": ["kimi", "moonshot"],
+      "exact": ["k3", "k3-256k", "k2d8-preview"],
+      "brandMatchPatterns": ["^(?:.*(?:kimi|moonshot).*|k[0-9].*)$"]
+    },
+    {
+      "vendor": "xiaomi",
+      "families": ["mimo"],
+      "brandMatchPatterns": ["^mimo(?:[-_.].*)?$"]
+    },
+    {
+      "vendor": "xai",
+      "families": ["grok"],
+      "brandMatchPatterns": ["^.*grok.*$"]
+    },
+    {
+      "vendor": "bytedance",
+      "families": ["doubao", "seed-oss"],
+      "brandMatchPatterns": ["^.*(?:doubao|seed).*$"]
+    },
+    {
+      "vendor": "tencent",
+      "families": ["hy3", "hunyuan", "hy4"],
+      "brandMatchPatterns": ["^.*hunyuan.*$"]
+    },
+    {
+      "vendor": "mistral",
+      "families": ["mistral", "ministral", "codestral"],
+      "brandMatchPatterns": ["^.*(?:mistral|codestral|ministral).*$"]
+    },
+    {
+      "vendor": "baidu",
+      "families": ["ernie"],
+      "brandMatchPatterns": ["^.*(?:ernie|文心).*$"]
+    },
+    {
+      "vendor": "anysphere",
+      "families": ["composer"],
+      "brandMatchPatterns": ["^.*composer.*$"]
+    },
+    {
+      "vendor": "vercel",
+      "families": ["v0"]
+    },
+    {
+      "vendor": "cognition",
+      "families": ["swe"]
+    },
+    {
+      "vendor": "perplexity",
+      "families": ["sonar"],
+      "brandMatchPatterns": ["^.*sonar.*$"]
+    },
+    {
+      "vendor": "meituan",
+      "families": ["longcat"],
+      "brandMatchPatterns": ["^.*longcat.*$"]
+    },
+    {
+      "vendor": "stepfun",
+      "families": ["step"],
+      "brandMatchPatterns": ["^.*step.*$"]
+    },
+    {
+      "vendor": "inclusionai",
+      "families": ["ling"],
+      "brandMatchPatterns": ["^(?:ling.*|.*ling-.*)$"]
+    },
+    {
+      "vendor": "jetbrains",
+      "families": ["mellum"],
+      "brandMatchPatterns": ["^.*mellum.*$"]
+    },
+    {
+      "vendor": "zed",
+      "families": ["zeta"],
+      "brandMatchPatterns": ["^.*zeta.*$"]
+    }
+  ],
+  "namespaces": {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "google": "google",
+    "minimax": "minimax",
+    "minimaxai": "minimax",
+    "z-ai": "zhipu",
+    "zhipu": "zhipu",
+    "deepseek": "deepseek",
+    "xiaomi": "xiaomi",
+    "qwen": "alibaba",
+    "moonshotai": "moonshot",
+    "xai": "xai",
+    "alibaba": "alibaba",
+    "moonshot": "moonshot",
+    "bytedance": "bytedance",
+    "tencent": "tencent",
+    "mistral": "mistral",
+    "baidu": "baidu",
+    "anysphere": "anysphere",
+    "vercel": "vercel",
+    "cognition": "cognition",
+    "perplexity": "perplexity",
+    "meituan": "meituan",
+    "stepfun": "stepfun",
+    "inclusionai": "inclusionai",
+    "jetbrains": "jetbrains",
+    "mistralai": "mistral",
+    "stepfun-ai": "stepfun",
+    "bytedance-seed": "bytedance",
+    "inclusion-ai": "inclusionai",
+    "zed": "zed"
+  },
+  "models": [
+    {
+      "id": "GPT-6-Sol",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 10,
+          "cacheRead": 0.2,
+          "cacheWrite": 2.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 4,
+              "output": 15,
+              "cacheRead": 0.4,
+              "cacheWrite": 5
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*6[-_ ]*sol$"]
+    },
+    {
+      "id": "GPT-6-Astra",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 1,
+          "cacheWrite": 12.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 20,
+              "output": 75,
+              "cacheRead": 2,
+              "cacheWrite": 25
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*6[-_ ]*astra$"]
+    },
+    {
+      "id": "GPT-5.6-Sol",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 4,
+          "output": 20,
+          "cacheRead": 0.4,
+          "cacheWrite": 5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 8,
+              "output": 30,
+              "cacheRead": 0.8,
+              "cacheWrite": 10
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]6[-_ ]*sol$"]
+    },
+    {
+      "id": "GPT-5.6-Terra",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 12,
+          "cacheRead": 0.2,
+          "cacheWrite": 2.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 4,
+              "output": 18,
+              "cacheRead": 0.4,
+              "cacheWrite": 5
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]6[-_ ]*terra$"]
+    },
+    {
+      "id": "GPT-5.6-Luna",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 1.2,
+          "cacheRead": 0.02,
+          "cacheWrite": 0.25
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 0.4,
+              "output": 1.8,
+              "cacheRead": 0.04,
+              "cacheWrite": 0.5
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]6[-_ ]*luna$"]
+    },
+    {
+      "id": "GPT-5.5",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 30,
+          "cacheRead": 0.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 10,
+              "output": 45,
+              "cacheRead": 1
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]5$"]
+    },
+    {
+      "id": "GPT-5.4",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2.5,
+          "output": 15,
+          "cacheRead": 0.25
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 5,
+              "output": 22.5,
+              "cacheRead": 0.5
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]4$"]
+    },
+    {
+      "id": "GPT-5.4-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.75,
+          "output": 4.5,
+          "cacheRead": 0.075
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]4[-_ ]*mini$"]
+    },
+    {
+      "id": "GPT-5.4-Nano",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 1.25,
+          "cacheRead": 0.02
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]4[-_ ]*nano$"]
+    },
+    {
+      "id": "GPT-5.2",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.75,
+          "output": 14,
+          "cacheRead": 0.175
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]2$"]
+    },
+    {
+      "id": "GPT-5.1",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]1$"]
+    },
+    {
+      "id": "GPT-5",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5$"]
+    },
+    {
+      "id": "GPT-5-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.25,
+          "output": 2,
+          "cacheRead": 0.025
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[-_ ]*mini$"]
+    },
+    {
+      "id": "GPT-5-Nano",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.05,
+          "output": 0.4,
+          "cacheRead": 0.005
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[-_ ]*nano$"]
+    },
+    {
+      "id": "GPT-5.3-Codex",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.75,
+          "output": 14,
+          "cacheRead": 0.175
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]3[-_ ]*codex$"]
+    },
+    {
+      "id": "GPT-5.2-Codex",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.75,
+          "output": 14,
+          "cacheRead": 0.175
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]2[-_ ]*codex$"]
+    },
+    {
+      "id": "GPT-5.1-Codex",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]1[-_ ]*codex$"]
+    },
+    {
+      "id": "GPT-5.1-Codex-Max",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]1[-_ ]*codex[-_ ]*max$"]
+    },
+    {
+      "id": "GPT-5.1-Codex-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.25,
+          "output": 2,
+          "cacheRead": 0.025
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]1[-_ ]*codex[-_ ]*mini$"]
+    },
+    {
+      "id": "GPT-5-Codex",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[-_ ]*codex$"]
+    },
+    {
+      "id": "GPT-4.1",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8,
+          "cacheRead": 0.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4[._-]1$"]
+    },
+    {
+      "id": "GPT-4.1-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.4,
+          "output": 1.6,
+          "cacheRead": 0.1
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4[._-]1[-_ ]*mini$"]
+    },
+    {
+      "id": "GPT-4.1-Nano",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.1,
+          "output": 0.4,
+          "cacheRead": 0.025
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4[._-]1[-_ ]*nano$"]
+    },
+    {
+      "id": "GPT-4o",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2.5,
+          "output": 10,
+          "cacheRead": 1.25
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4o$"]
+    },
+    {
+      "id": "GPT-4o-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.15,
+          "output": 0.6,
+          "cacheRead": 0.075
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4o[-_ ]*mini$"]
+    },
+    {
+      "id": "O1",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 15,
+          "output": 60,
+          "cacheRead": 7.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o1$"]
+    },
+    {
+      "id": "O3",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8,
+          "cacheRead": 0.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o3$"]
+    },
+    {
+      "id": "O4-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.1,
+          "output": 4.4,
+          "cacheRead": 0.275
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o4[-_ ]*mini$"]
+    },
+    {
+      "id": "O3-Mini",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.1,
+          "output": 4.4,
+          "cacheRead": 0.55
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o3[-_ ]*mini$"]
+    },
+    {
+      "id": "GPT-6-Luna",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.1,
+          "output": 0.5,
+          "cacheRead": 0.01,
+          "cacheWrite": 0.125
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 0.2,
+              "output": 0.75,
+              "cacheRead": 0.02,
+              "cacheWrite": 0.25
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*6[-_ ]*luna$"]
+    },
+    {
+      "id": "GPT-5.5-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 30,
+          "output": 180
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 60,
+              "output": 270
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]5[-_ ]*pro$"]
+    },
+    {
+      "id": "GPT-5.4-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 30,
+          "output": 180
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 272001,
+          "rates": [
+            {
+              "input": 60,
+              "output": 270
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]4[-_ ]*pro$"]
+    },
+    {
+      "id": "GPT-5.2-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 21,
+          "output": 168
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[._-]2[-_ ]*pro$"]
+    },
+    {
+      "id": "GPT-5-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 15,
+          "output": 120
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*5[-_ ]*pro$"]
+    },
+    {
+      "id": "O1-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 150,
+          "output": 600
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o1[-_ ]*pro$"]
+    },
+    {
+      "id": "O3-Pro",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 20,
+          "output": 80
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?o3[-_ ]*pro$"]
+    },
+    {
+      "id": "GPT-4o-2024-05-13",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 15
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*4o[-_ ]*2024[-_ ]*05[-_ ]*13$"]
+    },
+    {
+      "id": "GPT-OSS-120B",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/models/gpt-oss-120b",
+      "rates": [],
+      "priceNote": "开放权重模型；未提供统一的第一方按 Token API 单价，托管平台自行定价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*oss[-_ ]*120b$"]
+    },
+    {
+      "id": "GPT-OSS-20B",
+      "vendor": "openai",
+      "currency": "USD",
+      "source": "https://developers.openai.com/api/docs/models/gpt-oss-20b",
+      "rates": [],
+      "priceNote": "开放权重模型；未提供统一的第一方按 Token API 单价，托管平台自行定价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gpt[-_ ]*oss[-_ ]*20b$"]
+    },
+    {
+      "id": "Claude-Opus-5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25,
+          "cacheWrite1h": 10
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*5$"]
+    },
+    {
+      "id": "Claude-Opus-4.8",
+      "aliases": ["claude-opus-4-8"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25,
+          "cacheWrite1h": 10
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[._-]8$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*8$"
+      ]
+    },
+    {
+      "id": "Claude-Opus-4.7",
+      "aliases": ["claude-opus-4-7"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25,
+          "cacheWrite1h": 10
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[._-]7$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*7$"
+      ]
+    },
+    {
+      "id": "Claude-Opus-4.6",
+      "aliases": ["claude-opus-4-6"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25,
+          "cacheWrite1h": 10
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[._-]6$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*6$"
+      ]
+    },
+    {
+      "id": "Claude-Opus-4.5",
+      "aliases": ["claude-opus-4-5", "claude-opus-4-5-20251101"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25,
+          "cacheWrite1h": 10
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*5[-_ ]*20251101$"
+      ]
+    },
+    {
+      "id": "Claude-Opus-4.1",
+      "aliases": ["claude-opus-4-1", "claude-opus-4-1-20250805"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 15,
+          "output": 75,
+          "cacheRead": 1.5,
+          "cacheWrite": 18.75,
+          "cacheWrite1h": 30
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[._-]1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*1[-_ ]*20250805$"
+      ]
+    },
+    {
+      "id": "Claude-Opus-4",
+      "aliases": ["claude-opus-4-20250514"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 15,
+          "output": 75,
+          "cacheRead": 1.5,
+          "cacheWrite": 18.75,
+          "cacheWrite1h": 30
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*4[-_ ]*20250514$"
+      ]
+    },
+    {
+      "id": "Claude-Sonnet-5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 10,
+          "cacheRead": 0.2,
+          "cacheWrite": 2.5,
+          "cacheWrite1h": 4
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*5$"]
+    },
+    {
+      "id": "Claude-Sonnet-4.6",
+      "aliases": ["claude-sonnet-4-6"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75,
+          "cacheWrite1h": 6
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[._-]6$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[-_ ]*6$"
+      ]
+    },
+    {
+      "id": "Claude-Sonnet-4.5",
+      "aliases": ["claude-sonnet-4-5", "claude-sonnet-4-5-20250929"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75,
+          "cacheWrite1h": 6
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[-_ ]*5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[-_ ]*5[-_ ]*20250929$"
+      ]
+    },
+    {
+      "id": "Claude-Sonnet-4",
+      "aliases": ["claude-sonnet-4-20250514"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3.75,
+          "cacheWrite1h": 6
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*sonnet[-_ ]*4[-_ ]*20250514$"
+      ]
+    },
+    {
+      "id": "Claude-Haiku-4.5",
+      "aliases": ["claude-haiku-4-5", "claude-haiku-4-5-20251001"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 1,
+          "output": 5,
+          "cacheRead": 0.1,
+          "cacheWrite": 1.25,
+          "cacheWrite1h": 2
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*haiku[-_ ]*4[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*haiku[-_ ]*4[-_ ]*5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*haiku[-_ ]*4[-_ ]*5[-_ ]*20251001$"
+      ]
+    },
+    {
+      "id": "Claude-Fable-5.1",
+      "aliases": ["claude-fable-5-1"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 0.25,
+          "cacheWrite": 12.5,
+          "cacheWrite1h": 20
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*fable[-_ ]*5[._-]1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*fable[-_ ]*5[-_ ]*1$"
+      ]
+    },
+    {
+      "id": "Claude-Mythos-5.1",
+      "aliases": ["claude-mythos-5-1"],
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 0.25,
+          "cacheWrite": 12.5,
+          "cacheWrite1h": 20
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*mythos[-_ ]*5[._-]1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*mythos[-_ ]*5[-_ ]*1$"
+      ]
+    },
+    {
+      "id": "Claude-Fable-5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 1,
+          "cacheWrite": 12.5,
+          "cacheWrite1h": 20
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*fable[-_ ]*5$"]
+    },
+    {
+      "id": "Claude-Mythos-5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 1,
+          "cacheWrite": 12.5,
+          "cacheWrite1h": 20
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*mythos[-_ ]*5$"]
+    },
+    {
+      "id": "Claude-Opus-5.5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 4,
+          "output": 20,
+          "cacheRead": 0.2,
+          "cacheWrite": 5,
+          "cacheWrite1h": 8
+        }
+      ],
+      "aliases": ["claude-opus-5-5"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*5[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*opus[-_ ]*5[-_ ]*5$"
+      ]
+    },
+    {
+      "id": "Claude-Haiku-3.5",
+      "vendor": "anthropic",
+      "currency": "USD",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 4,
+          "cacheRead": 0.08,
+          "cacheWrite": 1,
+          "cacheWrite1h": 1.6
+        }
+      ],
+      "aliases": ["claude-3-5-haiku-20241022", "claude-haiku-3-5"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*haiku[-_ ]*3[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*3[-_ ]*5[-_ ]*haiku[-_ ]*20241022$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?claude[-_ ]*haiku[-_ ]*3[-_ ]*5$"
+      ]
+    },
+    {
+      "id": "Gemini-2.5-Pro",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 10,
+          "cacheRead": 0.125
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200001,
+          "rates": [
+            {
+              "input": 2.5,
+              "output": 15,
+              "cacheRead": 0.25
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*2[._-]5[-_ ]*pro$"]
+    },
+    {
+      "id": "Gemini-2.5-Flash",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 2.5,
+          "cacheRead": 0.03
+        },
+        {
+          "input": 1,
+          "output": 2.5,
+          "cacheRead": 0.1
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*2[._-]5[-_ ]*flash$"]
+    },
+    {
+      "id": "Gemini-2.5-Flash-Lite",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.1,
+          "output": 0.4,
+          "cacheRead": 0.01
+        },
+        {
+          "input": 0.3,
+          "output": 0.4,
+          "cacheRead": 0.03
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*2[._-]5[-_ ]*flash[-_ ]*lite$"]
+    },
+    {
+      "id": "Gemini-3.1-Flash-Lite",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.25,
+          "output": 1.5,
+          "cacheRead": 0.025
+        },
+        {
+          "input": 0.5,
+          "output": 1.5,
+          "cacheRead": 0.05
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]1[-_ ]*flash[-_ ]*lite$"]
+    },
+    {
+      "id": "Gemini-3.5-Flash",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 1.5,
+          "output": 9,
+          "cacheRead": 0.15
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]5[-_ ]*flash$"]
+    },
+    {
+      "id": "Gemini-3.5-Flash-Lite",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 2.5,
+          "cacheRead": 0.03
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]5[-_ ]*flash[-_ ]*lite$"]
+    },
+    {
+      "id": "Gemini-3.6-Flash",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.75,
+          "output": 3.75,
+          "cacheRead": 0.075
+        }
+      ],
+      "priceNote": "2026-09-26 核对的限时标准参考价，有效至 2026-12-31；2027 年价格需按官方公告更新。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]6[-_ ]*flash$"]
+    },
+    {
+      "id": "Gemini-3.7-Flash",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.75,
+          "output": 3.75,
+          "cacheRead": 0.075
+        }
+      ],
+      "priceNote": "2026-09-26 核对的限时标准参考价，有效至 2026-12-31；2027 年价格需按官方公告更新。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]7[-_ ]*flash$"]
+    },
+    {
+      "id": "Gemini-3.8-Flash",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 0.75,
+          "output": 3.75,
+          "cacheRead": 0.075
+        }
+      ],
+      "priceNote": "2026-09-26 核对的限时标准参考价，有效至 2026-12-31；2027 年价格需按官方公告更新。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]8[-_ ]*flash$"]
+    },
+    {
+      "id": "Gemini-3.1-Pro-Preview",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 12,
+          "cacheRead": 0.2
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200001,
+          "rates": [
+            {
+              "input": 4,
+              "output": 18,
+              "cacheRead": 0.4
+            }
+          ]
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]1[-_ ]*pro[-_ ]*preview$"
+      ]
+    },
+    {
+      "id": "Gemini-3.1-Pro-Preview-Customtools",
+      "vendor": "google",
+      "currency": "USD",
+      "source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 12,
+          "cacheRead": 0.2
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200001,
+          "rates": [
+            {
+              "input": 4,
+              "output": 18,
+              "cacheRead": 0.4
+            }
+          ]
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?gemini[-_ ]*3[._-]1[-_ ]*pro[-_ ]*preview[-_ ]*customtools$"
+      ]
+    },
+    {
+      "id": "Qwen3-Coder-Plus",
+      "vendor": "alibaba",
+      "currency": "USD",
+      "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 1,
+          "output": 5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 1.8,
+              "output": 9
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 3,
+              "output": 15
+            }
+          ]
+        },
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 6,
+              "output": 60
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[-_ ]*coder[-_ ]*plus$"]
+    },
+    {
+      "id": "Qwen3-Coder-Flash",
+      "vendor": "alibaba",
+      "currency": "USD",
+      "source": "https://www.alibabacloud.com/help/en/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 0.5,
+              "output": 2.5
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 0.8,
+              "output": 4
+            }
+          ]
+        },
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 1.6,
+              "output": 9.6
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[-_ ]*coder[-_ ]*flash$"]
+    },
+    {
+      "id": "Qwen3.8-Max-Prime",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 24,
+          "output": 72
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]8[-_ ]*max[-_ ]*prime$"]
+    },
+    {
+      "id": "Qwen3.8-Max",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 12,
+          "output": 36
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]8[-_ ]*max$"]
+    },
+    {
+      "id": "Qwen3.7-Max",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 12,
+          "output": 36
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]7[-_ ]*max$"]
+    },
+    {
+      "id": "Qwen3.8-Flash",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 2.7
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]8[-_ ]*flash$"]
+    },
+    {
+      "id": "Qwen3.8-27B",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 12
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]8[-_ ]*27b$"]
+    },
+    {
+      "id": "Qwen3.7-Plus",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 1.6,
+          "output": 6.4
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 4.8,
+              "output": 19.2
+            }
+          ]
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。 含官方当前 8 折活动，不套用到日期快照。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]7[-_ ]*plus$"]
+    },
+    {
+      "id": "Qwen3.7-Plus-2026-05-26",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 6,
+              "output": 24
+            }
+          ]
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]7[-_ ]*plus[-_ ]*2026[-_ ]*05[-_ ]*26$"
+      ]
+    },
+    {
+      "id": "Qwen3.7-Flash",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 0.8
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 0.6,
+              "output": 2.4
+            }
+          ]
+        },
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 1.2,
+              "output": 4.8
+            }
+          ]
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*3[._-]7[-_ ]*flash$"]
+    },
+    {
+      "id": "Qwen-Plus",
+      "vendor": "alibaba",
+      "currency": "CNY",
+      "source": "https://help.aliyun.com/zh/model-studio/model-pricing",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 2
+        },
+        {
+          "input": 0.8,
+          "output": 8
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 2.4,
+              "output": 20
+            },
+            {
+              "input": 2.4,
+              "output": 24
+            }
+          ]
+        },
+        {
+          "fromInput": 256001,
+          "rates": [
+            {
+              "input": 4.8,
+              "output": 48
+            },
+            {
+              "input": 4.8,
+              "output": 64
+            }
+          ]
+        }
+      ],
+      "priceNote": "北京地域按量标准参考价；其他地域、批量服务及工具费用不包含在此参考价中。 未记录思考模式时，返回思考/非思考价格范围。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?qwen[-_ ]*plus$"]
+    },
+    {
+      "id": "GLM-5.3",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 8,
+          "output": 28,
+          "cacheRead": 2
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[._-]3$"]
+    },
+    {
+      "id": "GLM-5.2",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 8,
+          "output": 28,
+          "cacheRead": 2
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[._-]2$"]
+    },
+    {
+      "id": "GLM-5.3-flash",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 2.8,
+          "cacheRead": 0.23
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[._-]3[-_ ]*flash$"]
+    },
+    {
+      "id": "GLM-4.7",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8,
+          "cacheRead": 0.4
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 0,
+          "fromOutput": 200,
+          "rates": [
+            {
+              "input": 3,
+              "output": 14,
+              "cacheRead": 0.6
+            }
+          ]
+        },
+        {
+          "fromInput": 32000,
+          "rates": [
+            {
+              "input": 4,
+              "output": 16,
+              "cacheRead": 0.8
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*4[._-]7$"]
+    },
+    {
+      "id": "GLM-5.1",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 6,
+          "output": 24,
+          "cacheRead": 1.3
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32000,
+          "rates": [
+            {
+              "input": 8,
+              "output": 28,
+              "cacheRead": 2
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[._-]1$"]
+    },
+    {
+      "id": "GLM-5-turbo",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 22,
+          "cacheRead": 1.2
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32000,
+          "rates": [
+            {
+              "input": 7,
+              "output": 26,
+              "cacheRead": 1.8
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[-_ ]*turbo$"]
+    },
+    {
+      "id": "GLM-5",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 4,
+          "output": 18,
+          "cacheRead": 1
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32000,
+          "rates": [
+            {
+              "input": 6,
+              "output": 22,
+              "cacheRead": 1.5
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5$"]
+    },
+    {
+      "id": "GLM-5.3-FlashX",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 7,
+          "cacheRead": 0.57
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*5[._-]3[-_ ]*flashx$"]
+    },
+    {
+      "id": "GLM-4.7-Flash",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0
+        }
+      ],
+      "priceNote": "官方明示免费。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*4[._-]7[-_ ]*flash$"]
+    },
+    {
+      "id": "GLM-4.7-FlashX",
+      "vendor": "zhipu",
+      "currency": "CNY",
+      "source": "https://docs.bigmodel.cn/cn/guide/start/pricing",
+      "rates": [
+        {
+          "input": 0.5,
+          "output": 3,
+          "cacheRead": 0.1
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?glm[-_ ]*4[._-]7[-_ ]*flashx$"]
+    },
+    {
+      "id": "DeepSeek-V4.1-Flash",
+      "vendor": "deepseek",
+      "currency": "USD",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "rates": [
+        {
+          "input": 0.15,
+          "output": 0.6,
+          "cacheRead": 0.003
+        },
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.006
+        }
+      ],
+      "periods": [
+        {
+          "from": "2026-05-31T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "rates": {
+            "input": 0.14,
+            "output": 0.28,
+            "cacheRead": 0.0028
+          }
+        },
+        {
+          "from": "2026-08-16T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/news/news260813/",
+          "rates": {
+            "input": 0.22,
+            "output": 0.66,
+            "cacheRead": 0.007
+          },
+          "peak": {
+            "utcWeekdays": [0, 1, 2, 3, 4, 5, 6],
+            "utcHours": [
+              [1, 4],
+              [6, 10]
+            ],
+            "rates": {
+              "input": 0.44,
+              "output": 1.32,
+              "cacheRead": 0.014
+            }
+          }
+        },
+        {
+          "from": "2026-08-22T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "rates": {
+            "input": 0.22,
+            "output": 0.66,
+            "cacheRead": 0.007
+          },
+          "peak": {
+            "utcWeekdays": [1, 2, 3, 4, 5],
+            "utcHours": [
+              [1, 4],
+              [6, 10]
+            ],
+            "rates": {
+              "input": 0.44,
+              "output": 1.32,
+              "cacheRead": 0.014
+            }
+          }
+        },
+        {
+          "from": "2026-09-09T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/updates/",
+          "rates": {
+            "input": 0.15,
+            "output": 0.6,
+            "cacheRead": 0.003
+          },
+          "peak": {
+            "utcWeekdays": [1, 2, 3, 4, 5],
+            "utcHours": [
+              [1, 4],
+              [6, 10]
+            ],
+            "rates": {
+              "input": 0.3,
+              "output": 1.2,
+              "cacheRead": 0.006
+            }
+          }
+        }
+      ],
+      "aliases": ["deepseek-v4-flash", "deepseek-flash", "deepseek-v4-flash-vision-exp"],
+      "priceNote": "官网将 deepseek-flash 及两个旧 Flash API 名称路由至 V4.1。保留旧 API 历史费率；2026-09-10 按官方发布日期的北京时间零点作为日级参考边界，发布当日费用并非精确账单。节假日高峰例外尚未建模。",
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v4[._-]1[-_ ]*flash$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v4[-_ ]*flash$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*flash$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v4[-_ ]*flash[-_ ]*vision[-_ ]*exp$"
+      ]
+    },
+    {
+      "id": "DeepSeek-V4-Pro-0813",
+      "vendor": "deepseek",
+      "currency": "USD",
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "rates": [
+        {
+          "input": 0.66,
+          "output": 1.98,
+          "cacheRead": 0.022
+        },
+        {
+          "input": 1.32,
+          "output": 3.96,
+          "cacheRead": 0.044
+        }
+      ],
+      "periods": [
+        {
+          "from": "2026-05-31T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "rates": {
+            "input": 0.435,
+            "output": 0.87,
+            "cacheRead": 0.003625
+          }
+        },
+        {
+          "from": "2026-08-16T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/news/news260813/",
+          "rates": {
+            "input": 0.66,
+            "output": 1.98,
+            "cacheRead": 0.022
+          },
+          "peak": {
+            "utcWeekdays": [0, 1, 2, 3, 4, 5, 6],
+            "utcHours": [
+              [1, 4],
+              [6, 10]
+            ],
+            "rates": {
+              "input": 1.32,
+              "output": 3.96,
+              "cacheRead": 0.044
+            }
+          }
+        },
+        {
+          "from": "2026-08-22T16:00:00Z",
+          "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+          "rates": {
+            "input": 0.66,
+            "output": 1.98,
+            "cacheRead": 0.022
+          },
+          "peak": {
+            "utcWeekdays": [1, 2, 3, 4, 5],
+            "utcHours": [
+              [1, 4],
+              [6, 10]
+            ],
+            "rates": {
+              "input": 1.32,
+              "output": 3.96,
+              "cacheRead": 0.044
+            }
+          }
+        }
+      ],
+      "aliases": ["deepseek-v4-pro"],
+      "priceNote": "官方 API 名称 deepseek-v4-pro。保留已有历史费率；高峰按 UTC 工作日 01–04、06–10 计算，节假日例外尚未建模。",
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v4[-_ ]*pro[-_ ]*0813$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v4[-_ ]*pro$"
+      ]
+    },
+    {
+      "id": "DeepSeek-V3.2",
+      "vendor": "deepseek",
+      "currency": "USD",
+      "source": "https://huggingface.co/deepseek-ai/DeepSeek-V3.2",
+      "rates": [],
+      "priceNote": "已确认模型身份；当前第一方定价页不再列出该型号，未套用第三方托管价格。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?deepseek[-_ ]*v3[._-]2$"]
+    },
+    {
+      "id": "MiniMax-M3",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.06
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 512001,
+          "rates": [
+            {
+              "input": 0.6,
+              "output": 2.4,
+              "cacheRead": 0.12
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m3$"]
+    },
+    {
+      "id": "MiniMax-M2.7",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.06,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]7$"]
+    },
+    {
+      "id": "MiniMax-M2.7-Highspeed",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.6,
+          "output": 2.4,
+          "cacheRead": 0.06,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]7[-_ ]*highspeed$"]
+    },
+    {
+      "id": "MiniMax-M2.5",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.03,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]5$"]
+    },
+    {
+      "id": "MiniMax-M2.1",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.03,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]1$"]
+    },
+    {
+      "id": "MiniMax-M2",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 1.2,
+          "cacheRead": 0.03,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2$"]
+    },
+    {
+      "id": "MiniMax-M2.5-Highspeed",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.6,
+          "output": 2.4,
+          "cacheRead": 0.03,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]5[-_ ]*highspeed$"]
+    },
+    {
+      "id": "MiniMax-M2.1-Highspeed",
+      "vendor": "minimax",
+      "currency": "USD",
+      "source": "https://platform.minimax.io/docs/guides/pricing-paygo",
+      "rates": [
+        {
+          "input": 0.6,
+          "output": 2.4,
+          "cacheRead": 0.03,
+          "cacheWrite": 0.375
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?minimax[-_ ]*m2[._-]1[-_ ]*highspeed$"]
+    },
+    {
+      "id": "Kimi-K3",
+      "aliases": [
+        "k3",
+        "k3-256k",
+        "k3-agent",
+        "k3-agent-swarm",
+        "kimi-k3-agent",
+        "kimi-k3-agent-swarm"
+      ],
+      "vendor": "moonshot",
+      "currency": "USD",
+      "source": "https://platform.kimi.ai/docs/pricing/chat",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3,
+          "cacheWrite": 3,
+          "cacheWrite1h": 6
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?kimi[-_ ]*k3$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?k3$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?k3[-_ ]*256k$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?k3[-_ ]*agent$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?k3[-_ ]*agent[-_ ]*swarm$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?kimi[-_ ]*k3[-_ ]*agent$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?kimi[-_ ]*k3[-_ ]*agent[-_ ]*swarm$"
+      ]
+    },
+    {
+      "id": "Kimi-K2.6",
+      "vendor": "moonshot",
+      "currency": "USD",
+      "source": "https://platform.kimi.ai/docs/pricing/chat",
+      "rates": [
+        {
+          "input": 0.95,
+          "output": 4,
+          "cacheRead": 0.16
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?kimi[-_ ]*k2[._-]6$"]
+    },
+    {
+      "id": "Kimi-K2.7-Code",
+      "vendor": "moonshot",
+      "currency": "USD",
+      "source": "https://platform.kimi.ai/docs/pricing/chat",
+      "rates": [
+        {
+          "input": 0.95,
+          "output": 4,
+          "cacheRead": 0.19
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?kimi[-_ ]*k2[._-]7[-_ ]*code$"]
+    },
+    {
+      "id": "Kimi-K2.7-Code-Highspeed",
+      "vendor": "moonshot",
+      "currency": "USD",
+      "source": "https://platform.kimi.ai/docs/pricing/chat",
+      "rates": [
+        {
+          "input": 1.9,
+          "output": 8,
+          "cacheRead": 0.38
+        }
+      ],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?(?:kimi[-_ ]*)?k2[._-]7[-_ ]*code[-_ ]*highspeed$"
+      ]
+    },
+    {
+      "id": "Kimi-K2.8-Preview",
+      "vendor": "moonshot",
+      "currency": "USD",
+      "source": "https://www.kimi.com/code/docs/en/kimi-code/models.html",
+      "rates": [],
+      "priceNote": "Kimi Code 提供的预览模型；未配置独立按 Token API 参考单价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?(?:kimi[-_ ]*)?k2[._-]8[-_ ]*preview$"]
+    },
+    {
+      "id": "MiMo-V2.5",
+      "vendor": "xiaomi",
+      "currency": "CNY",
+      "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "rates": [
+        {
+          "input": 1,
+          "output": 2,
+          "cacheRead": 0.02
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mimo[-_ ]*v2[._-]5$"]
+    },
+    {
+      "id": "MiMo-V2.5-Pro",
+      "vendor": "xiaomi",
+      "currency": "CNY",
+      "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "rates": [
+        {
+          "input": 3,
+          "output": 6,
+          "cacheRead": 0.025
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mimo[-_ ]*v2[._-]5[-_ ]*pro$"]
+    },
+    {
+      "id": "MiMo-V2.6-Pro",
+      "vendor": "xiaomi",
+      "currency": "CNY",
+      "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "rates": [
+        {
+          "input": 3,
+          "output": 6,
+          "cacheRead": 0.025
+        }
+      ],
+      "priceNote": "中国区实时推理参考价，缓存写入限时免费；未计联网搜索等工具费。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mimo[-_ ]*v2[._-]6[-_ ]*pro$"]
+    },
+    {
+      "id": "MiMo-V2.6-Flash",
+      "vendor": "xiaomi",
+      "currency": "CNY",
+      "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "rates": [
+        {
+          "input": 1,
+          "output": 2,
+          "cacheRead": 0.02
+        }
+      ],
+      "priceNote": "中国区实时推理参考价，缓存写入限时免费；未计联网搜索等工具费。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mimo[-_ ]*v2[._-]6[-_ ]*flash$"]
+    },
+    {
+      "id": "MiMo-V2.6-Pro-Ultraspeed",
+      "vendor": "xiaomi",
+      "currency": "CNY",
+      "source": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "rates": [
+        {
+          "input": 30,
+          "output": 60,
+          "cacheRead": 0.25
+        }
+      ],
+      "priceNote": "中国区实时推理参考价，缓存写入限时免费；未计联网搜索等工具费。",
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mimo[-_ ]*v2[._-]6[-_ ]*pro[-_ ]*ultraspeed$"
+      ]
+    },
+    {
+      "id": "Grok-Build-0.1",
+      "aliases": ["grok-code-fast-1", "grok-code-fast", "grok-code-fast-1-0825"],
+      "vendor": "xai",
+      "currency": "USD",
+      "source": "https://docs.x.ai/developers/pricing",
+      "rates": [
+        {
+          "input": 1,
+          "output": 2,
+          "cacheRead": 0.2
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200000,
+          "rates": [
+            {
+              "input": 2,
+              "output": 4,
+              "cacheRead": 0.4
+            }
+          ]
+        }
+      ],
+      "priceNote": "官网当前明确将 grok-code-fast-1、grok-code-fast、grok-code-fast-1-0825 列为别名；保留这些精准别名，不通过正则推断。",
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*build[-_ ]*0[._-]1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*code[-_ ]*fast[-_ ]*1$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*code[-_ ]*fast$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*code[-_ ]*fast[-_ ]*1[-_ ]*0825$"
+      ]
+    },
+    {
+      "id": "Grok-4.7",
+      "vendor": "xai",
+      "currency": "USD",
+      "source": "https://docs.x.ai/developers/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 6,
+          "cacheRead": 0.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200000,
+          "rates": [
+            {
+              "input": 4,
+              "output": 12,
+              "cacheRead": 1
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*4[._-]7$"]
+    },
+    {
+      "id": "Grok-4.6",
+      "vendor": "xai",
+      "currency": "USD",
+      "source": "https://docs.x.ai/developers/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 6,
+          "cacheRead": 0.5
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200000,
+          "rates": [
+            {
+              "input": 4,
+              "output": 12,
+              "cacheRead": 1
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*4[._-]6$"]
+    },
+    {
+      "id": "Grok-4.5",
+      "vendor": "xai",
+      "currency": "USD",
+      "source": "https://docs.x.ai/developers/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 6,
+          "cacheRead": 0.3
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200000,
+          "rates": [
+            {
+              "input": 4,
+              "output": 12,
+              "cacheRead": 0.6
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*4[._-]5$"]
+    },
+    {
+      "id": "Grok-4.3",
+      "vendor": "xai",
+      "currency": "USD",
+      "source": "https://docs.x.ai/developers/pricing",
+      "rates": [
+        {
+          "input": 1.25,
+          "output": 2.5,
+          "cacheRead": 0.2
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 200000,
+          "rates": [
+            {
+              "input": 2.5,
+              "output": 5,
+              "cacheRead": 0.4
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?grok[-_ ]*4[._-]3$"]
+    },
+    {
+      "id": "Doubao-Seed-Evolving",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 6,
+          "output": 30,
+          "cacheRead": 1.2
+        }
+      ],
+      "priceNote": "标准在线推理；不含低延迟、批量及缓存存储费用。Lite 未记录输入模态时保留文本与音频范围。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*evolving$"]
+    },
+    {
+      "id": "Doubao-Seed-2.1-Pro",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 6,
+          "output": 30,
+          "cacheRead": 1.2
+        }
+      ],
+      "priceNote": "标准在线推理；不含低延迟、批量及缓存存储费用。Lite 未记录输入模态时保留文本与音频范围。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]1[-_ ]*pro$"]
+    },
+    {
+      "id": "Doubao-Seed-2.1-Lite",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 2.7,
+          "cacheRead": 0.16
+        },
+        {
+          "input": 12,
+          "output": 2.7,
+          "cacheRead": 2.4
+        }
+      ],
+      "priceNote": "标准在线推理；不含低延迟、批量及缓存存储费用。Lite 未记录输入模态时保留文本与音频范围。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]1[-_ ]*lite$"]
+    },
+    {
+      "id": "Doubao-Seed-2.1-Turbo",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.6
+        }
+      ],
+      "priceNote": "标准在线推理；不含低延迟、批量及缓存存储费用。Lite 未记录输入模态时保留文本与音频范围。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]1[-_ ]*turbo$"]
+    },
+    {
+      "id": "Doubao-Seed-2.0-Pro",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 3.2,
+          "output": 16,
+          "cacheRead": 0.64
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 4.8,
+              "output": 24,
+              "cacheRead": 0.96
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 9.6,
+              "output": 48,
+              "cacheRead": 1.92
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]0[-_ ]*pro$"]
+    },
+    {
+      "id": "Doubao-Seed-2.0-Code",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 3.2,
+          "output": 16,
+          "cacheRead": 0.64
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 4.8,
+              "output": 24,
+              "cacheRead": 0.96
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 9.6,
+              "output": 48,
+              "cacheRead": 1.92
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]0[-_ ]*code$"]
+    },
+    {
+      "id": "Doubao-Seed-2.0-Lite",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 0.6,
+          "output": 3.6,
+          "cacheRead": 0.12
+        },
+        {
+          "input": 9,
+          "output": 3.6,
+          "cacheRead": 1.8
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 0.9,
+              "output": 5.4,
+              "cacheRead": 0.18
+            },
+            {
+              "input": 13.5,
+              "output": 5.4,
+              "cacheRead": 2.7
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 1.8,
+              "output": 10.8,
+              "cacheRead": 0.36
+            },
+            {
+              "input": 27,
+              "output": 10.8,
+              "cacheRead": 5.4
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]0[-_ ]*lite$"]
+    },
+    {
+      "id": "Doubao-Seed-2.0-Mini",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-pricing",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 2,
+          "cacheRead": 0.04
+        },
+        {
+          "input": 3,
+          "output": 2,
+          "cacheRead": 0.6
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 0.4,
+              "output": 4,
+              "cacheRead": 0.08
+            },
+            {
+              "input": 6,
+              "output": 4,
+              "cacheRead": 1.2
+            }
+          ]
+        },
+        {
+          "fromInput": 128001,
+          "rates": [
+            {
+              "input": 0.8,
+              "output": 8,
+              "cacheRead": 0.16
+            },
+            {
+              "input": 12,
+              "output": 8,
+              "cacheRead": 2.4
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*2[._-]0[-_ ]*mini$"]
+    },
+    {
+      "id": "Doubao-Seed-Code",
+      "vendor": "bytedance",
+      "currency": "CNY",
+      "source": "https://docs.volcengine.com/docs/ark/model-deprecation-migration-guide",
+      "rates": [],
+      "priceNote": "旧型号；当前官方定价表未列出单价，不并入 Seed 2.0 Code 或 Seed Evolving。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?doubao[-_ ]*seed[-_ ]*code$"]
+    },
+    {
+      "id": "Seed-OSS-36B-Instruct",
+      "vendor": "bytedance",
+      "currency": "USD",
+      "source": "https://huggingface.co/ByteDance-Seed/Seed-OSS-36B-Instruct",
+      "rates": [],
+      "priceNote": "开放权重模型，未提供统一第一方 API 单价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?seed[-_ ]*oss[-_ ]*36b[-_ ]*instruct$"]
+    },
+    {
+      "id": "Hy4-Preview",
+      "vendor": "tencent",
+      "currency": "CNY",
+      "source": "https://cloud.tencent.com/product/tokenhub",
+      "rates": [
+        {
+          "input": 6,
+          "output": 18,
+          "cacheRead": 0.3
+        }
+      ],
+      "aliases": ["hy-4-preview"],
+      "priceNote": "腾讯 TokenHub 广州地域按量标准参考价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?hy[-_ ]*4[-_ ]*preview$"]
+    },
+    {
+      "id": "Mistral-Medium-3.5",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 1.5,
+          "output": 7.5
+        }
+      ],
+      "aliases": ["mistral-medium-3-5"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*medium[-_ ]*3[._-]5$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*medium[-_ ]*3[-_ ]*5$"
+      ]
+    },
+    {
+      "id": "Mistral-Small-4",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.15,
+          "output": 0.6
+        }
+      ],
+      "aliases": ["mistral-small-2603", "mistral-small-latest"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*small[-_ ]*4$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*small[-_ ]*2603$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*small[-_ ]*latest$"
+      ]
+    },
+    {
+      "id": "Mistral-Large-3",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.5,
+          "output": 1.5
+        }
+      ],
+      "aliases": ["mistral-large-2512"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*large[-_ ]*3$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mistral[-_ ]*large[-_ ]*2512$"
+      ]
+    },
+    {
+      "id": "Codestral",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.3,
+          "output": 0.9
+        }
+      ],
+      "aliases": ["codestral-2508", "codestral-latest"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?codestral$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?codestral[-_ ]*2508$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?codestral[-_ ]*latest$"
+      ]
+    },
+    {
+      "id": "Ministral-3-3B",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.1,
+          "output": 0.1
+        }
+      ],
+      "aliases": ["ministral-3b-2512", "ministral-3b-latest"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*3[-_ ]*3b$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*3b[-_ ]*2512$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*3b[-_ ]*latest$"
+      ]
+    },
+    {
+      "id": "Ministral-3-8B",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.15,
+          "output": 0.15
+        }
+      ],
+      "aliases": ["ministral-8b-2512", "ministral-8b-latest"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*3[-_ ]*8b$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*8b[-_ ]*2512$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*8b[-_ ]*latest$"
+      ]
+    },
+    {
+      "id": "Ministral-3-14B",
+      "vendor": "mistral",
+      "currency": "USD",
+      "source": "https://mistral.ai/pricing/api/",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 0.2
+        }
+      ],
+      "aliases": ["ministral-14b-2512", "ministral-14b-latest"],
+      "matchPatterns": [
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*3[-_ ]*14b$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*14b[-_ ]*2512$",
+        "^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ministral[-_ ]*14b[-_ ]*latest$"
+      ]
+    },
+    {
+      "id": "ERNIE-5.1",
+      "vendor": "baidu",
+      "currency": "CNY",
+      "source": "https://cloud.baidu.com/doc/qianfan-docs/s/Jm8r1826a",
+      "rates": [
+        {
+          "input": 4,
+          "output": 18
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 6,
+              "output": 22
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ernie[-_ ]*5[._-]1$"]
+    },
+    {
+      "id": "ERNIE-5.0",
+      "vendor": "baidu",
+      "currency": "CNY",
+      "source": "https://cloud.baidu.com/doc/qianfan-docs/s/Jm8r1826a",
+      "rates": [
+        {
+          "input": 6,
+          "output": 24
+        }
+      ],
+      "tiers": [
+        {
+          "fromInput": 32001,
+          "rates": [
+            {
+              "input": 10,
+              "output": 40
+            }
+          ]
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ernie[-_ ]*5[._-]0$"]
+    },
+    {
+      "id": "ERNIE-4.5-Turbo-128K",
+      "vendor": "baidu",
+      "currency": "CNY",
+      "source": "https://cloud.baidu.com/doc/qianfan-docs/s/Jm8r1826a",
+      "rates": [
+        {
+          "input": 0.8,
+          "output": 3.2,
+          "cacheRead": 0.2
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ernie[-_ ]*4[._-]5[-_ ]*turbo[-_ ]*128k$"]
+    },
+    {
+      "id": "Composer-2.5",
+      "vendor": "anysphere",
+      "currency": "USD",
+      "source": "https://cursor.com/docs/models/cursor-composer-2-5",
+      "rates": [
+        {
+          "input": 0.5,
+          "output": 2.5,
+          "cacheRead": 0.2
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?composer[-_ ]*2[._-]5$"]
+    },
+    {
+      "id": "Composer-2.5-Fast",
+      "vendor": "anysphere",
+      "currency": "USD",
+      "source": "https://cursor.com/docs/models/cursor-composer-2-5",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?composer[-_ ]*2[._-]5[-_ ]*fast$"]
+    },
+    {
+      "id": "v0-Mini",
+      "vendor": "vercel",
+      "currency": "USD",
+      "source": "https://v0.app/pricing",
+      "rates": [
+        {
+          "input": 0.2,
+          "output": 1.2,
+          "cacheRead": 0.02,
+          "cacheWrite": 0.25
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?v0[-_ ]*mini$"]
+    },
+    {
+      "id": "v0-Pro",
+      "vendor": "vercel",
+      "currency": "USD",
+      "source": "https://v0.app/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 10,
+          "cacheRead": 0.2,
+          "cacheWrite": 2.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?v0[-_ ]*pro$"]
+    },
+    {
+      "id": "v0-Max",
+      "vendor": "vercel",
+      "currency": "USD",
+      "source": "https://v0.app/pricing",
+      "rates": [
+        {
+          "input": 5,
+          "output": 25,
+          "cacheRead": 0.5,
+          "cacheWrite": 6.25
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?v0[-_ ]*max$"]
+    },
+    {
+      "id": "v0-Max-Fast",
+      "vendor": "vercel",
+      "currency": "USD",
+      "source": "https://v0.app/pricing",
+      "rates": [
+        {
+          "input": 10,
+          "output": 50,
+          "cacheRead": 1,
+          "cacheWrite": 12.5
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?v0[-_ ]*max[-_ ]*fast$"]
+    },
+    {
+      "id": "SWE-2",
+      "vendor": "cognition",
+      "currency": "USD",
+      "source": "https://docs.devin.ai/desktop/models",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15,
+          "cacheRead": 0.3
+        }
+      ],
+      "priceNote": "官方标价；未套用账号有关的限时免费、套餐折扣或额度抵扣。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?swe[-_ ]*2$"]
+    },
+    {
+      "id": "Sonar",
+      "vendor": "perplexity",
+      "currency": "USD",
+      "source": "https://docs.perplexity.ai/docs/getting-started/pricing",
+      "rates": [
+        {
+          "input": 1,
+          "output": 1
+        }
+      ],
+      "priceNote": "仅包含 Token 参考费用，不包含每次请求、搜索等额外费用。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?sonar$"]
+    },
+    {
+      "id": "Sonar-Pro",
+      "vendor": "perplexity",
+      "currency": "USD",
+      "source": "https://docs.perplexity.ai/docs/getting-started/pricing",
+      "rates": [
+        {
+          "input": 3,
+          "output": 15
+        }
+      ],
+      "priceNote": "仅包含 Token 参考费用，不包含每次请求、搜索等额外费用。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?sonar[-_ ]*pro$"]
+    },
+    {
+      "id": "Sonar-Reasoning-Pro",
+      "vendor": "perplexity",
+      "currency": "USD",
+      "source": "https://docs.perplexity.ai/docs/getting-started/pricing",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8
+        }
+      ],
+      "priceNote": "仅包含 Token 参考费用，不包含每次请求、搜索等额外费用。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?sonar[-_ ]*reasoning[-_ ]*pro$"]
+    },
+    {
+      "id": "LongCat-2.0",
+      "vendor": "meituan",
+      "currency": "CNY",
+      "source": "https://longcat.chat/platform/docs/zh/pricing/long-cat-2.0",
+      "rates": [
+        {
+          "input": 2,
+          "output": 8,
+          "cacheRead": 0.04
+        }
+      ],
+      "priceNote": "国内当前优惠单价；未套用免费额度。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?longcat[-_ ]*2[._-]0$"]
+    },
+    {
+      "id": "Step-3.5-Flash",
+      "vendor": "stepfun",
+      "currency": "CNY",
+      "source": "https://platform.stepfun.com/docs/zh/guides/pricing/details",
+      "rates": [
+        {
+          "input": 0.7,
+          "output": 2.1,
+          "cacheRead": 0.14
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?step[-_ ]*3[._-]5[-_ ]*flash$"]
+    },
+    {
+      "id": "Step-3.5-Flash-2603",
+      "vendor": "stepfun",
+      "currency": "CNY",
+      "source": "https://platform.stepfun.com/docs/zh/guides/pricing/details",
+      "rates": [
+        {
+          "input": 0.7,
+          "output": 2.1,
+          "cacheRead": 0.14
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?step[-_ ]*3[._-]5[-_ ]*flash[-_ ]*2603$"]
+    },
+    {
+      "id": "Step-3.7-Flash",
+      "vendor": "stepfun",
+      "currency": "CNY",
+      "source": "https://platform.stepfun.com/docs/zh/guides/pricing/details",
+      "rates": [
+        {
+          "input": 1.35,
+          "output": 8.1,
+          "cacheRead": 0.27
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?step[-_ ]*3[._-]7[-_ ]*flash$"]
+    },
+    {
+      "id": "Step-5-Preview",
+      "vendor": "stepfun",
+      "currency": "CNY",
+      "source": "https://platform.stepfun.com/docs/zh/guides/pricing/details",
+      "rates": [
+        {
+          "input": 7,
+          "output": 20,
+          "cacheRead": 0.35
+        }
+      ],
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?step[-_ ]*5[-_ ]*preview$"]
+    },
+    {
+      "id": "Ling-flash-2.0",
+      "vendor": "inclusionai",
+      "currency": "USD",
+      "source": "https://huggingface.co/inclusionAI/Ling-flash-2.0",
+      "rates": [],
+      "priceNote": "开放权重模型，未提供统一第一方 API 单价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ling[-_ ]*flash[-_ ]*2[._-]0$"]
+    },
+    {
+      "id": "Ling-mini-2.0",
+      "vendor": "inclusionai",
+      "currency": "USD",
+      "source": "https://huggingface.co/inclusionAI/Ling-mini-2.0",
+      "rates": [],
+      "priceNote": "开放权重模型，未提供统一第一方 API 单价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?ling[-_ ]*mini[-_ ]*2[._-]0$"]
+    },
+    {
+      "id": "Mellum",
+      "vendor": "jetbrains",
+      "currency": "USD",
+      "source": "https://www.jetbrains.com/legal/docs/terms/jetbrains-ai/service-providers/1.10/1.10.pdf",
+      "rates": [],
+      "priceNote": "已确认 JetBrains 模型身份；未查到独立的第一方按 Token API 单价。",
+      "matchPatterns": ["^(?:[a-z0-9][a-z0-9._-]{0,31}/)?mellum$"]
+    }
+  ]
+}

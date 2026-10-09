@@ -1,29 +1,18 @@
-/**
- * 通用格式化工具函数（跨页面共享）
- *
- * 设计原则：纯函数、零业务依赖、无副作用
- */
+import { formatNumber } from './number-format'
 
 /**
  * 将 token 数量格式化为人类可读的简短形式
  *
  * - null / NaN / undefined → '0'
- * - >= 1e9 → 'X.XXB'（Billion）
- * - >= 1e6 → 'X.XXM'（Million）
- * - >= 1e3 → 'X.XK'（Thousand）
- * - 其他 → 原数字字符串
+ * 与动画数字共用 K/M/B 进位，最多两位小数，去掉无意义的末尾零。
  *
  * @example
  *   formatTokens(1500)      // '1.5K'
- *   formatTokens(2_300_000) // '2.30M'
+ *   formatTokens(2_300_000) // '2.3M'
  *   formatTokens(null)      // '0'
  */
 export function formatTokens(n: number | null | undefined): string {
-  if (n == null || isNaN(n)) return '0'
-  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'
-  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
-  return n.toString()
+  return formatNumber(n != null && Number.isFinite(n) ? n : 0, { compact: true })
 }
 
 /**

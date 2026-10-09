@@ -1,6 +1,9 @@
 # Keep source formatting stable across Windows, macOS and Linux.
 * text=auto eol=lf
 
+# Preserve upstream license bytes and whitespace; names use the document SHA-256.
+desktop/third-party-licenses/** -text -whitespace
+
 # Native Windows scripts and NSIS installer sources.
 *.bat text eol=crlf
 *.cmd text eol=crlf

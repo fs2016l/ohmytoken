@@ -7,7 +7,7 @@
 }
 
 html:root {
-  color-scheme: dark;
+  color-scheme: light;
 
   --font-system-sans:
     system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI', 'PingFang SC',
@@ -43,54 +43,56 @@ html:root {
   --weight-mono-medium: 500;
   --weight-mono-semibold: 600;
 
-  --bg-base: #0a1120;
-  --bg-glass: rgba(10, 17, 32, 0.88);
-  --surface: #0f1828;
-  --surface-low: #111c2f;
-  --surface-container: #172338;
-  --surface-container-high: #1e2b42;
-  --surface-bright: #273750;
-  --bg-elevated: #152137;
-  --bg-hover: rgba(139, 128, 249, 0.09);
-
-  /* Emphasized surfaces use finished colors instead of translucent mixes. */
-  --surface-emphasis: #14213a;
-  --surface-emphasis-strong: #192846;
-  --surface-emphasis-icon: #202e50;
-  --border-emphasis: #2d3e60;
-  --glow-emphasis: rgba(139, 128, 249, 0.11);
-  --glow-backdrop: rgba(139, 128, 249, 0.08);
-
-  --border: #22314b;
-  --border-strong: #344662;
-  --border-focus: #8b80f9;
-
-  --text: #f4f7fc;
-  --text-muted: #aab6ca;
-  --text-soft: #8493aa;
-  --text-disabled: #56647a;
-
-  --primary: #8b80f9;
-  --primary-hover: #9b91ff;
-  --primary-deep: #6c5ce7;
+  /* Startup fallback. useTheme installs the full shared palette before mounting UI. */
+  --bg-base: #f5f7fb;
+  --shell: #f5f7fb;
+  --sidebar: #fafbfe;
+  --surface: #fafbfe;
+  --surface-low: #ffffff;
+  --surface-container: #fafbfe;
+  --surface-container-high: var(--bg-hover);
+  --surface-bright: var(--bg-elevated);
+  --bg-elevated: #ffffff;
+  --bg-hover: #f1eeff;
+  --bg-glass: var(--surface);
+  --surface-emphasis: var(--primary-soft);
+  --surface-emphasis-strong: var(--primary-soft);
+  --surface-emphasis-icon: var(--primary-soft);
+  --border-emphasis: var(--primary-border);
+  --glow-emphasis: transparent;
+  --glow-backdrop: transparent;
+  --border: #e6eaf2;
+  --border-strong: #d6deea;
+  --border-focus: var(--primary);
+  --text: #151f32;
+  --text-muted: #4c5c76;
+  --text-soft: #5f6e85;
+  --text-disabled: #8593aa;
+  --disabled: #e6eaf2;
+  --primary: #6857d8;
+  --primary-hover: #5846c3;
+  --primary-deep: var(--primary);
   --primary-on: #ffffff;
-  --primary-soft: rgba(139, 128, 249, 0.12);
-  --primary-border: rgba(139, 128, 249, 0.34);
-
-  --tertiary: #34d399;
-  --success: #34d399;
-  --warning: #fbbf24;
-  --error: #fb7185;
-  --info: #60a5fa;
-
+  --primary-soft: #f1eeff;
+  --primary-soft-text: var(--primary);
+  --primary-border: #d4caf8;
+  --nav-selected: var(--primary-soft);
+  --nav-text: var(--text-muted);
+  --nav-muted: var(--text-soft);
+  --nav-active-text: var(--primary);
+  --success: #0b785b;
+  --warning: #a2650d;
+  --error: #be4656;
+  --tertiary: var(--success);
+  --info: var(--primary);
   --accent: var(--primary);
-  --accent-blue: #60a5fa;
-  --accent-purple: #8b80f9;
-  --accent-cyan: #22d3ee;
-  --accent-green: #34d399;
-  --accent-orange: #fbbf24;
-  --accent-red: #fb7185;
-  --accent-pink: #f472b6;
+  --accent-blue: var(--primary);
+  --accent-purple: var(--primary);
+  --accent-cyan: var(--primary);
+  --accent-green: var(--success);
+  --accent-orange: var(--warning);
+  --accent-red: var(--error);
+  --accent-pink: var(--primary);
 
   --radius-xs: 6px;
   --radius-sm: 8px;
@@ -276,60 +278,8 @@ html:root[data-number-font='source-code-pro'] {
   --font-number: 'OMT Source Code Pro', var(--font-sans);
 }
 
-html:root[data-theme='light'] {
-  color-scheme: light;
-
-  --bg-base: #f4f7fb;
-  --bg-glass: rgba(248, 250, 253, 0.9);
-  --surface: #ffffff;
-  --surface-low: #ffffff;
-  --surface-container: #f1f5fa;
-  --surface-container-high: #e8eef6;
-  --surface-bright: #dde6f1;
-  --bg-elevated: #ffffff;
-  --bg-hover: rgba(103, 88, 217, 0.08);
-
-  --surface-emphasis: #f7f8ff;
-  --surface-emphasis-strong: #eef0ff;
-  --surface-emphasis-icon: #e8eaff;
-  --border-emphasis: #d8ddf4;
-  --glow-emphasis: rgba(103, 88, 217, 0.055);
-  --glow-backdrop: rgba(76, 96, 180, 0.035);
-
-  --border: #dce4ef;
-  --border-strong: #c7d2e1;
-  --border-focus: #6758d9;
-
-  --text: #162033;
-  --text-muted: #526178;
-  --text-soft: #607089;
-  --text-disabled: #9aa6b8;
-
-  --primary: #6758d9;
-  --primary-hover: #5a4bc9;
-  --primary-deep: #5142bd;
-  --primary-on: #ffffff;
-  --primary-soft: rgba(103, 88, 217, 0.1);
-  --primary-border: rgba(103, 88, 217, 0.28);
-
-  --tertiary: #059669;
-  --success: #059669;
-  --warning: #d97706;
-  --error: #e11d48;
-  --info: #2563eb;
-
-  --accent-blue: #2563eb;
-  --accent-purple: #6758d9;
-  --accent-cyan: #0891b2;
-  --accent-green: #059669;
-  --accent-orange: #d97706;
-  --accent-red: #e11d48;
-  --accent-pink: #db2777;
-
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
-  --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.05), 0 14px 32px rgba(15, 23, 42, 0.08);
-  --shadow-popover: 0 18px 48px rgba(15, 23, 42, 0.16);
-  --shadow-modal: 0 28px 90px rgba(15, 23, 42, 0.22);
+html:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 * {
@@ -407,6 +357,7 @@ textarea {
 
 .material-symbols-outlined {
   display: inline-block;
+  flex-shrink: 0;
   direction: ltr;
   width: 1em;
   overflow: hidden;

@@ -6,26 +6,26 @@
  * minimums used by modern Windows and macOS interfaces.
  */
 
-#app {
+:where(#app) {
   font-family: var(--font-sans);
   font-size: var(--type-body);
   line-height: var(--leading-body);
 }
 
-#app :is(button, input, select, textarea) {
+:where(#app) :is(button, input, select, textarea) {
   font-family: inherit;
 }
 
-#app button,
-#app :is(h1, h2, h3, h4, h5, h6, th, .setting-name) {
+:where(#app) button,
+:where(#app) :is(h1, h2, h3, h4, h5, h6, th, .setting-name) {
   font-weight: var(--weight-semibold);
 }
 
-#app :is(h1, h2, h3, h4, h5, h6) {
+:where(#app) :is(h1, h2, h3, h4, h5, h6) {
   letter-spacing: var(--tracking-heading);
 }
 
-#app :is(.brand h1, .page-intro h1, .featured-content h2, .card-title, .modal-title) {
+:where(#app) :is(.brand h1, .page-intro h1, .featured-content h2, .card-title, .modal-title) {
   font-family: var(--font-display);
   font-weight: var(--weight-display);
   letter-spacing: var(--tracking-display);
@@ -37,7 +37,7 @@
   letter-spacing: var(--tracking-mono);
 }
 
-#app
+:where(#app)
   :is(
     .stat-value,
     .stat-number,
@@ -78,18 +78,18 @@
     'lnum' 1;
 }
 
-#app :is(small, .eyebrow, .stat-label, .stat-sub, .chart-hint, .catalog-note) {
+:where(#app) :is(small, .eyebrow, .stat-label, .stat-sub, .chart-hint, .catalog-note) {
   line-height: var(--leading-caption);
 }
 
-#app :is(input, select, textarea)::placeholder {
+:where(#app) :is(input, select, textarea)::placeholder {
   color: var(--text-soft);
   opacity: 1;
 }
 
 html[data-window-kind='main']
-  #app
-  :is(
+  :where(#app)
+  :where(
     button,
     [role='button'],
     input:not([type='range']):not([type='checkbox']):not([type='radio']),
@@ -99,7 +99,7 @@ html[data-window-kind='main']
 }
 
 html[data-window-kind='main']
-  #app
+  :where(#app)
   :is(
     .form-input,
     .setting-select,
@@ -111,8 +111,8 @@ html[data-window-kind='main']
 }
 
 html[data-window-kind='floating']
-  #app
-  :is(
+  :where(#app)
+  :where(
     button,
     [role='button'],
     input:not([type='range']):not([type='checkbox']):not([type='radio']),
@@ -143,7 +143,7 @@ html:lang(zh-CN) body {
 /* Do not tighten square Han glyphs with Latin-style negative tracking. */
 
 html:lang(zh-CN)
-  #app
+  :where(#app)
   :is(
     h1,
     h2,
@@ -165,51 +165,51 @@ html:lang(zh-CN) body .modal-overlay.modal-overlay :is(.modal-header h3, .modal-
 
 /* Page and card hierarchy */
 
-html:lang(zh-CN) #app .page-intro__eyebrow {
+html:lang(zh-CN) :where(#app) .page-intro__eyebrow {
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app .page-intro h1 {
+html:lang(zh-CN) :where(#app) .page-intro h1 {
   line-height: 1.35;
 }
 
-html:lang(zh-CN) #app .page-intro p {
+html:lang(zh-CN) :where(#app) .page-intro p {
   line-height: var(--leading-zh-body);
 }
 
-html:lang(zh-CN) #app .stats-grid .stat-card small,
-html:lang(zh-CN) #app .date-tile-new small {
+html:lang(zh-CN) :where(#app) .stats-grid .stat-card small,
+html:lang(zh-CN) :where(#app) .date-tile-new small {
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app .date-tile-new .date-copy {
+html:lang(zh-CN) :where(#app) .date-tile-new .date-copy {
   gap: var(--space-0-5);
 }
 
-html:lang(zh-CN) #app :is(.panel-header h3, .table-tools h3) {
+html:lang(zh-CN) :where(#app) :is(.panel-header h3, .table-tools h3) {
   line-height: 1.5;
 }
 
-html:lang(zh-CN) #app :is(.header-username, .header-desc, .notify-body) {
+html:lang(zh-CN) :where(#app) :is(.header-username, .header-desc, .notify-body) {
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app .message-copy {
+html:lang(zh-CN) :where(#app) .message-copy {
   row-gap: var(--space-0-5);
 }
 
-html:lang(zh-CN) #app .message-copy strong {
+html:lang(zh-CN) :where(#app) .message-copy strong {
   line-height: 1.5;
 }
 
-html:lang(zh-CN) #app .message-copy small {
+html:lang(zh-CN) :where(#app) .message-copy small {
   line-height: var(--leading-zh-caption);
 }
 
 /* Controls keep their fixed height, but text receives a readable glyph box. */
 
 html:lang(zh-CN)
-  #app
+  :where(#app)
   :is(
     .btn,
     .btn-primary,
@@ -225,56 +225,34 @@ html:lang(zh-CN)
     .code-btn,
     .panel-action-btn,
     .filter-tab,
-    .category-tab,
-    .vendor-filter-btn,
     .quick-tabs button,
     .filter-chips button,
     .pagination-controls button,
-    .page-btn,
-    .page-num,
     .seg-btn
   ) {
   line-height: var(--leading-zh-control);
 }
 
-/* Token and plan cards */
+/* Token cards */
 
-html:lang(zh-CN) #app .stats-section .stat-label {
+html:lang(zh-CN) :where(#app) .stats-section .stat-label {
   margin-bottom: var(--space-1);
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app .stats-section .stat-sub {
+html:lang(zh-CN) :where(#app) .stats-section .stat-sub {
   margin-top: var(--space-0-5);
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app :is(.provider-tagline, .catalog-note) {
+html:lang(zh-CN) :where(#app) .provider-tagline {
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app .plan-features li {
+html:lang(zh-CN) :where(#app) .error-state p,
+html:lang(zh-CN) :where(#app) .empty-state p,
+html:lang(zh-CN) :where(#app) .loading-state p {
   line-height: var(--leading-zh-caption);
-}
-
-html:lang(zh-CN) #app .error-state p,
-html:lang(zh-CN) #app .empty-state p,
-html:lang(zh-CN) #app .loading-state p {
-  line-height: var(--leading-zh-caption);
-}
-
-/* Insight reading surfaces */
-
-html:lang(zh-CN) #app .featured-content h2 {
-  line-height: var(--leading-zh-title);
-}
-
-html:lang(zh-CN) #app .card-title {
-  line-height: 1.5;
-}
-
-html:lang(zh-CN) #app :is(.featured-summary, .card-summary) {
-  line-height: var(--leading-zh-body);
 }
 
 html:lang(zh-CN) body .modal-overlay.modal-overlay .modal-title {
@@ -287,54 +265,54 @@ html:lang(zh-CN) body .modal-overlay.modal-overlay :is(.modal-summary, .modal-te
 
 /* Settings pair labels as deliberate two-line groups. */
 
-html:lang(zh-CN) #app .setting-name {
+html:lang(zh-CN) :where(#app) .setting-name {
   margin-bottom: var(--space-1);
   line-height: 1.55;
 }
 
-html:lang(zh-CN) #app .setting-desc {
+html:lang(zh-CN) :where(#app) .setting-desc {
   line-height: var(--leading-zh-caption);
 }
 
-html:lang(zh-CN) #app :is(.register-hint, .form-group label, .update-changelog) {
+html:lang(zh-CN) :where(#app) :is(.register-hint, .form-group label, .update-changelog) {
   line-height: var(--leading-zh-caption);
 }
 
 /* Compact floating window: relaxed Chinese leading without losing density. */
 
-html:lang(zh-CN) #app .floating-window .window-drag-title strong {
+html:lang(zh-CN) :where(#app) .floating-window .window-drag-title strong {
   line-height: 18px;
 }
 
-html:lang(zh-CN) #app .floating-window .window-drag-title small {
+html:lang(zh-CN) :where(#app) .floating-window .window-drag-title small {
   margin-top: var(--space-1);
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .eyebrow {
+html:lang(zh-CN) :where(#app) .floating-window .eyebrow {
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .trend-heading h1 {
+html:lang(zh-CN) :where(#app) .floating-window .trend-heading h1 {
   line-height: 24px;
 }
 
-html:lang(zh-CN) #app .floating-window .trend-heading small {
+html:lang(zh-CN) :where(#app) .floating-window .trend-heading small {
   margin-top: var(--space-1);
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .metric span {
+html:lang(zh-CN) :where(#app) .floating-window .metric span {
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .metric strong {
+html:lang(zh-CN) :where(#app) .floating-window .metric strong {
   margin-top: var(--space-1);
   line-height: 18px;
 }
 
 html:lang(zh-CN)
-  #app
+  :where(#app)
   .floating-window
   :is(
     .dimension-tabs button,
@@ -351,37 +329,37 @@ html:lang(zh-CN)
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .sessions-copy strong {
+html:lang(zh-CN) :where(#app) .floating-window .sessions-copy strong {
   line-height: 18px;
 }
 
-html:lang(zh-CN) #app .floating-window .sessions-copy small {
+html:lang(zh-CN) :where(#app) .floating-window .sessions-copy small {
   margin-top: var(--space-1);
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .session-title {
+html:lang(zh-CN) :where(#app) .floating-window .session-title {
   line-height: 20px;
 }
 
-html:lang(zh-CN) #app .floating-window .activity {
+html:lang(zh-CN) :where(#app) .floating-window .activity {
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .session-meta {
+html:lang(zh-CN) :where(#app) .floating-window .session-meta {
   line-height: 18px;
 }
 
-html:lang(zh-CN) #app .floating-window .token-cell span {
+html:lang(zh-CN) :where(#app) .floating-window .token-cell span {
   margin-bottom: var(--space-1);
   line-height: 16px;
 }
 
-html:lang(zh-CN) #app .floating-window .token-cell strong {
+html:lang(zh-CN) :where(#app) .floating-window .token-cell strong {
   line-height: 20px;
 }
 
-html:lang(zh-CN) #app .floating-window .token-cell em,
-html:lang(zh-CN) #app .floating-window .session-footer {
+html:lang(zh-CN) :where(#app) .floating-window .token-cell em,
+html:lang(zh-CN) :where(#app) .floating-window .session-footer {
   line-height: 16px;
 }

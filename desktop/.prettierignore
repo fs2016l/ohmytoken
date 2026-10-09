@@ -7,3 +7,4 @@ pnpm-lock.yaml
 src/renderer/src/env.d.ts
 src/renderer/src/assets/fonts/ui/**
 third-party-licenses/**
+**/*.local/**

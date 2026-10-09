@@ -1,0 +1,160 @@
+.usage-detail-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 612px;
+  padding: 20px;
+  text-align: left;
+}
+.usage-detail-card h2 {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-detail-card .detail-context {
+  display: flex;
+  min-width: 0;
+  margin: 6px 0 20px;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 18px;
+}
+.usage-detail-card .detail-context > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-detail-card .detail-caption {
+  margin-bottom: 2px;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.usage-detail-card .detail-hero {
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 46px;
+  letter-spacing: -1px;
+}
+.usage-detail-card .detail-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.usage-detail-card .detail-cost strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+}
+.usage-detail-card .detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.usage-detail-card .detail-metrics > div {
+  min-width: 0;
+}
+.usage-detail-card .detail-metrics > div > span {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.usage-detail-card .detail-metrics strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  white-space: nowrap;
+}
+.usage-detail-card h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.usage-detail-card .detail-generation,
+.usage-detail-card .detail-participation {
+  margin-bottom: 18px;
+}
+.usage-detail-card .detail-meta {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 20px;
+}
+.usage-detail-card .detail-meta > div {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.usage-detail-card dt {
+  color: var(--text-soft);
+}
+.usage-detail-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.usage-detail-card .detail-id {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.usage-detail-card .detail-id > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-detail-card .copy-id {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.usage-detail-card .copy-id:hover,
+.usage-detail-card .copy-id--copied {
+  background: var(--primary-soft);
+  color: var(--accent);
+}
+.usage-detail-card .copy-id .material-symbols-outlined {
+  font-size: 15px;
+}
+.usage-detail-card .copy-feedback {
+  min-height: 18px;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.usage-detail-card .copy-error {
+  color: var(--error);
+}
+.usage-detail-card .notes-button {
+  width: 100%;
+  margin-top: 18px;
+}
+.usage-detail-card .project-notes {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+}

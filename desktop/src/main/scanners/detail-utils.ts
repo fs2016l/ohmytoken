@@ -1,5 +1,6 @@
 import type { TokenUsageApiCall, TokenUsageRecord, TokenUsageSession } from '../../shared/models'
 import { formatDateFromMs, localTimestampFromValue } from '../lib/date-utils'
+import { generationSample, latestGeneration } from '../../shared/generation-timing'
 
 type TokenTotals = Pick<
   TokenUsageRecord,
@@ -68,6 +69,7 @@ export function buildSessionsFromApiCalls(
     if (!current) {
       const rootSessionId = call.rootSessionId ?? call.sessionId
       const session: TokenUsageSession = {
+        latestGeneration: generationSample(call),
         agent,
         sessionId: call.sessionId,
         date: call.date,
@@ -93,6 +95,7 @@ export function buildSessionsFromApiCalls(
     }
 
     current.startedAt = earlierTimestamp(current.startedAt, call.timestamp)
+    current.latestGeneration = latestGeneration(current.latestGeneration, generationSample(call))
     current.endedAt = laterTimestamp(current.endedAt, call.timestamp)
     current.inputTokens += call.inputTokens
     current.outputTokens += call.outputTokens

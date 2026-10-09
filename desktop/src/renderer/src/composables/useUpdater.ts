@@ -1,25 +1,12 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
-import { ohmytokenApi } from '../api/http'
-
-export type UpdateStatus =
-  'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'latest' | 'error'
-
-export interface UpdateInfo {
-  version: string
-  releaseDate?: string
-  releaseNotes?: string | null
-}
-
-export interface DownloadProgress {
-  percent: number
-  transferred: number
-  total: number
-}
+import { ohmytokenApi, cloudApiUrl } from '../api/http'
+import type { UpdateStatus, UpdateInfo, DownloadProgress, UpdateState } from '@shared/updater'
+export type { UpdateStatus, UpdateInfo, DownloadProgress } from '@shared/updater'
 
 export interface UseUpdaterOptions {
   /** getVersion() 失败时的兜底版本号 */
   versionFallback?: string
-  /** 并发 guard：checking/downloading 时 check() 直接 return。默认 true */
+  /** 检查或下载任务进行中、已暂停或待安装时，check() 直接 return。默认 true */
   guardConcurrent?: boolean
   /** latest → idle 自动复位毫秒数。null = 不复位。默认 5000 */
   latestResetMs?: number | null
@@ -36,6 +23,8 @@ export interface UseUpdaterReturn {
   percent: ComputedRef<number>
   check(): Promise<void>
   download(): Promise<void>
+  pause(): Promise<void>
+  resume(): Promise<void>
   install(): void
   init(): Promise<void>
   dispose(): void
@@ -49,7 +38,7 @@ interface NormalizedUpdaterOptions {
 }
 
 /**
- * `/desktop/client/update-check` 后端响应体。
+ * bootstrap 中 updateCheck 接口的后端响应体。
  *
  * 注意：字段名以 com 后端实际返回为准（不是 version/releaseDate/releaseNotes）：
  *   - `hasUpdate`     后端字段同名
@@ -89,6 +78,17 @@ let errorResetTimer: ReturnType<typeof setTimeout> | null = null
 // 模块级缓存 latestResetMs，供 subscribeUpdaterEvents 的 update-not-available case 使用
 // （check()/download() 是闭包可直接取 updaterOptions，但模块级订阅函数拿不到 options）
 let latestResetMsValue: number | null = defaultOptions.latestResetMs
+let stateEventCount = 0
+
+function applySnapshot(snapshot: UpdateState): void {
+  clearLatestResetTimer()
+  clearErrorResetTimer()
+  const current = getState()
+  current.status.value = snapshot.status
+  current.info.value = snapshot.info
+  current.progress.value = snapshot.progress
+  current.error.value = snapshot.error
+}
 
 function ensureState(): void {
   if (statusRef) return
@@ -116,8 +116,10 @@ function normalizeOptions(options?: UseUpdaterOptions): NormalizedUpdaterOptions
   return {
     versionFallback: options?.versionFallback ?? defaultOptions.versionFallback,
     guardConcurrent: options?.guardConcurrent ?? defaultOptions.guardConcurrent,
-    latestResetMs: options?.latestResetMs ?? defaultOptions.latestResetMs,
-    errorResetMs: options?.errorResetMs ?? defaultOptions.errorResetMs,
+    latestResetMs:
+      options?.latestResetMs === undefined ? defaultOptions.latestResetMs : options.latestResetMs,
+    errorResetMs:
+      options?.errorResetMs === undefined ? defaultOptions.errorResetMs : options.errorResetMs,
   }
 }
 
@@ -169,6 +171,12 @@ function subscribeUpdaterEvents(): void {
   unsubscribeUpdater = window.api.onUpdateEvent((event) => {
     const { status, info, progress, error } = getState()
     switch (event.type) {
+      case 'state':
+        if (event.state) {
+          stateEventCount++
+          applySnapshot(event.state)
+        }
+        break
       case 'checking-for-update':
         // 主进程正在检查更新；不覆盖 status，避免打断用户主动触发的 check()/download() 流程
         // （check() 自己已设 status='checking'，download() 设 'downloading'，此处保持现状即可）
@@ -230,7 +238,7 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
   latestResetMsValue = updaterOptions.latestResetMs
 
   async function requestReleaseCheck(): Promise<ReleaseCheckResponse['data']> {
-    const res = await ohmytokenApi.get<ReleaseCheckResponse>('/desktop/client/update-check')
+    const res = await ohmytokenApi.get<ReleaseCheckResponse>(await cloudApiUrl('updateCheck'))
     return res.data?.data
   }
 
@@ -270,13 +278,27 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
         state.currentVersion.value = updaterOptions.versionFallback
       }
       subscribeUpdaterEvents()
+      if (window.api.getUpdateState) {
+        const before = stateEventCount
+        try {
+          const snapshot = await window.api.getUpdateState()
+          if (before === stateEventCount) applySnapshot(snapshot)
+        } catch (err) {
+          console.warn('[updater] 恢复下载状态失败:', getErrorMessage(err, '恢复失败'))
+        }
+      }
       await checkOnStartup()
     })()
     return initPromise
   }
 
   async function check(): Promise<void> {
-    if (updaterOptions.guardConcurrent && ['checking', 'downloading'].includes(state.status.value))
+    if (
+      updaterOptions.guardConcurrent &&
+      ['checking', 'downloading', 'paused', 'waiting-network', 'verifying', 'downloaded'].includes(
+        state.status.value,
+      )
+    )
       return
 
     clearLatestResetTimer()
@@ -302,31 +324,41 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
   }
 
   /**
-   * 下载更新（IPC 链路，走 electron-updater）。
-   *
-   * 与 check() 是**两条独立链路**：check() 只查询不下载，download() 真正下载。
-   * 内部先调 `checkForUpdates()`（让 electron-updater 拉 latest.yml 比对版本），
-   * 再调 `downloadUpdate()` 开始下载。期间主进程会通过 IPC `updater:event` 推送
-   * checking-for-update / update-available / update-not-available / download-progress /
-   * update-downloaded / error 事件，由 `subscribeUpdaterEvents` 统一分发到 state。
-   *
-   * 若用户已是最新版本，主进程会发 update-not-available，subscribeUpdaterEvents
-   * 检测到当前 status='downloading' 时重置为 'latest'（避免状态卡死）。
+   * 主进程检查更新清单后，从本地断点继续下载安装包，并通过 state 事件同步进度。
+   * 文件大小与 SHA-512 验证通过后，再交给 electron-updater 校验签名和准备安装。
+   * 暂停、断网等待、校验完成及已是最新版等状态均由主进程统一维护。
    */
   async function download(): Promise<void> {
     clearLatestResetTimer()
     clearErrorResetTimer()
-    state.status.value = 'downloading'
+    state.status.value = 'checking'
     state.error.value = null
-    state.progress.value = { percent: 0, transferred: 0, total: 0 }
+    state.progress.value ??= { percent: 0, transferred: 0, total: 0 }
 
     try {
-      await window.api.checkForUpdates()
       await window.api.downloadUpdate()
     } catch (err) {
       state.status.value = 'error'
       state.error.value = getErrorMessage(err, '下载失败')
-      state.progress.value = null
+    }
+  }
+
+  async function pause(): Promise<void> {
+    try {
+      await window.api.pauseUpdate()
+    } catch (err) {
+      state.error.value = getErrorMessage(err, '暂停失败')
+    }
+  }
+
+  async function resume(): Promise<void> {
+    clearLatestResetTimer()
+    clearErrorResetTimer()
+    try {
+      await window.api.resumeUpdate()
+    } catch (err) {
+      state.status.value = 'error'
+      state.error.value = getErrorMessage(err, '继续下载失败')
     }
   }
 
@@ -342,6 +374,8 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
     ...state,
     check,
     download,
+    pause,
+    resume,
     install,
     init,
     dispose,

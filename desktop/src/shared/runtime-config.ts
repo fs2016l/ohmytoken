@@ -8,4 +8,36 @@ export interface DesktopRuntimeConfig {
   supportUrl: string
   privacyPolicyUrl: string
   updaterFeedUrl: string
+  apiPaths: Record<DesktopApiKey, string>
 }
+
+export const DESKTOP_API_PARAMETERS = {
+  discoveryConfig: [],
+  discoveryUi: ['pageKey'],
+  plans: [],
+  apiModels: [],
+  planTier: ['id'],
+  apiModel: ['id'],
+  agents: [],
+  agent: ['id'],
+  articles: [],
+  article: ['id'],
+  exchangeRates: [],
+  clientRegister: [],
+  updateCheck: [],
+  oauthToken: [],
+  oauthRefresh: [],
+  oauthRevoke: [],
+  oauthSession: [],
+  userInfo: [],
+  feedbackSubmit: [],
+  messageSync: [],
+  heartbeat: [],
+  messageEvent: ['messageId'],
+  diagnosticSubmit: [],
+  favorites: [],
+  favorite: ['targetType', 'targetId'],
+} as const
+
+export type DesktopApiKey = keyof typeof DESKTOP_API_PARAMETERS
+export type DesktopApiParameters = Record<string, string | number>

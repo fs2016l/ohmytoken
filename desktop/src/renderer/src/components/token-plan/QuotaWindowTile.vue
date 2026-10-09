@@ -1,203 +1,223 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { TokenPlanWindowId, TokenPlanWindowUsage } from '../../../../shared/token-plan'
+import type { TokenPlanWindowUsage } from '../../../../shared/token-plan'
 import { useI18n } from '../../i18n/useI18n'
+import { useVisibleNow } from '../../composables/useVisibleNow'
+import { formatNumber } from '../../utils/number-format'
+import AnimatedNumber from '../base/AnimatedNumber.vue'
+import RollingText from '../base/RollingText.vue'
+import LiquidQuota from './LiquidQuota.vue'
+import { quotaRemainingPercent } from '../../utils/quota-display'
 
-const props = defineProps<{
-  windowId: TokenPlanWindowId
-  usage: TokenPlanWindowUsage | null
-  configured: boolean
-  accent: string
-}>()
-
+const props = defineProps<{ usage: TokenPlanWindowUsage; compact?: boolean }>()
 const { currentLang, label } = useI18n()
-
+const now = useVisibleNow()
 const title = computed(() => {
-  const titles: Record<TokenPlanWindowId, string> = {
-    '5h': label('5-hour window', '5 小时窗口'),
-    '7d': label('7-day window', '7 天窗口'),
+  const row = props.usage
+  const names: Record<string, string> = {
+    '5h': label('5-hour quota', '5 小时额度'),
+    '7d': label('Weekly quota', '每周额度'),
+    monthly: label('Monthly quota', '每月额度'),
+    quota: label('Usage limit', '用量限制'),
+    'MCP · monthly': label('Monthly MCP calls', '每月 MCP 调用'),
+    total: label('Total quota', '总额度'),
+    'Kimi shared quota': label('Kimi shared quota', 'Kimi 共享额度'),
+    Credits: label('Credits', '积分'),
+    'Code review': label('Code review', '代码审查'),
+    'On-demand': label('On-demand usage', '按量用量'),
+    Prepaid: label('Prepaid balance', '预付余额'),
+    USAGE_PERIOD_TYPE_WEEKLY: label('Weekly quota', '每周额度'),
+    USAGE_PERIOD_TYPE_MONTHLY: label('Monthly quota', '每月额度'),
   }
-  return titles[props.windowId]
+  const duration = row.windowMinutes
+  const suffix =
+    duration === 300
+      ? '5h'
+      : duration === 10080
+        ? '7d'
+        : duration
+          ? `${formatNumber(duration)} min`
+          : ''
+  const canonical = ['5h', '7d', 'monthly', 'MCP · monthly'].includes(row.label)
+  return `${names[row.label] ?? row.label}${!canonical && suffix ? ` · ${suffix}` : ''}`
 })
-
-const usedPercent = computed(() => props.usage?.usedPercent ?? null)
-const percentText = computed(() => {
-  if (usedPercent.value === null) return '--'
-  const value = Math.round(usedPercent.value * 10) / 10
-  return `${value}%`
-})
-
-const reasonText = computed(() => {
-  if (!props.configured) return label('Add an API key first', '请先添加 API Key')
-  if (!props.usage) return label('Waiting to query', '等待查询')
-  if (props.usage.available) return ''
-
-  return label('The provider API does not return it', '厂商接口未返回该窗口')
-})
-
-const detailText = computed(() => {
-  const usage = props.usage
-  if (!usage?.available) return reasonText.value
-  if (usage.used !== null && usage.limit !== null) {
-    return label(
-      `${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()} used`,
-      `已用 ${usage.used.toLocaleString()} / ${usage.limit.toLocaleString()}`,
-    )
-  }
-  if (usage.remainingPercent !== null) {
-    const value = Math.round(usage.remainingPercent * 10) / 10
-    return label(`${value}% remaining`, `剩余 ${value}%`)
-  }
-  return label('Usage percentage', '使用占比')
-})
-
-const resetText = computed(() => {
-  const resetsAt = props.usage?.resetsAt
-  if (!resetsAt) return ''
-  const locale = currentLang.value === 'zh' ? 'zh-CN' : 'en-US'
+const expired = computed(() => props.usage.resetsAt !== null && props.usage.resetsAt <= now.value)
+const remainingCount = computed(() => {
+  const row = props.usage
   return (
-    label('Resets ', '重置于 ') +
-    new Intl.DateTimeFormat(locale, {
-      month: 'numeric',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(resetsAt))
+    row.remaining ??
+    (row.limit !== null && row.used !== null ? Math.max(0, row.limit - row.used) : null)
   )
+})
+const remainingPercent = computed(() => quotaRemainingPercent(props.usage))
+const numericValue = computed(() =>
+  props.usage.available ? (remainingPercent.value ?? remainingCount.value) : null,
+)
+const numberFormat = computed(() =>
+  remainingPercent.value !== null
+    ? { percent: true }
+    : props.usage.unit === 'USD' || props.usage.unit === 'CNY'
+      ? { currency: props.usage.unit }
+      : {},
+)
+const detailText = computed(() => {
+  const row = props.usage
+  if (!row.available)
+    return row.limit !== null
+      ? `${label('Limit', '限额')} ${formatNumber(row.limit)} · ${label('Usage unavailable', '用量未提供')}`
+      : label('Not returned by the provider', '厂商未返回可确认的用量')
+  if (row.unlimited) return label('Unlimited', '不限量')
+  const remaining = remainingCount.value
+  if (remaining !== null && row.limit !== null)
+    return `${label('Remaining', '剩余')} ${formatNumber(remaining)} / ${formatNumber(row.limit)}${row.unit ? ` ${row.unit}` : ''}`
+  if (row.usedPercent !== null)
+    return `${label('Used', '已用')} ${formatNumber(row.usedPercent, { percent: true })}`
+  return remaining !== null
+    ? `${label('Remaining', '剩余额度')}${row.unit ? ` · ${row.unit}` : ''}`
+    : label('Remaining amount not provided', '厂商未提供剩余额度')
+})
+const resetDate = computed(() =>
+  props.usage.resetsAt
+    ? new Intl.DateTimeFormat(currentLang.value === 'zh' ? 'zh-CN' : 'en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(props.usage.resetsAt)
+    : '',
+)
+const resetText = computed(() => {
+  if (!props.usage.resetsAt) return label('Reset time not provided', '未提供重置时间')
+  if (expired.value) return label('Reset time passed. Refresh quota.', '已到重置时间，请刷新')
+  const minutes = Math.max(1, Math.ceil((props.usage.resetsAt - now.value) / 60_000))
+  const days = Math.floor(minutes / 1440),
+    hours = Math.floor((minutes % 1440) / 60),
+    rest = minutes % 60
+  const duration = days
+    ? label(`${days}d ${hours}h`, `${days} 天 ${hours} 小时`)
+    : hours
+      ? label(`${hours}h ${rest}m`, `${hours} 小时 ${rest} 分`)
+      : label(`${rest}m`, `${rest} 分钟`)
+  return label(`Resets in ${duration}`, `${duration}后重置`)
 })
 </script>
 
 <template>
-  <div
+  <LiquidQuota
     class="quota-window"
-    :class="{ 'quota-window--unavailable': !usage?.available }"
-    :style="{ '--quota-accent': accent }"
+    :class="{ 'quota-window--compact': compact }"
+    :height="compact ? 100 : 124"
+    :percent="remainingPercent"
+    :unlimited="usage.available && usage.unlimited"
+    :label="`${title} · ${label('Remaining', '剩余')}`"
+    :title="detailText"
   >
     <div class="quota-window__heading">
-      <span>{{ title }}</span>
-      <span v-if="usage?.available" class="quota-window__live">
-        <span></span>
-        {{ label('LIVE', '实时') }}
+      <RollingText :text="title" />
+    </div>
+    <div class="quota-window__value">
+      <span class="visually-hidden">{{ label('Remaining', '剩余') }}</span>
+      <span v-if="usage.available && usage.unlimited" :aria-label="label('Unlimited', '不限量')">
+        ∞
       </span>
+      <AnimatedNumber v-else :value="numericValue" :format="numberFormat" />
     </div>
-
-    <div class="quota-window__value">{{ percentText }}</div>
-    <div class="quota-window__detail">{{ detailText }}</div>
-
     <div
-      v-if="usage?.available && usedPercent !== null"
-      class="quota-window__track"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      :aria-valuenow="usedPercent"
+      class="quota-window__reset"
+      :title="
+        resetDate
+          ? label('Reset time in this reading: ', '这条读数记录的重置时间：') + resetDate
+          : resetText
+      "
     >
-      <span :style="{ width: `${Math.min(100, Math.max(0, usedPercent))}%` }"></span>
+      {{ resetText }}
     </div>
-    <div v-else class="quota-window__track quota-window__track--empty"></div>
-
-    <div class="quota-window__reset">{{ resetText || '\u00a0' }}</div>
-  </div>
+    <span class="visually-hidden">{{ detailText }}</span>
+    <span v-if="usage.details.length" class="visually-hidden">
+      {{ label('Used by tool:', '工具已用：') }}
+      <span v-for="detail in usage.details" :key="detail.name">
+        {{ detail.name }} {{ formatNumber(detail.used) }}
+      </span>
+    </span>
+  </LiquidQuota>
 </template>
 
 <style scoped>
-.quota-window {
-  min-width: 0;
-  padding: 16px;
-  background: color-mix(in srgb, var(--surface) 92%, var(--quota-accent) 8%);
-  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--quota-accent) 28%);
-  border-radius: var(--radius-lg);
-}
-
-.quota-window--unavailable {
-  background: var(--surface-low);
-  border-color: var(--border);
-}
-
 .quota-window__heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  color: var(--text-muted);
+  width: 100%;
   font-size: 12px;
-  font-weight: var(--weight-semibold);
+  line-height: 18px;
+  color: var(--text-muted);
 }
-
-.quota-window__live {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--success);
-  font-size: 10px;
-  letter-spacing: 0.05em;
+.quota-window__heading > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.quota-window__live span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 15%, transparent);
-}
-
 .quota-window__value {
-  min-height: 36px;
-  margin-top: 10px;
   color: var(--text);
   font-family: var(--font-number);
-  font-size: 28px;
-  line-height: 36px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: -0.04em;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 48px;
+  letter-spacing: -1px;
+  white-space: nowrap;
 }
-
-.quota-window--unavailable .quota-window__value {
-  color: var(--text-soft);
-}
-
-.quota-window__detail {
-  min-height: 36px;
-  margin-top: 2px;
-  color: var(--text-muted);
+.quota-window__reset {
+  margin-top: auto;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
   font-size: 12px;
   line-height: 18px;
 }
-
-.quota-window__track {
-  height: 6px;
-  margin-top: 10px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--quota-accent) 12%, var(--surface));
-  border-radius: 999px;
+.quota-window--compact {
+  container: compact-quota / inline-size;
 }
-
-.quota-window__track span {
-  display: block;
-  height: 100%;
-  background: var(--quota-accent);
-  border-radius: inherit;
-  transition: width 260ms ease;
+.quota-window--compact .quota-window__value {
+  font-size: clamp(14px, 24cqi, 28px);
+  line-height: 36px;
+  letter-spacing: -0.6px;
 }
-
-.quota-window__track--empty {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--border) 0,
-    var(--border) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-  opacity: 0.55;
+.quota-window--compact :deep(.liquid-readout) {
+  padding: 8px clamp(4px, 6cqi, 10px);
 }
-
-.quota-window__reset {
-  margin-top: 8px;
-  overflow: hidden;
-  color: var(--text-soft);
+.quota-window--compact .quota-window__heading,
+.quota-window--compact .quota-window__reset {
   font-size: 11px;
-  line-height: 16px;
-  text-overflow: ellipsis;
+}
+@container compact-quota (max-width: 120px) {
+  .quota-window__heading {
+    gap: 4px;
+  }
+  .quota-window--compact .quota-window__heading,
+  .quota-window--compact .quota-window__reset {
+    font-size: 10px;
+    line-height: 14px;
+  }
+  .quota-window__reset {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    text-wrap: balance;
+  }
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
+  border: 0;
 }
 </style>

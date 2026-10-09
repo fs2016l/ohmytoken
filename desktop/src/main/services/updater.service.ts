@@ -1,20 +1,27 @@
-import { autoUpdater } from 'electron-updater'
+import { autoUpdater, type UpdateInfo as ManifestInfo } from 'electron-updater'
 import { app, type BrowserWindow } from 'electron'
+import { join } from 'node:path'
 import { recordDiagnosticEvent, reportDiagnosticError } from './diagnostic-log.service'
 import { getDesktopRuntimeConfig } from './runtime-config.service'
+import { ResumableUpdateDownload, validateUpdateAsset } from './resumable-update-download'
+import { startUpdateInstallerBridge } from './update-installer-bridge'
+import type { UpdateAsset, UpdateInfo, UpdateState } from '../../shared/updater'
 
-// 不自动下载：让用户在 SettingsPage UI 上手动触发
 autoUpdater.autoDownload = false
-// 禁止退出时自动静默安装；更新必须通过“重启并安装”显式启动可见的 NSIS 安装器。
 autoUpdater.autoInstallOnAppQuit = false
-// 非静默安装完成后自动启动新版本。
 autoUpdater.autoRunAppAfterInstall = true
 
-/**
- * electron-updater 默认 User-Agent 不包含宿主操作系统版本，com 下载统计只能根据
- * 安装包目标平台推断出 Windows/macOS，无法展示具体版本。这里使用后端现有
- * UserAgentOsParser 能识别的标准平台片段，无需为公开下载接口增加额外参数。
- */
+let getMainWindow: () => BrowserWindow | null = () => null
+let state: UpdateState = { status: 'idle', info: null, progress: null, error: null }
+let manager: ResumableUpdateDownload | null = null
+let restorePromise: Promise<void> | null = null
+let downloadOperation: Promise<void> | null = null
+let checkOperation: Promise<UpdateCheckResult> | null = null
+let configuredFeedUrl = ''
+let initialized = false
+let preparingInstaller = false
+let operationAbort: AbortController | null = null
+
 function updaterUserAgent(): string {
   const systemVersion = process.getSystemVersion()
   const platform =
@@ -26,268 +33,279 @@ function updaterUserAgent(): string {
   return `OhMyTokenAgent/${app.getVersion()} (${platform}) Electron/${process.versions.electron}`
 }
 
-function configureUpdaterRequestHeaders(): void {
+function publish(next: UpdateState): void {
+  state = next
+  const win = getMainWindow()
+  if (win && !win.isDestroyed()) win.webContents.send('updater:event', { type: 'state', state })
+}
+
+function setStatus(status: UpdateState['status'], error: string | null = null): void {
+  publish({ ...state, status, error })
+}
+
+function downloader(): ResumableUpdateDownload {
+  // Electron paths and session are only evaluated after app.whenReady().
+  manager ??= new ResumableUpdateDownload({
+    directory: join(app.getPath('userData'), 'update-download'),
+    fetch: (input, init) => autoUpdater.netSession.fetch(input, init),
+    headers: { 'User-Agent': updaterUserAgent() },
+    onState: publish,
+  })
+  return manager
+}
+
+async function restore(): Promise<void> {
+  restorePromise ??= (async () => {
+    const saved = await downloader().snapshot()
+    if (saved.info && /^\d+\.\d+\.\d+$/.test(app.getVersion())) {
+      const current = app.getVersion().split('.').map(Number)
+      const pending = saved.info.version.split('.').map(Number)
+      const difference =
+        pending.map((part, index) => part - current[index]).find((part) => part !== 0) ?? 0
+      if (difference <= 0) {
+        await downloader().discard()
+        return
+      }
+    }
+    if (state.status === 'idle' && saved.status !== 'idle') publish(saved)
+  })()
+  await restorePromise
+}
+
+async function configureUpdaterFeed(): Promise<void> {
+  const config = await getDesktopRuntimeConfig(true)
   autoUpdater.requestHeaders = {
     'Cache-Control': 'no-cache',
     Pragma: 'no-cache',
     'User-Agent': updaterUserAgent(),
   }
-}
-
-/** 推送到 renderer 的事件通道名（与 channels.ts 的 IPC.UPDATE_EVENT 保持一致） */
-const IPC_CHANNEL_UPDATE_EVENT = 'updater:event'
-
-/**
- * 主窗口 getter 函数（由 index.ts 注入）。
- *
- * 使用 getter 而非直接引用：macOS activate 会重建窗口，旧引用会指向已销毁的
- * webContents（"Object has been destroyed"）。getter 总是返回 index.ts 模块级
- * 的最新 mainWindow 引用，且天然处理了 'closed' 时 mainWindow 被置 null 的情况。
- */
-type MainWindowGetter = () => BrowserWindow | null
-let getMainWindow: MainWindowGetter = () => null
-let updateStage = 'idle'
-let lastProgressBucket = -1
-let configuredFeedUrl = ''
-
-async function configureUpdaterFeed(forceRefresh: boolean): Promise<void> {
-  // 同一组 Header 会用于更新清单和安装包下载请求。
-  configureUpdaterRequestHeaders()
-  const config = await getDesktopRuntimeConfig(forceRefresh)
-  if (configuredFeedUrl === config.updaterFeedUrl) return
   autoUpdater.setFeedURL({ provider: 'generic', url: config.updaterFeedUrl, channel: 'latest' })
   configuredFeedUrl = config.updaterFeedUrl
 }
 
-/**
- * 安全地向 renderer 推送 updater 事件。
- * 窗口未就绪（未创建/已关闭/已销毁）时静默跳过，避免抛 "Object has been destroyed"。
- */
-function sendUpdateEvent(payload: unknown): void {
-  const win = getMainWindow()
-  if (!win || win.isDestroyed()) return
-  win.webContents.send(IPC_CHANNEL_UPDATE_EVENT, payload)
+function infoFromManifest(info: ManifestInfo): UpdateInfo {
+  return {
+    version: info.version,
+    releaseDate: info.releaseDate,
+    releaseNotes: serializeReleaseNotes(info.releaseNotes),
+  }
 }
 
-/**
- * 在 app.whenReady 之后、createWindow 之后调用一次。
- * 注册 autoUpdater 事件监听，将所有事件转发到 renderer。
- *
- * @param windowGetter 主窗口 getter，每次事件触发时动态获取最新引用
- */
-export function initAutoUpdater(windowGetter: MainWindowGetter): void {
+function assetFromManifest(info: ManifestInfo): UpdateAsset {
+  const arch =
+    process.platform === 'darwin' && app.runningUnderARM64Translation ? 'arm64' : process.arch
+  const extension = process.platform === 'win32' ? '.exe' : '.zip'
+  const file = info.files.find((file) => {
+    const name = new URL(file.url, configuredFeedUrl).pathname
+    return name.endsWith(extension) && name.includes(`-${arch}`)
+  })
+  if (!file) throw new Error('No installer for this device / 没有适用于此设备的更新包')
+  const url = new URL(file.url, configuredFeedUrl)
+  const asset: UpdateAsset = {
+    ...infoFromManifest(info),
+    url: url.href,
+    feedUrl: configuredFeedUrl,
+    fileName: decodeURIComponent(url.pathname.split('/').at(-1) ?? ''),
+    size: file.size ?? 0,
+    sha512: file.sha512,
+    platform: process.platform,
+    arch,
+  }
+  validateUpdateAsset(asset)
+  return asset
+}
+
+function reportFailure(error: unknown, stage: string): void {
+  const message = error instanceof Error ? error.message : String(error)
+  const sanitized = message.replace(/https?:\/\/[^\s"'<>]+/g, '[download URL]')
+  setStatus('error', sanitized)
+  reportDiagnosticError(
+    {
+      reportType: 'update',
+      source: 'updater',
+      stage,
+      severity: 'error',
+      summary: '自动更新失败',
+      message: sanitized,
+    },
+    { autoUpload: true, persistPending: true },
+  )
+}
+
+export function initAutoUpdater(windowGetter: () => BrowserWindow | null): void {
   getMainWindow = windowGetter
-
-  // 正在检查更新（用户触发 checkForUpdates 后立即触发）
-  autoUpdater.on('checking-for-update', () => {
-    updateStage = 'update-check'
-    recordDiagnosticEvent('updater', 'checking', '开始检查更新')
-    sendUpdateEvent({ type: 'checking-for-update' })
-  })
-
-  // 发现新版本
-  autoUpdater.on('update-available', (info) => {
-    recordDiagnosticEvent('updater', 'available', '发现新版本', {
-      version: info.version,
-      releaseDate: info.releaseDate,
-    })
-    sendUpdateEvent({
-      type: 'update-available',
-      info: {
-        version: info.version,
-        releaseDate: info.releaseDate,
-        releaseNotes: serializeReleaseNotes(info.releaseNotes),
-      },
-    })
-  })
-
-  // 已是最新版本
-  autoUpdater.on('update-not-available', () => {
-    recordDiagnosticEvent('updater', 'latest', '当前已是最新版本')
-    updateStage = 'idle'
-    sendUpdateEvent({ type: 'update-not-available' })
-  })
-
-  // 下载进度（autoDownload=false 时，仅在用户触发 downloadUpdate 后出现）
-  autoUpdater.on('download-progress', (progress) => {
-    updateStage = 'update-download'
-    const bucket = Math.floor(progress.percent / 10)
-    if (bucket !== lastProgressBucket) {
-      lastProgressBucket = bucket
-      recordDiagnosticEvent('updater', 'download-progress', '更新包下载进度', {
-        percent: Math.round(progress.percent),
-        transferred: progress.transferred,
-        total: progress.total,
-      })
-    }
-    sendUpdateEvent({
-      type: 'download-progress',
-      progress: {
-        percent: progress.percent,
-        transferred: progress.transferred,
-        total: progress.total,
-        bytesPerSecond: progress.bytesPerSecond,
-      },
-    })
-  })
-
-  // 下载完成，可退出并安装
+  if (initialized) return
+  initialized = true
+  // Operations below own error reporting exactly once.
+  autoUpdater.on('error', () => {})
   autoUpdater.on('update-downloaded', (info) => {
-    recordDiagnosticEvent('updater', 'downloaded', '更新包下载完成', { version: info.version })
-    updateStage = 'update-ready'
-    lastProgressBucket = -1
-    sendUpdateEvent({
-      type: 'update-downloaded',
+    if (!preparingInstaller) return
+    recordDiagnosticEvent('updater', 'downloaded', '更新包下载及校验完成', {
       version: info.version,
     })
+    publish({ ...state, status: 'downloaded', info: infoFromManifest(info), error: null })
   })
-
-  // 任何错误都转发到 renderer，UI 上显示 message 让用户感知
-  autoUpdater.on('error', (err: Error | unknown) => {
-    const message = err instanceof Error ? err.message : String(err)
-    reportDiagnosticError(
-      {
-        reportType: 'update',
-        source: 'updater',
-        stage: updateStage,
-        severity: 'error',
-        summary: updateStage === 'update-download' ? '更新包下载失败' : '自动更新失败',
-        message,
-        stack: err instanceof Error ? err.stack : undefined,
-      },
-      { autoUpload: true, persistPending: true },
-    )
-    sendUpdateEvent({ type: 'error', message })
+  void restore().catch((error) => reportFailure(error, 'update-restore'))
+  app.on('before-quit', () => {
+    void pauseUpdate().catch(() => {})
   })
 }
 
-/** checkForUpdates 的返回结构 */
+export async function getUpdateState(): Promise<UpdateState> {
+  await restore()
+  return structuredClone(state)
+}
+
 export interface UpdateCheckResult {
-  /** 是否存在新版本 */
   hasUpdate: boolean
-  /** 新版本号（hasUpdate=true 时有值） */
   version?: string
-  /** 发布日期（ISO 字符串） */
   releaseDate?: string
-  /** 更新日志，可能是字符串 / Markdown / HTML / null */
   releaseNotes?: string | null
 }
 
-export async function checkForUpdates(): Promise<UpdateCheckResult> {
-  updateStage = 'update-check'
-  try {
-    await configureUpdaterFeed(true)
-    const result = await autoUpdater.checkForUpdates()
-    if (!result || !result.updateInfo) {
-      return { hasUpdate: false }
+export function checkForUpdates(): Promise<UpdateCheckResult> {
+  if (checkOperation) return checkOperation
+  checkOperation = (async () => {
+    await restore()
+    if (downloadOperation || ['paused', 'downloaded'].includes(state.status)) {
+      return { hasUpdate: !!state.info, ...state.info }
     }
-    return {
-      hasUpdate: true,
-      version: result.updateInfo.version,
-      releaseDate: result.updateInfo.releaseDate,
-      // releaseNotes 可能是 string / ReleaseNoteInfo[] / null
-      // 统一序列化为字符串，便于 renderer 直接展示
-      releaseNotes: serializeReleaseNotes(result.updateInfo.releaseNotes),
+    setStatus('checking')
+    try {
+      await configureUpdaterFeed()
+      const result = await autoUpdater.checkForUpdates()
+      if (!result?.isUpdateAvailable) {
+        publish({ status: 'latest', info: null, progress: null, error: null })
+        return { hasUpdate: false }
+      }
+      const info = infoFromManifest(result.updateInfo)
+      publish({ status: 'available', info, progress: null, error: null })
+      return { hasUpdate: true, ...info }
+    } catch (error) {
+      reportFailure(error, 'update-check')
+      throw error
     }
-  } catch (error) {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    reportDiagnosticError(
-      {
-        reportType: 'update',
-        source: 'updater',
-        stage: 'update-check',
-        severity: 'error',
-        summary: '检查更新失败',
-        message: normalized.message,
-        stack: normalized.stack,
-      },
-      { autoUpload: true, persistPending: true },
-    )
-    throw error
-  }
+  })().finally(() => {
+    checkOperation = null
+  })
+  return checkOperation
 }
 
-/**
- * 将 electron-updater 的 releaseNotes 序列化为字符串。
- * - string：原样返回
- * - ReleaseNoteInfo[]（多段笔记）：拼接为 "版本: 笔记" 多行
- * - null/undefined：返回 null
- */
 function serializeReleaseNotes(notes: string | unknown[] | null | undefined): string | null {
   if (notes == null) return null
   if (typeof notes === 'string') return notes
-  if (Array.isArray(notes)) {
-    return notes
-      .map((item) => {
-        if (typeof item === 'string') return item
-        if (item && typeof item === 'object' && 'note' in item) {
-          const obj = item as { version?: string; note?: string }
-          return obj.version ? `${obj.version}: ${obj.note ?? ''}` : (obj.note ?? '')
+  return notes
+    .map((item) => {
+      if (typeof item === 'string') return item
+      if (item && typeof item === 'object' && 'note' in item) {
+        const note = item as { version?: string; note?: string }
+        return note.version ? `${note.version}: ${note.note ?? ''}` : (note.note ?? '')
+      }
+      return String(item)
+    })
+    .join('\n')
+}
+
+export function downloadUpdate(): Promise<void> {
+  if (downloadOperation) return downloadOperation
+  operationAbort = new AbortController()
+  const signal = operationAbort.signal
+  downloadOperation = (async () => {
+    await checkOperation
+    await restore()
+    if (state.status === 'downloaded') return
+    try {
+      let result: Awaited<ReturnType<typeof autoUpdater.checkForUpdates>> = null
+      let attempt = 0
+      while (!signal.aborted) {
+        setStatus('checking')
+        try {
+          await configureUpdaterFeed()
+          result = await autoUpdater.checkForUpdates()
+          break
+        } catch (error) {
+          const cause = error as Error & { code?: string; statusCode?: number }
+          const networkFailure =
+            /net::ERR_|ENOTFOUND|ECONN|ETIMEDOUT|EAI_AGAIN|fetch failed/i.test(
+              `${cause.code} ${cause.message}`,
+            ) || [408, 429, 500, 502, 503, 504].includes(cause.statusCode ?? 0)
+          if (!networkFailure) throw error
+          setStatus('waiting-network')
+          await new Promise<void>((resolve) => {
+            const finish = (): void => {
+              clearTimeout(timer)
+              signal.removeEventListener('abort', finish)
+              resolve()
+            }
+            const timer = setTimeout(finish, [2000, 5000, 10000, 30000][Math.min(attempt++, 3)])
+            signal.addEventListener('abort', finish, { once: true })
+            if (signal.aborted) finish()
+          })
         }
-        return String(item)
+      }
+      if (signal.aborted) {
+        setStatus('paused')
+        return
+      }
+      if (!result?.isUpdateAvailable) {
+        await downloader().discard()
+        publish({ status: 'latest', info: null, progress: null, error: null })
+        return
+      }
+      const asset = assetFromManifest(result.updateInfo)
+      recordDiagnosticEvent('updater', 'download-started', '开始或继续下载更新包', {
+        version: asset.version,
       })
-      .join('\n')
-  }
-  return String(notes)
+      const file = await downloader().download(asset)
+      if (!file) return
+      setStatus('verifying')
+      const bridge = await startUpdateInstallerBridge(asset, file)
+      const previousDifferential = autoUpdater.disableDifferentialDownload
+      preparingInstaller = true
+      try {
+        autoUpdater.disableDifferentialDownload = true
+        autoUpdater.setFeedURL({ provider: 'generic', url: bridge.feedUrl, channel: 'latest' })
+        const local = await autoUpdater.checkForUpdates()
+        if (!local?.isUpdateAvailable)
+          throw new Error('Unable to prepare installer / 无法准备安装程序')
+        await autoUpdater.downloadUpdate()
+        if ((await getUpdateState()).status !== 'downloaded')
+          throw new Error('Installer preparation incomplete / 安装程序准备未完成')
+      } finally {
+        preparingInstaller = false
+        autoUpdater.disableDifferentialDownload = previousDifferential
+        autoUpdater.setFeedURL({ provider: 'generic', url: configuredFeedUrl, channel: 'latest' })
+        await bridge.close()
+      }
+    } catch (error) {
+      reportFailure(error, 'update-download')
+      throw new Error(state.error ?? 'Update failed')
+    }
+  })().finally(() => {
+    downloadOperation = null
+    operationAbort = null
+  })
+  return downloadOperation
 }
 
-/**
- * 下载更新（autoDownload=false 时由用户手动触发）。
- * 下载进度通过 'download-progress' 事件推送到 renderer。
- */
-export async function downloadUpdate(): Promise<void> {
-  updateStage = 'update-download'
-  lastProgressBucket = -1
-  recordDiagnosticEvent('updater', 'download-started', '用户开始下载更新包')
-  try {
-    // 安装包 CDN URL 使用短时鉴权。下载前重新拉取 latest.yml，拿到新的签名地址，
-    // 避免用户在“发现更新”页面停留较久后点击下载得到过期链接。
-    await configureUpdaterFeed(true)
-    await autoUpdater.checkForUpdates()
-    await autoUpdater.downloadUpdate()
-  } catch (error) {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    reportDiagnosticError(
-      {
-        reportType: 'update',
-        source: 'updater',
-        stage: 'update-download',
-        severity: 'error',
-        summary: '更新包下载失败',
-        message: normalized.message,
-        stack: normalized.stack,
-      },
-      { autoUpload: true, persistPending: true },
-    )
-    throw error
-  }
+export async function pauseUpdate(): Promise<void> {
+  if (preparingInstaller) return
+  operationAbort?.abort()
+  await downloader().pause()
+  await downloadOperation
 }
 
-/**
- * 退出应用并启动安装器（仅 Windows NSIS 有效）。
- * isSilent=false 会显示 NSIS 安装界面和安装进度；安装完成后由
- * autoRunAppAfterInstall=true 自动启动新版本。
- * autoInstallOnAppQuit=false，避免用户正常关闭应用时仍走静默安装路径。
- */
+export function resumeUpdate(): Promise<void> {
+  return downloadUpdate()
+}
+
 export function quitAndInstall(): void {
-  updateStage = 'update-install'
+  if (state.status !== 'downloaded') throw new Error('Update is not ready / 更新包尚未准备好')
   recordDiagnosticEvent('updater', 'install-started', '用户确认重启并安装更新')
   try {
     autoUpdater.quitAndInstall(false, false)
   } catch (error) {
-    const normalized = error instanceof Error ? error : new Error(String(error))
-    reportDiagnosticError(
-      {
-        reportType: 'update',
-        source: 'updater',
-        stage: 'update-install',
-        severity: 'error',
-        summary: '启动更新安装程序失败',
-        message: normalized.message,
-        stack: normalized.stack,
-      },
-      { autoUpload: true, persistPending: true },
-    )
+    reportFailure(error, 'update-install')
     throw error
   }
 }

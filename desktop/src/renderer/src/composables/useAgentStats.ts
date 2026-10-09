@@ -1,4 +1,6 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { buildScanPreviewDashboard } from '@shared/scan-preview'
+import type { ScanPreview, ScanProgress } from '@shared/scan-progress'
 import api from '../api'
 import { agentNames, agentOrder, getAgentName, getModelColor } from '../config/agents'
 import type {
@@ -80,25 +82,68 @@ export function formatComparison(comp: ComparisonPair | null | undefined): strin
 }
 
 export function useAgentStats() {
-  const overview = ref<Overview | null>(null)
-  const overviewFixed = ref<Overview | null>(null)
-  const dailyStats = ref<DailyStats[]>([])
-  const dailyModelStats = ref<DailyStats[]>([])
-  const hourlyAgentStats = ref<HourlyUsageStats[]>([])
-  const hourlyModelStats = ref<HourlyUsageStats[]>([])
-  const monthlyStats = ref<MonthlyStats[]>([])
-  const modelStats = ref<ModelStats[]>([])
+  const storedOverview = ref<Overview | null>(null)
+  const storedOverviewFixed = ref<Overview | null>(null)
+  const storedDailyStats = ref<DailyStats[]>([])
+  const storedDailyModelStats = ref<DailyStats[]>([])
+  const storedHourlyAgentStats = ref<HourlyUsageStats[]>([])
+  const storedHourlyModelStats = ref<HourlyUsageStats[]>([])
+  const storedMonthlyStats = ref<MonthlyStats[]>([])
+  const storedModelStats = ref<ModelStats[]>([])
   const projectOverview = ref<ProjectUsageOverview>({ projects: [], daily: [], hourly: [] })
-  const fixedDaily = ref<DailyStats[]>([])
-  const isScanning = ref(false)
+  const storedFixedDaily = ref<DailyStats[]>([])
+  const localScanBusy = ref(false)
+  const scanProgress = shallowRef<ScanProgress | null>(null)
+  const preview = shallowRef<ScanPreview | null>(null)
+  const isScanning = computed(() => localScanBusy.value || scanProgress.value?.status === 'running')
+  const detailsPending = computed(() =>
+    Boolean(
+      preview.value || (scanProgress.value?.rebuilding && scanProgress.value.status === 'running'),
+    ),
+  )
+  let disposed = false
+  let detailRequest = 0
+  let finishedScanId = ''
+  let finishPromise: Promise<void> | undefined
   const scanResult = ref<ScanResult | null>(null)
   const lastScanTime = ref(localStorage.getItem('last-scan-time') || '')
-  const comparisons = ref<Comparisons | null>(null)
+  const storedComparisons = ref<Comparisons | null>(null)
 
   const modelFilter = ref<ModelFilter>('with-data')
-  const dateFrom = ref(localStorage.getItem('date-from') || '')
-  const dateTo = ref(localStorage.getItem('date-to') || '')
+  // 兼容旧日历保存的斜杠日期，让所有面板收到与存储一致的日期格式。
+  const dateFrom = ref((localStorage.getItem('date-from') || '').replace(/\//g, '-'))
+  const dateTo = ref((localStorage.getItem('date-to') || '').replace(/\//g, '-'))
   const selectedQuickRange = ref<QuickRange | null>(null)
+
+  const previewDashboard = computed(() =>
+    preview.value
+      ? buildScanPreviewDashboard(
+          preview.value,
+          dateFrom.value.replace(/\//g, '-'),
+          dateTo.value.replace(/\//g, '-'),
+        )
+      : null,
+  )
+  const overview = computed(() => previewDashboard.value?.overview ?? storedOverview.value)
+  const overviewFixed = computed(
+    () => previewDashboard.value?.overviewFixed ?? storedOverviewFixed.value,
+  )
+  const dailyStats = computed(() => previewDashboard.value?.dailyStats ?? storedDailyStats.value)
+  const dailyModelStats = computed(
+    () => previewDashboard.value?.dailyModelStats ?? storedDailyModelStats.value,
+  )
+  const hourlyAgentStats = computed(
+    () => previewDashboard.value?.hourlyAgentStats ?? storedHourlyAgentStats.value,
+  )
+  const hourlyModelStats = computed(
+    () => previewDashboard.value?.hourlyModelStats ?? storedHourlyModelStats.value,
+  )
+  const monthlyStats = computed(
+    () => previewDashboard.value?.monthlyStats ?? storedMonthlyStats.value,
+  )
+  const modelStats = computed(() => previewDashboard.value?.modelStats ?? storedModelStats.value)
+  const fixedDaily = computed(() => previewDashboard.value?.fixedDaily ?? storedFixedDaily.value)
+  const comparisons = computed(() => previewDashboard.value?.comparisons ?? storedComparisons.value)
 
   const showModal = ref(false)
   const modalMode = ref<ModalMode>('agent')
@@ -238,6 +283,8 @@ export function useAgentStats() {
 
   async function loadSessionPage(filter: ActiveDetailFilter): Promise<void> {
     isLoadingDetail.value = true
+    if (detailsPending.value) return
+    const request = ++detailRequest
     try {
       const res = (await api.get('/stats/user-sessions', {
         params: {
@@ -246,16 +293,18 @@ export function useAgentStats() {
           pageSize: sessionPageSize.value,
         },
       })) as ApiResponse<PageResult<TokenUsageUserSession>>
+      if (request !== detailRequest || disposed) return
       sessionRows.value = res.data.items || []
       sessionPage.value = res.data.page
       sessionPageSize.value = res.data.pageSize
       sessionTotal.value = res.data.total
     } catch (error) {
+      if (request !== detailRequest || disposed) return
       sessionRows.value = []
       sessionTotal.value = 0
       console.error('Failed to fetch session detail:', error)
     } finally {
-      isLoadingDetail.value = false
+      if (request === detailRequest && !disposed) isLoadingDetail.value = false
     }
   }
 
@@ -286,6 +335,8 @@ export function useAgentStats() {
 
   async function loadApiPage(): Promise<void> {
     isLoadingDetail.value = true
+    if (detailsPending.value) return
+    const request = ++detailRequest
     try {
       const res = (await api.get('/stats/api-records', {
         params: {
@@ -294,23 +345,25 @@ export function useAgentStats() {
           pageSize: apiPageSize.value,
         },
       })) as ApiResponse<PageResult<TokenUsageApiCall>>
+      if (request !== detailRequest || disposed) return
       apiCallRows.value = res.data.items || []
       apiPage.value = res.data.page
       apiPageSize.value = res.data.pageSize
       apiTotal.value = res.data.total
     } catch (error) {
+      if (request !== detailRequest || disposed) return
       apiCallRows.value = []
       apiTotal.value = 0
       console.error('Failed to fetch API call detail:', error)
     } finally {
-      isLoadingDetail.value = false
+      if (request === detailRequest && !disposed) isLoadingDetail.value = false
     }
   }
 
   async function fetchComparisons(): Promise<void> {
     try {
       const res = (await api.get('/stats/comparisons')) as ApiResponse<Comparisons>
-      comparisons.value = res.data
+      storedComparisons.value = res.data
     } catch (error) {
       console.error('Failed to fetch comparisons:', error)
     }
@@ -321,7 +374,7 @@ export function useAgentStats() {
       const res = (await api.get('/stats/overview', {
         params: getDateParams(),
       })) as ApiResponse<Overview>
-      overview.value = normalizeOverview(res.data)
+      storedOverview.value = normalizeOverview(res.data)
     } catch (error) {
       console.error('Failed to fetch overview:', error)
     }
@@ -330,7 +383,7 @@ export function useAgentStats() {
   async function fetchOverviewFixed(): Promise<void> {
     try {
       const res = (await api.get('/stats/overview')) as ApiResponse<Overview>
-      overviewFixed.value = normalizeOverview(res.data)
+      storedOverviewFixed.value = normalizeOverview(res.data)
     } catch (error) {
       console.error('Failed to fetch fixed overview:', error)
     }
@@ -341,10 +394,10 @@ export function useAgentStats() {
       const res = (await api.get('/stats/daily', { params: getDateParams() })) as ApiResponse<
         DailyStats[]
       >
-      dailyStats.value = (res.data || []).filter(hasUsableDate)
+      storedDailyStats.value = (res.data || []).filter(hasUsableDate)
     } catch (error) {
       console.error('Failed to fetch daily stats:', error)
-      dailyStats.value = []
+      storedDailyStats.value = []
     }
   }
 
@@ -353,18 +406,18 @@ export function useAgentStats() {
       const res = (await api.get('/stats/model/daily', { params: getDateParams() })) as ApiResponse<
         DailyStats[]
       >
-      dailyModelStats.value = (res.data || []).filter(hasUsableDate)
+      storedDailyModelStats.value = (res.data || []).filter(hasUsableDate)
     } catch (error) {
       console.error('Failed to fetch daily model stats:', error)
-      dailyModelStats.value = []
+      storedDailyModelStats.value = []
     }
   }
 
   async function fetchHourlyStats(): Promise<void> {
     const date = hourlyTrendDate.value
     if (!date) {
-      hourlyAgentStats.value = []
-      hourlyModelStats.value = []
+      storedHourlyAgentStats.value = []
+      storedHourlyModelStats.value = []
       return
     }
 
@@ -377,12 +430,12 @@ export function useAgentStats() {
           ApiResponse<HourlyUsageStats[]>
         >,
       ])
-      hourlyAgentStats.value = agentRes.data || []
-      hourlyModelStats.value = modelRes.data || []
+      storedHourlyAgentStats.value = agentRes.data || []
+      storedHourlyModelStats.value = modelRes.data || []
     } catch (error) {
       console.error('Failed to fetch hourly stats:', error)
-      hourlyAgentStats.value = []
-      hourlyModelStats.value = []
+      storedHourlyAgentStats.value = []
+      storedHourlyModelStats.value = []
     }
   }
 
@@ -394,7 +447,7 @@ export function useAgentStats() {
       const res = (await api.get('/stats/monthly', { params: monthlyParams })) as ApiResponse<
         MonthlyStats[]
       >
-      monthlyStats.value = res.data || []
+      storedMonthlyStats.value = res.data || []
     } catch (error) {
       console.error('Failed to fetch monthly stats:', error)
     }
@@ -405,13 +458,14 @@ export function useAgentStats() {
       const res = (await api.get('/stats/model', { params: getDateParams() })) as ApiResponse<
         ModelStats[]
       >
-      modelStats.value = res.data || []
+      storedModelStats.value = res.data || []
     } catch (error) {
       console.error('Failed to fetch model stats:', error)
     }
   }
 
   async function fetchProjectStats(): Promise<void> {
+    if (scanProgress.value?.rebuilding && scanProgress.value.status === 'running') return
     try {
       projectOverview.value = await window.api.getProjectUsageOverview(getDateParams())
     } catch (error) {
@@ -427,13 +481,33 @@ export function useAgentStats() {
   async function fetchFixedData(): Promise<void> {
     try {
       const res = (await api.get('/stats/daily')) as ApiResponse<DailyStats[]>
-      fixedDaily.value = (res.data || []).filter(hasUsableDate)
+      storedFixedDaily.value = (res.data || []).filter(hasUsableDate)
     } catch (error) {
       console.error('Failed to fetch fixed daily stats:', error)
     }
   }
 
+  let refreshPromise: Promise<void> | undefined
+  let refreshAgain = false
   async function refreshAll(): Promise<void> {
+    if (disposed || (scanProgress.value?.rebuilding && scanProgress.value.status === 'running'))
+      return
+    if (refreshPromise) {
+      refreshAgain = true
+      return refreshPromise
+    }
+    refreshPromise = (async () => {
+      do {
+        refreshAgain = false
+        await fetchDashboard()
+      } while (refreshAgain && !disposed)
+    })().finally(() => {
+      refreshPromise = undefined
+    })
+    return refreshPromise
+  }
+
+  async function fetchDashboard(): Promise<void> {
     const dailyStatsReady = Promise.all([fetchDailyStats(), fetchDailyModelStats()])
 
     await Promise.all([
@@ -450,13 +524,14 @@ export function useAgentStats() {
 
   async function performScan(mode: ScanMode = 'incremental'): Promise<void> {
     if (isScanning.value) return
-    isScanning.value = true
+    localScanBusy.value = true
+    scanResult.value = null
     try {
       const res = (await api.post('/scan', { mode })) as ApiResponse<ScanResult>
       scanResult.value = res.data
       lastScanTime.value = new Date().toLocaleString()
       localStorage.setItem('last-scan-time', lastScanTime.value)
-      await refreshAll()
+      await finishScan(scanProgress.value?.scanId)
     } catch (error) {
       console.error('Scan failed:', error)
       const message = error instanceof Error ? error.message : String(error)
@@ -468,8 +543,9 @@ export function useAgentStats() {
         detectedAgents: [],
         errors: [`Network error: ${message}`],
       }
+      await finishScan(scanProgress.value?.scanId)
     } finally {
-      isScanning.value = false
+      localScanBusy.value = false
     }
   }
 
@@ -513,15 +589,19 @@ export function useAgentStats() {
     agentModelData.value = []
     modelAgentData.value = []
     resetDrilldownRows()
+    if (detailsPending.value) return
+    const request = ++detailRequest
     try {
       const res = (await api.get(`/stats/agent/${agent}`, {
         params: getDateParams(),
       })) as ApiResponse<AgentModelStats[]>
+      if (request !== detailRequest || disposed) return
       agentModelData.value = res.data || []
     } catch (error) {
+      if (request !== detailRequest || disposed) return
       console.error('Failed to fetch agent detail:', error)
     } finally {
-      isLoadingDetail.value = false
+      if (request === detailRequest && !disposed) isLoadingDetail.value = false
     }
   }
 
@@ -537,16 +617,20 @@ export function useAgentStats() {
     agentModelData.value = []
     modelAgentData.value = []
     resetDrilldownRows()
+    if (detailsPending.value) return
+    const request = ++detailRequest
     try {
       const res = (await api.get('/stats/model/agents', {
         params: { model, ...getDateParams() },
       })) as ApiResponse<ModelAgentStats[] | ModelAgentStats | null>
+      if (request !== detailRequest || disposed) return
       const data = res.data
       modelAgentData.value = Array.isArray(data) ? data : data ? [data] : []
     } catch (error) {
+      if (request !== detailRequest || disposed) return
       console.error('Failed to fetch model detail:', error)
     } finally {
-      isLoadingDetail.value = false
+      if (request === detailRequest && !disposed) isLoadingDetail.value = false
     }
   }
 
@@ -566,15 +650,20 @@ export function useAgentStats() {
     modelAgentData.value = []
     projectDetailData.value = { byModel: [], byAgent: [] }
     resetDrilldownRows()
+    if (detailsPending.value) return
+    const request = ++detailRequest
     try {
-      projectDetailData.value = await window.api.getProjectUsageDetail({
+      const data = await window.api.getProjectUsageDetail({
         projectId,
         ...getDateParams(),
       })
+      if (request !== detailRequest || disposed) return
+      projectDetailData.value = data
     } catch (error) {
+      if (request !== detailRequest || disposed) return
       console.error('Failed to fetch project detail:', error)
     } finally {
-      isLoadingDetail.value = false
+      if (request === detailRequest && !disposed) isLoadingDetail.value = false
     }
   }
 
@@ -812,6 +901,7 @@ export function useAgentStats() {
   }
 
   function closeModal(): void {
+    ++detailRequest
     showModal.value = false
     selectedAgent.value = ''
     selectedAgentName.value = ''
@@ -823,6 +913,75 @@ export function useAgentStats() {
     projectDetailData.value = { byModel: [], byAgent: [] }
     resetDrilldownRows()
   }
+
+  async function reloadOpenDetail(): Promise<void> {
+    if (!showModal.value) return
+    if (detailLevel.value === 'sessions') await loadSessionPage(activeDetailFilter.value)
+    else if (detailLevel.value === 'apiCalls') await loadApiPage()
+    else if (modalMode.value === 'agent') await showAgentDetail(selectedAgent.value)
+    else if (modalMode.value === 'model') await showModelDetail(selectedModel.value)
+    else await showProjectDetail(selectedProjectId.value)
+  }
+
+  async function finishScan(scanId?: string): Promise<void> {
+    if (scanId && finishedScanId === scanId) return finishPromise
+    finishedScanId = scanId || ''
+    finishPromise = (async () => {
+      await refreshAll()
+      if (disposed || (scanId && scanProgress.value?.scanId !== scanId)) return
+      preview.value = null
+      if (scanProgress.value) scanProgress.value = { ...scanProgress.value, preview: undefined }
+      await reloadOpenDetail()
+    })()
+    return finishPromise
+  }
+
+  function receiveProgress(next: ScanProgress): void {
+    if (disposed) return
+    const previous = scanProgress.value
+    if (
+      previous &&
+      (next.startedAt < previous.startedAt ||
+        (next.scanId === previous.scanId && next.sequence <= previous.sequence))
+    )
+      return
+    if (previous?.scanId !== next.scanId) {
+      preview.value = null
+      ++detailRequest
+      scanResult.value = null
+    }
+    scanProgress.value = next
+    if (next.preview && next.status === 'running') preview.value = next.preview
+    if (next.status === 'running') return
+    if (!localScanBusy.value) {
+      if (next.error)
+        scanResult.value = {
+          scanTime: new Date().toISOString(),
+          records: [],
+          totalRecords: 0,
+          scannedAgents: [],
+          detectedAgents: [],
+          errors: [next.error],
+        }
+      lastScanTime.value = new Date().toLocaleString()
+      localStorage.setItem('last-scan-time', lastScanTime.value)
+    }
+    void finishScan(next.scanId)
+  }
+
+  const unsubscribeProgress = window.api.onScanProgress(receiveProgress)
+  void window.api
+    .getScanProgress()
+    .then((value) => {
+      if (value) receiveProgress(value)
+    })
+    .catch(() => {})
+  onScopeDispose(() => {
+    disposed = true
+    ++detailRequest
+    unsubscribeProgress()
+    if (searchTimer !== null) window.clearTimeout(searchTimer)
+  })
 
   watch([dateFrom, dateTo], ([from, to]) => {
     localStorage.setItem('date-from', from)
@@ -842,6 +1001,9 @@ export function useAgentStats() {
     projectOverview,
     fixedDaily,
     isScanning,
+    scanProgress,
+    preview,
+    detailsPending,
     scanResult,
     lastScanTime,
     comparisons,

@@ -1,0 +1,216 @@
+.workspace-dialog.network-detail-dialog {
+  background: var(--surface-low);
+}
+.network-detail-dialog > header {
+  padding: 28px 32px 12px;
+  border: 0;
+  gap: 12px;
+}
+.network-detail-dialog .dialog-content {
+  padding: 12px 32px 32px;
+}
+.workspace-dialog.network-detail-dialog::backdrop {
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+}
+.network-detail-dialog--service .dialog-content {
+  flex: 1;
+}
+.network-detail-dialog--service > header,
+.network-detail-dialog--service .dialog-content {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.network-dialog-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.network-dialog-heading h2 {
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 40px;
+  margin: 0;
+}
+.network-dialog-heading p {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 20px;
+  margin: 0;
+}
+.network-detail-dialog--service .network-dialog-heading h2 {
+  font-size: 24px;
+  line-height: 32px;
+}
+.network-service-summary h3 {
+  font-size: 22px;
+  line-height: 32px;
+  font-weight: 500;
+  margin: 0;
+}
+.network-service-summary p {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 20px;
+  margin: 4px 0 0;
+}
+.network-detail-metrics {
+  display: grid;
+  grid-template-columns: 0.7fr 1.1fr 1fr;
+  gap: 16px;
+  margin: 20px 0 8px;
+}
+.network-detail-metrics dt {
+  font-size: 11px;
+  color: var(--text-soft);
+  line-height: 18px;
+}
+.network-detail-metrics dd {
+  margin: 8px 0 0;
+  font: 500 20px/28px var(--font-number);
+}
+.network-detail-metrics dd.network-detail-route {
+  font: 14px/22px var(--font-sans);
+}
+.network-evidence-toggle {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-top: 32px;
+}
+.network-evidence-toggle span {
+  color: var(--text-soft);
+}
+.network-ip-conclusions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  margin: 20px 0;
+}
+.network-ip-conclusions > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.network-ip-conclusions > div > span,
+.network-ip-conclusions small {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 20px;
+}
+.network-ip-conclusions strong {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 36px;
+}
+.network-ip-conclusions em {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-soft);
+  font-style: normal;
+}
+.network-manual-review {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.network-dns-detail-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 24px;
+  font-size: 14px;
+}
+.network-dns-detail-summary .animated-number {
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: 600;
+}
+.network-dns-detail-summary > div {
+  text-align: right;
+  font-size: 12px;
+}
+.network-dns-detail-summary small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+.network-dns-table {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  margin: 24px 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+.network-dns-table th {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.network-dns-table td,
+.network-dns-table th {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.network-dns-table th:first-child {
+  width: 40px;
+}
+.network-dns-table th:nth-child(2) {
+  width: 34%;
+}
+.network-dns-table th:nth-child(2) > span {
+  margin-right: 10px;
+}
+.network-dns-table th:nth-child(3) {
+  width: 17%;
+}
+.network-dns-table th:last-child {
+  width: 12%;
+}
+.network-resolver-provider {
+  overflow-wrap: anywhere;
+}
+.network-resolver-provider small {
+  display: block;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.network-dns-table td:last-child,
+.network-dns-table th:last-child {
+  text-align: right;
+}
+.network-dns-table .workspace-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.network-resolver-ip {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.network-dns-detail-footer {
+  margin-top: 56px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-soft);
+}
+.network-dns-detail-footer > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}

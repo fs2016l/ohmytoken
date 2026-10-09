@@ -4,15 +4,22 @@ import type {
   DesktopFeedbackSubmitParams,
   DesktopMessageEventInput,
   DesktopMessageSyncResult,
+  DesktopHeartbeatResult,
   DesktopUserInfo,
 } from '../../shared/desktop-api'
-import type { CustomMessagePlacement } from '../../shared/custom-message'
 import { agentIdentityHeaders } from '../../shared/agent-client'
-import { forceRefreshAccessToken, getAccessToken, hasAuthSession } from './auth.service'
+import {
+  forceRefreshAccessToken,
+  getAccessToken,
+  hasAuthSession,
+  loadAuthSession,
+  getCachedAuthUser,
+  rememberAuthUser,
+} from './auth.service'
 import { ensureAgentClientRegistered } from './client-registration.service'
-import { getOhmytokenApiBase } from './server-config.service'
+import { resolveDesktopApiUrl } from './runtime-config.service'
+import { createAuthenticatedRequest } from './authenticated-request'
 
-const API_BASE = getOhmytokenApiBase()
 const REQUEST_TIMEOUT_MS = 10_000
 
 interface ResponseResult<T> {
@@ -29,7 +36,8 @@ function parseDesktopUserInfo(value: unknown): DesktopUserInfo | null {
   const candidate = value as Partial<DesktopUserInfo>
   if (
     typeof candidate.id !== 'number' ||
-    !Number.isFinite(candidate.id) ||
+    !Number.isSafeInteger(candidate.id) ||
+    candidate.id <= 0 ||
     typeof candidate.username !== 'string'
   ) {
     return null
@@ -58,23 +66,23 @@ async function sendRequest(
   token: string | null,
 ): Promise<Response> {
   const identity = await ensureAgentClientRegistered(token)
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  try {
-    return await fetch(`${API_BASE}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...agentIdentityHeaders(identity),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(init.headers ?? {}),
-      },
-      signal: controller.signal,
-    })
-  } finally {
-    clearTimeout(timeout)
-  }
+  return fetch(path, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...agentIdentityHeaders(identity),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
 }
+
+export const authenticatedDesktopRequest = createAuthenticatedRequest({
+  sessionId: () => loadAuthSession()?.sessionId ?? null,
+  token: (refresh) => (refresh ? forceRefreshAccessToken() : getAccessToken()),
+  send: (path, method, token) => sendRequest(path, { method }, token),
+})
 
 async function postWithOptionalAuth<T>(
   path: string,
@@ -122,12 +130,22 @@ async function postWithOptionalAuth<T>(
 
 export async function getAuthSession(): Promise<AuthSessionResult> {
   if (!hasAuthSession()) return { status: 'anonymous' }
+  const expectedSession = loadAuthSession()!.sessionId
+  const unavailable = (message?: string): AuthSessionResult =>
+    hasAuthSession()
+      ? { status: 'unavailable', message, cachedUser: getCachedAuthUser() }
+      : { status: 'anonymous' }
 
   try {
     let token = await getAccessToken()
     if (!token) return { status: 'invalid' }
+    if (loadAuthSession()?.sessionId !== expectedSession) return unavailable()
 
-    let response = await sendRequest('/desktop/userinfo', { method: 'GET' }, token)
+    let response = await sendRequest(
+      await resolveDesktopApiUrl('userInfo'),
+      { method: 'GET' },
+      token,
+    )
     let result = await readResult<DesktopUserInfo>(response)
     const unauthorized =
       response.status === 401 ||
@@ -136,9 +154,11 @@ export async function getAuthSession(): Promise<AuthSessionResult> {
       result.code === 403
 
     if (unauthorized) {
+      if (loadAuthSession()?.sessionId !== expectedSession) return unavailable()
       token = await forceRefreshAccessToken()
       if (!token) return { status: 'invalid' }
-      response = await sendRequest('/desktop/userinfo', { method: 'GET' }, token)
+      if (loadAuthSession()?.sessionId !== expectedSession) return unavailable()
+      response = await sendRequest(await resolveDesktopApiUrl('userInfo'), { method: 'GET' }, token)
       result = await readResult<DesktopUserInfo>(response)
       if (
         response.status === 401 ||
@@ -146,26 +166,24 @@ export async function getAuthSession(): Promise<AuthSessionResult> {
         result.code === 401 ||
         result.code === 403
       ) {
-        return { status: 'invalid' }
+        return hasAuthSession() ? unavailable(result.message) : { status: 'invalid' }
       }
     }
 
     const user = parseDesktopUserInfo(result.data)
     if (!response.ok || result.code !== 200 || !user) {
-      return { status: 'unavailable', message: result.message }
+      return unavailable(result.message)
     }
+    if (!rememberAuthUser(expectedSession, user)) return unavailable()
     return { status: 'authenticated', user }
   } catch (error) {
-    return {
-      status: 'unavailable',
-      message: error instanceof Error ? error.message : String(error),
-    }
+    return unavailable(error instanceof Error ? error.message : String(error))
   }
 }
 
 export async function submitDesktopFeedback(params: DesktopFeedbackSubmitParams): Promise<number> {
   const result = await postWithOptionalAuth<number | { id?: number }>(
-    '/desktop/feedback/submit',
+    await resolveDesktopApiUrl('feedbackSubmit'),
     { ...params },
     false,
   )
@@ -174,28 +192,40 @@ export async function submitDesktopFeedback(params: DesktopFeedbackSubmitParams)
   return id
 }
 
-export async function syncDesktopMessages(
-  placement: CustomMessagePlacement,
-): Promise<DesktopMessageSyncResult> {
-  try {
-    const result = await postWithOptionalAuth<
-      Pick<DesktopMessageSyncResult, 'messages' | 'activeMessageUids'>
-    >('/desktop/message/sync', { placement }, true)
-    return {
-      ok: true,
-      messages: Array.isArray(result.data?.messages) ? result.data.messages : [],
-      activeMessageUids: Array.isArray(result.data?.activeMessageUids)
-        ? result.data.activeMessageUids
-        : [],
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      message: errorMessage(error),
-      messages: [],
-      activeMessageUids: [],
-    }
+export async function syncDesktopMessages(): Promise<DesktopMessageSyncResult> {
+  const result = await postWithOptionalAuth<DesktopMessageSyncResult>(
+    await resolveDesktopApiUrl('messageSync'),
+    {},
+    true,
+  )
+  const data = result.data
+  if (
+    !data ||
+    typeof data.revision !== 'string' ||
+    !data.revision ||
+    !Array.isArray(data.mainMessages) ||
+    !Array.isArray(data.floatingMessages)
+  ) {
+    throw new Error('公告快照格式无效，保留本地缓存')
   }
+  return data
+}
+
+export async function sendDesktopHeartbeat(): Promise<DesktopHeartbeatResult> {
+  const result = await postWithOptionalAuth<DesktopHeartbeatResult>(
+    await resolveDesktopApiUrl('heartbeat'),
+    {},
+    true,
+  )
+  if (
+    !result.data ||
+    typeof result.data.announcementRevision !== 'string' ||
+    !result.data.announcementRevision ||
+    !Number.isFinite(result.data.serverTime)
+  ) {
+    throw new Error('心跳响应格式无效')
+  }
+  return result.data
 }
 
 export async function reportDesktopMessageEvent(
@@ -203,7 +233,7 @@ export async function reportDesktopMessageEvent(
 ): Promise<AuthActionResult> {
   try {
     await postWithOptionalAuth<void>(
-      `/desktop/message/${input.messageId}/event`,
+      await resolveDesktopApiUrl('messageEvent', { messageId: input.messageId }),
       {
         messageUid: input.messageUid,
         event: input.event,

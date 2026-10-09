@@ -1,86 +1,70 @@
-import { nextTick, onActivated, onDeactivated, onMounted, onUnmounted, type Ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, watch, type Ref } from 'vue'
+import type { ECharts } from '../utils/charts'
+import { useMotionVisibility } from './useMotionVisibility'
 
 interface ChartRenderLifecycleOptions {
   render: () => void
   resize: () => void
   dispose: () => void
+  chart: () => ECharts | null | undefined
 }
 
-/**
- * Keeps canvas charts in sync with cached routes and responsive containers.
- * A render requested while the element is hidden stays pending until it has a real size.
- */
+/** Keep live geometry while hidden; only leaving a cached page releases its chart. */
 export function useChartRenderLifecycle(
-  chartRef: Ref<HTMLElement | undefined>,
+  chartRef: Ref<HTMLElement | null | undefined>,
   options: ChartRenderLifecycleOptions,
-): { requestRender: () => void } {
-  let resizeObserver: ResizeObserver | null = null
-  let animationFrame: number | null = null
-  let renderPending = true
-  let wasVisible = false
-  let stopped = false
-
-  function hasRenderableSize(): boolean {
-    const element = chartRef.value
-    return Boolean(element && element.clientWidth > 0 && element.clientHeight > 0)
-  }
-
-  function flushRender(): void {
-    animationFrame = null
-    if (stopped || !hasRenderableSize()) return
-    renderPending = false
-    wasVisible = true
-    options.render()
-  }
+) {
+  const { active, visible, reduced } = useMotionVisibility(chartRef)
+  let observer: ResizeObserver | undefined
+  let frame = 0
+  let pending = true
+  let disposed = false
 
   function requestRender(): void {
-    renderPending = true
+    pending = true
     void nextTick(() => {
-      if (stopped) return
-      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
-      animationFrame = window.requestAnimationFrame(flushRender)
+      if (disposed || !visible.value) return
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        if (disposed || !visible.value) return
+        options.chart()?.getZr().animation.resume()
+        pending = false
+        options.render()
+      })
     })
   }
-
-  function handleResize(): void {
-    if (!hasRenderableSize()) {
-      wasVisible = false
-      return
-    }
-    if (renderPending || !wasVisible) {
-      requestRender()
-      return
-    }
+  function resize(): void {
+    if (!visible.value) return
     options.resize()
+    if (pending) requestRender()
   }
-
+  watch(
+    [active, visible, reduced],
+    () => {
+      if (!visible.value) {
+        cancelAnimationFrame(frame)
+        frame = 0
+        if (!active.value) options.dispose()
+        else options.chart()?.getZr().animation.pause()
+        return
+      }
+      // A hidden element may have resized without a visible ResizeObserver callback.
+      options.resize()
+      requestRender()
+    },
+    { flush: 'post' },
+  )
   onMounted(() => {
-    stopped = false
-    if (chartRef.value && typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(handleResize)
-      resizeObserver.observe(chartRef.value)
-    } else {
-      window.addEventListener('resize', handleResize)
-    }
+    observer = new ResizeObserver(resize)
+    if (chartRef.value) observer.observe(chartRef.value)
     requestRender()
   })
-
-  onActivated(() => {
-    wasVisible = false
-    requestRender()
-  })
-
-  onDeactivated(() => {
-    wasVisible = false
-  })
-
   onUnmounted(() => {
-    stopped = true
-    resizeObserver?.disconnect()
-    window.removeEventListener('resize', handleResize)
-    if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+    disposed = true
+    cancelAnimationFrame(frame)
+    observer?.disconnect()
     options.dispose()
   })
-
-  return { requestRender }
+  return { requestRender, reduced, visible }
 }

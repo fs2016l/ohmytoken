@@ -11,6 +11,8 @@ export interface TextLine {
   byteLength: number
   /** 内容超过上限时只保留前缀，字节位置仍按完整行计算。 */
   truncated?: boolean
+  /** false 表示当前文件末尾尚无换行符，JSONL 可能仍在追加这一行。 */
+  terminated?: boolean
 }
 
 /**
@@ -82,6 +84,7 @@ export function* readUtf8Lines(
           byteOffset: nextByteOffset,
           byteLength,
           truncated,
+          terminated: true,
         }
         nextByteOffset += byteLength
         lineIndex += 1
@@ -100,6 +103,7 @@ export function* readUtf8Lines(
         byteOffset: nextByteOffset,
         byteLength: lineByteLength,
         truncated,
+        terminated: false,
       }
     }
   } finally {

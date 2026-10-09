@@ -8,14 +8,29 @@ import type {
   TokenUsageRecord,
   TokenUsageSession,
 } from '../../shared/models'
+import type { ScanWorkProgress } from '../../shared/scan-progress'
 
 export type { ScannerUsageDetails, TokenUsageApiCall, TokenUsageRecord, TokenUsageSession }
 
+export interface ParserWorkerOptions {
+  entry: string
+  concurrency: number
+  execArgv?: string[]
+}
+
 export interface ScannerScanContext {
   mode: ScanMode
+  storage?: 'session'
+  /** 规则升级时合并重读结果，保留来源中已经不存在的历史。 */
+  preserveHistory?: boolean
   /** epoch milliseconds；incremental 时为上次成功水位向前回看 5 小时。 */
   sinceMs?: number
   scanStartedAtMs: number
+  reportProgress?: (progress: ScanWorkProgress) => void
+  /** 重建时任一可读来源失败都中止替换，保留此前的完整结果。 */
+  strict?: boolean
+  /** 仅由后台扫描调度提供，界面不能指定执行文件。 */
+  parserWorkers?: ParserWorkerOptions
 }
 
 export interface AgentScanner {

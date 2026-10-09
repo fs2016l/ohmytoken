@@ -4,6 +4,7 @@ import { useTypography } from './useTypography'
 import { useI18n } from '../i18n/useI18n'
 import type { Lang } from '../i18n/lang'
 import type { Theme } from './useTheme'
+import { DEFAULT_ACCENT, themeRegistry } from '../config/themes'
 import {
   DEFAULT_CODE_FONT,
   DEFAULT_INTERFACE_FONT,
@@ -21,7 +22,7 @@ const STORAGE_KEY = 'app-settings'
 export interface AppSettings {
   language: Lang
   theme: Theme
-  systemNotificationsEnabled: boolean
+  accent: string
   interfaceFont: InterfaceFont
   codeFont: CodeFont
   numberFont: NumberFont
@@ -30,8 +31,8 @@ export interface AppSettings {
 
 const defaultSettings: AppSettings = {
   language: 'zh',
-  theme: 'dark',
-  systemNotificationsEnabled: false,
+  theme: 'light',
+  accent: DEFAULT_ACCENT,
   interfaceFont: DEFAULT_INTERFACE_FONT,
   codeFont: DEFAULT_CODE_FONT,
   numberFont: DEFAULT_NUMBER_FONT,
@@ -52,6 +53,9 @@ function loadSettings(): AppSettings {
   return {
     ...defaultSettings,
     ...parsed,
+    accent: themeRegistry.has(localStorage.getItem('app-accent') || parsed.accent || '')
+      ? localStorage.getItem('app-accent') || parsed.accent || DEFAULT_ACCENT
+      : DEFAULT_ACCENT,
     language:
       storedLang === 'en' || storedLang === 'zh'
         ? storedLang
@@ -63,8 +67,7 @@ function loadSettings(): AppSettings {
         ? storedTheme
         : parsed.theme === 'light' || parsed.theme === 'dark'
           ? parsed.theme
-          : 'dark',
-    systemNotificationsEnabled: parsed.systemNotificationsEnabled === true,
+          : 'light',
     interfaceFont: isInterfaceFont(parsed.interfaceFont)
       ? parsed.interfaceFont
       : DEFAULT_INTERFACE_FONT,
@@ -74,7 +77,7 @@ function loadSettings(): AppSettings {
 }
 
 const settings = reactive<AppSettings>(loadSettings())
-const { currentTheme, setTheme } = useTheme()
+const { currentTheme, currentAccent, setTheme, setAccent } = useTheme()
 const { currentLang, setLang } = useI18n()
 const {
   currentInterfaceFont,
@@ -86,6 +89,7 @@ const {
 } = useTypography()
 settings.language = currentLang.value
 settings.theme = currentTheme.value
+settings.accent = currentAccent.value
 settings.interfaceFont = currentInterfaceFont.value
 settings.codeFont = currentCodeFont.value
 settings.numberFont = currentNumberFont.value
@@ -108,6 +112,12 @@ function startWatching() {
     () => settings.theme,
     (value) => {
       if (currentTheme.value !== value) setTheme(value)
+    },
+  )
+  watch(
+    () => settings.accent,
+    (value) => {
+      if (currentAccent.value !== value) setAccent(value)
     },
   )
   watch(
@@ -140,6 +150,9 @@ function startWatching() {
   watch(currentTheme, (value) => {
     if (settings.theme !== value) settings.theme = value
   })
+  watch(currentAccent, (value) => {
+    if (settings.accent !== value) settings.accent = value
+  })
   watch(currentLang, (value) => {
     if (settings.language !== value) settings.language = value
   })
@@ -164,9 +177,8 @@ export function useAppSettings() {
   function updateTheme(theme: Theme) {
     settings.theme = theme
   }
-
-  function updateSystemNotifications(enabled: boolean) {
-    settings.systemNotificationsEnabled = enabled
+  function updateAccent(accent: string) {
+    if (themeRegistry.has(accent)) settings.accent = accent
   }
 
   function updateInterfaceFont(font: InterfaceFont) {
@@ -199,7 +211,7 @@ export function useAppSettings() {
     settings,
     updateLanguage,
     updateTheme,
-    updateSystemNotifications,
+    updateAccent,
     updateInterfaceFont,
     updateCodeFont,
     updateNumberFont,

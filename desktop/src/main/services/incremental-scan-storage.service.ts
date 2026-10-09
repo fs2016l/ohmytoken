@@ -1,3 +1,6 @@
+import { persistSessionScan } from './session-scan-storage'
+import { storeLatestGenerationCalls } from './session-generation-storage'
+import { storeLatestTurnFirstTokens } from './session-turn-timing-storage'
 import type {
   ScanMode,
   ScannerUsageDetails,
@@ -11,7 +14,9 @@ import { insertRecords } from './data-storage.service'
 import { scannerRevisionForAgent } from './incremental-scan.constants'
 import { saveSourceState, type ScanSourceStateUpdate } from './scan-source-state.service'
 import { openDatabase } from './sqlite-storage.service'
+import { usageCallTime } from './usage-call-time'
 import { insertApiCallRows, insertSessionRows } from './usage-detail-storage.service'
+import { completeEvidenceRecovery, needsEvidenceRecovery } from '../cost/evidence-recovery'
 
 interface ScanAgentStateRow {
   agent: string
@@ -68,14 +73,23 @@ export function buildAgentScanPlan(
   }
 
   const state = getAgentScanState(agent)
+  if (needsEvidenceRecovery(openDatabase(), agent)) {
+    return {
+      effectiveMode: 'full',
+      context: { mode: 'full', preserveHistory: true, scanStartedAtMs },
+    }
+  }
   if (
     !state ||
     state.initialized !== 1 ||
     state.scanner_revision !== scannerRevisionForAgent(agent)
   ) {
+    const preserveHistory = !!openDatabase()
+      .prepare('SELECT 1 FROM usage_session_data WHERE agent = ? LIMIT 1')
+      .get(agent)
     return {
       effectiveMode: 'full',
-      context: { mode: 'full', scanStartedAtMs },
+      context: { mode: 'full', preserveHistory, scanStartedAtMs },
     }
   }
 
@@ -110,25 +124,39 @@ export function persistAgentScan(
 ): void {
   const db = openDatabase()
   const persist = db.transaction(() => {
-    const oldState = getAgentScanState(agent)
+    storeLatestGenerationCalls(db, agent, details.apiCalls, details.latestGenerations)
+    storeLatestTurnFirstTokens(db, agent, details.latestTurnFirstTokens)
+    const sessionStorage =
+      context.storage === 'session' ||
+      !!db.prepare('SELECT 1 FROM usage_session_data WHERE agent = ? LIMIT 1').get(agent)
+    if (sessionStorage && (details.apiCalls.length || !details.records.length)) {
+      if (context.mode !== 'full' || context.preserveHistory)
+        inheritStoredRootRelations(agent, details)
+      persistSessionScan(db, agent, context, details)
+      commitScanState(agent, context, details, sourceStateUpdates)
+      return
+    }
+    const fullRebuild = context.mode === 'full' && !context.preserveHistory
     const sessionKeys = new Set<string>()
     const recordKeys = new Set<string>()
     const oldMetadata = new Map<string, StoredSessionMetaRow>()
 
-    if (context.mode === 'full') {
+    if (fullRebuild) {
       db.prepare('DELETE FROM usage_api_calls WHERE agent = ?').run(agent)
       db.prepare('DELETE FROM usage_sessions WHERE agent = ?').run(agent)
       db.prepare('DELETE FROM usage_records WHERE agent = ?').run(agent)
     } else {
       inheritStoredRootRelations(agent, details)
       const sinceMs = context.sinceMs ?? 1
-      const oldRows = db
-        .prepare(
-          `SELECT session_id, date, model
+      const oldRows = context.preserveHistory
+        ? []
+        : (db
+            .prepare(
+              `SELECT session_id, date, model
            FROM usage_api_calls
            WHERE agent = ? AND event_timestamp_ms >= ?`,
-        )
-        .all(agent, sinceMs) as Array<{ session_id: string; date: string; model: string }>
+            )
+            .all(agent, sinceMs) as Array<{ session_id: string; date: string; model: string }>)
 
       // api_call_id 是 (agent, api_call_id) 主键。同一个来源事件被修正后，可能从
       // 窗口外的旧 session/date/model 移动到本批新键；窗口 DELETE 不会碰到那条旧行。
@@ -149,68 +177,39 @@ export function persistAgentScan(
         recordKeys.add(recordKey(row.date, row.model))
       }
       collectStoredMetadata(agent, oldRows, oldMetadata)
-      db.prepare('DELETE FROM usage_api_calls WHERE agent = ? AND event_timestamp_ms >= ?').run(
-        agent,
-        sinceMs,
-      )
+      if (!context.preserveHistory) {
+        db.prepare('DELETE FROM usage_api_calls WHERE agent = ? AND event_timestamp_ms >= ?').run(
+          agent,
+          sinceMs,
+        )
+      }
     }
 
     for (const call of details.apiCalls) {
-      sessionKeys.add(sessionKey(call.sessionId, call.date, call.model))
-      recordKeys.add(recordKey(call.date, call.model))
+      const { date } = usageCallTime(call)
+      sessionKeys.add(sessionKey(call.sessionId, date, call.model))
+      recordKeys.add(recordKey(date, call.model))
     }
     for (const session of details.sessions) {
       sessionKeys.add(sessionKey(session.sessionId, session.date, session.model))
       recordKeys.add(recordKey(session.date, session.model))
     }
 
-    insertApiCallRows(details.apiCalls)
-    rebuildSessions(agent, sessionKeys, details.sessions, oldMetadata)
-    rebuildRecords(agent, recordKeys, details.records)
-
-    for (const state of sourceStateUpdates) {
-      if (state.agent !== agent) {
-        throw new Error(`来源状态 Agent 不匹配: ${state.agent} != ${agent}`)
-      }
-      saveSourceState(
-        {
-          ...state,
-          last_success_ms: state.last_success_ms ?? context.scanStartedAtMs,
-        },
-        db,
-      )
-    }
-
-    const previousEventWatermark = oldState?.event_watermark_ms ?? 0
-    const batchEventWatermark = details.apiCalls.reduce(
-      (max, call) => Math.max(max, eventTimestampMs(call)),
-      0,
+    context.reportProgress?.({ unit: 'calls', completed: 0, total: details.apiCalls.length })
+    insertApiCallRows(details.apiCalls, (completed) =>
+      context.reportProgress?.({ unit: 'calls', completed, total: details.apiCalls.length }),
     )
-    const eventWatermark =
-      context.mode === 'full'
-        ? batchEventWatermark
-        : Math.max(previousEventWatermark, batchEventWatermark)
-    const previousFullSuccess = oldState?.last_full_success_ms ?? 0
-    db.prepare(
-      `INSERT INTO scan_agent_state
-        (agent, initialized, scanner_revision, event_watermark_ms, last_success_ms,
-         last_full_success_ms, last_mode)
-       VALUES (?, 1, ?, ?, ?, ?, ?)
-       ON CONFLICT(agent) DO UPDATE SET
-         initialized = excluded.initialized,
-         scanner_revision = excluded.scanner_revision,
-         event_watermark_ms = excluded.event_watermark_ms,
-         last_success_ms = excluded.last_success_ms,
-         last_full_success_ms = excluded.last_full_success_ms,
-         last_mode = excluded.last_mode`,
-    ).run(
-      agent,
-      scannerRevisionForAgent(agent),
-      eventWatermark,
-      context.scanStartedAtMs,
-      context.mode === 'full' ? context.scanStartedAtMs : previousFullSuccess,
-      context.mode,
-    )
+    context.reportProgress?.({ unit: 'sessions', completed: 0, total: sessionKeys.size })
+    rebuildSessions(agent, sessionKeys, details.sessions, oldMetadata, fullRebuild)
+    context.reportProgress?.({
+      unit: 'sessions',
+      completed: sessionKeys.size,
+      total: sessionKeys.size,
+    })
+    context.reportProgress?.({ unit: 'days', completed: 0, total: recordKeys.size })
+    rebuildRecords(agent, recordKeys, details.records, fullRebuild)
+    context.reportProgress?.({ unit: 'days', completed: recordKeys.size, total: recordKeys.size })
+    commitScanState(agent, context, details, sourceStateUpdates)
   })
   persist()
 }
@@ -283,6 +282,7 @@ function rebuildSessions(
   keys: Set<string>,
   scannedSessions: TokenUsageSession[],
   oldMetadata: Map<string, StoredSessionMetaRow>,
+  fullRebuild: boolean,
 ): void {
   const db = openDatabase()
   const scannedMetadata = new Map(
@@ -294,8 +294,7 @@ function rebuildSessions(
   const remove = db.prepare(
     'DELETE FROM usage_sessions WHERE agent = ? AND session_id = ? AND date = ? AND model = ?',
   )
-  const aggregate = db.prepare(
-    `SELECT
+  const aggregateSql = `SELECT ${fullRebuild ? 'session_id, date, model,' : ''}
        MAX(NULLIF(parent_session_id, '')) AS parent_session_id,
        MAX(COALESCE(NULLIF(root_session_id, ''), session_id)) AS root_session_id,
        MAX(NULLIF(sub_agent_name, '')) AS sub_agent_name,
@@ -312,14 +311,31 @@ function rebuildSessions(
        COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
        COUNT(*) AS api_call_count
      FROM usage_api_calls
-     WHERE agent = ? AND session_id = ? AND date = ? AND model = ?`,
-  )
+     WHERE agent = ?`
+  const aggregate = fullRebuild
+    ? null
+    : db.prepare(aggregateSql + ' AND session_id = ? AND date = ? AND model = ?')
+  const allRows = fullRebuild
+    ? new Map(
+        (
+          db.prepare(aggregateSql + ' GROUP BY session_id, date, model').all(agent) as Array<
+            AggregateRow & {
+              session_id: string
+              date: string
+              model: string
+            }
+          >
+        ).map((row) => [sessionKey(row.session_id, row.date, row.model), row]),
+      )
+    : null
 
   const rebuilt: TokenUsageSession[] = []
   for (const key of keys) {
     const [sessionId, date, model] = splitKey(key)
-    remove.run(agent, sessionId, date, model)
-    const row = aggregate.get(agent, sessionId, date, model) as AggregateRow
+    if (!fullRebuild) remove.run(agent, sessionId, date, model)
+    const row = allRows
+      ? allRows.get(key)
+      : (aggregate!.get(agent, sessionId, date, model) as AggregateRow | undefined)
     if (!row || row.api_call_count <= 0) continue
     const fresh = scannedMetadata.get(key)
     const old = oldMetadata.get(key)
@@ -358,11 +374,11 @@ function rebuildRecords(
   agent: string,
   keys: Set<string>,
   scannerRecords: TokenUsageRecord[],
+  fullRebuild: boolean,
 ): void {
   const db = openDatabase()
   const remove = db.prepare('DELETE FROM usage_records WHERE agent = ? AND date = ? AND model = ?')
-  const aggregate = db.prepare(
-    `SELECT
+  const aggregateSql = `SELECT ${fullRebuild ? 'date, model,' : ''}
        COALESCE(SUM(input_tokens), 0) AS input_tokens,
        COALESCE(SUM(output_tokens), 0) AS output_tokens,
        COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
@@ -371,13 +387,27 @@ function rebuildRecords(
        COALESCE(SUM(reasoning_tokens), 0) AS reasoning_tokens,
        COUNT(*) AS api_call_count
      FROM usage_api_calls
-     WHERE agent = ? AND date = ? AND model = ?`,
-  )
+     WHERE agent = ?`
+  const aggregate = fullRebuild ? null : db.prepare(aggregateSql + ' AND date = ? AND model = ?')
+  const allRows = fullRebuild
+    ? new Map(
+        (
+          db.prepare(aggregateSql + ' GROUP BY date, model').all(agent) as Array<
+            AggregateRow & {
+              date: string
+              model: string
+            }
+          >
+        ).map((row) => [recordKey(row.date, row.model), row]),
+      )
+    : null
   const rebuilt: TokenUsageRecord[] = []
   for (const key of keys) {
     const [date, model] = splitKey(key)
-    remove.run(agent, date, model)
-    const row = aggregate.get(agent, date, model) as AggregateRow
+    if (!fullRebuild) remove.run(agent, date, model)
+    const row = allRows
+      ? allRows.get(key)
+      : (aggregate!.get(agent, date, model) as AggregateRow | undefined)
     if (!row || row.api_call_count <= 0) continue
     rebuilt.push({
       agent,
@@ -418,4 +448,59 @@ export function incrementalFromDisplay(context: ScannerScanContext): string | un
 
 export function apiCallEventTimestampMs(rawTimestamp: string, timestamp: string): number {
   return timestampEpochMs(rawTimestamp) || timestampEpochMs(timestamp)
+}
+
+function commitScanState(
+  agent: string,
+  context: ScannerScanContext,
+  details: ScannerUsageDetails,
+  sourceStateUpdates: readonly ScanSourceStateUpdate[],
+): void {
+  const db = openDatabase()
+  const oldState = getAgentScanState(agent)
+  if (context.mode === 'full') completeEvidenceRecovery(db, agent, context.scanStartedAtMs)
+
+  for (const state of sourceStateUpdates) {
+    if (state.agent !== agent) {
+      throw new Error(`来源状态 Agent 不匹配: ${state.agent} != ${agent}`)
+    }
+    saveSourceState(
+      {
+        ...state,
+        last_success_ms: state.last_success_ms ?? context.scanStartedAtMs,
+      },
+      db,
+    )
+  }
+
+  const previousEventWatermark = oldState?.event_watermark_ms ?? 0
+  const batchEventWatermark = details.apiCalls.reduce(
+    (max, call) => Math.max(max, eventTimestampMs(call)),
+    0,
+  )
+  const eventWatermark =
+    context.mode === 'full' && !context.preserveHistory
+      ? batchEventWatermark
+      : Math.max(previousEventWatermark, batchEventWatermark)
+  const previousFullSuccess = oldState?.last_full_success_ms ?? 0
+  db.prepare(
+    `INSERT INTO scan_agent_state
+        (agent, initialized, scanner_revision, event_watermark_ms, last_success_ms,
+         last_full_success_ms, last_mode)
+       VALUES (?, 1, ?, ?, ?, ?, ?)
+       ON CONFLICT(agent) DO UPDATE SET
+         initialized = excluded.initialized,
+         scanner_revision = excluded.scanner_revision,
+         event_watermark_ms = excluded.event_watermark_ms,
+         last_success_ms = excluded.last_success_ms,
+         last_full_success_ms = excluded.last_full_success_ms,
+         last_mode = excluded.last_mode`,
+  ).run(
+    agent,
+    scannerRevisionForAgent(agent),
+    eventWatermark,
+    context.scanStartedAtMs,
+    context.mode === 'full' ? context.scanStartedAtMs : previousFullSuccess,
+    context.mode,
+  )
 }

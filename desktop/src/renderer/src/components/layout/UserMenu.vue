@@ -1,469 +1,325 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../../composables/useAuth'
 import { useI18n } from '../../i18n/useI18n'
 import { openConfiguredUrl } from '../../api/runtime-config'
+import DesignIcon from '../base/DesignIcon.vue'
 import UserAvatar from '../base/UserAvatar.vue'
+import DropdownChevron from '../base/DropdownChevron.vue'
 
+const emit = defineEmits<{ update: [] }>()
 const router = useRouter()
-const { tr } = useI18n()
+const { currentLang, setLang, label } = useI18n()
 const { currentUser, isLoggedIn, isHydrating, login, logout } = useAuth()
-
-const menuOpen = ref(false)
-const menuRef = ref<HTMLElement | null>(null)
-
-/** 首字母：取 nickname 或 username 首字符（中文首字 / 英文首字母大写） */
-const initial = computed(() => {
-  const name = currentUser.value?.nickname || currentUser.value?.username || ''
-  if (!name) return '?'
-  return name.charAt(0).toUpperCase()
-})
-
-/** aria-label：动态反映触发器当前状态，供屏幕阅读器播报 */
-const triggerLabel = computed(() => {
-  if (isHydrating.value) return tr('checkingAuth')
-  if (isLoggedIn.value) {
-    const name = currentUser.value?.nickname || currentUser.value?.username || ''
-    return `${tr('loggedInAs')} ${name}`
-  }
-  return tr('notLoggedIn')
-})
-
-/** 仅首次恢复登录态时禁用；浏览器登录期间头像始终可再次操作。 */
-const triggerDisabled = computed(() => isHydrating.value)
-
-/** 触发器视觉态枚举，驱动 v-if 分支与 CSS class */
-type TriggerVisual = 'skeleton' | 'logged-in' | 'guest'
-const triggerVisual = computed<TriggerVisual>(() => {
-  if (isHydrating.value) return 'skeleton'
-  if (isLoggedIn.value) return 'logged-in'
-  return 'guest'
-})
-
-let closeTimer: number | null = null
-
-function closeMenu(): void {
+const menuOpen = ref(false),
+  languageOpen = ref(false),
+  pending = ref(false),
+  error = ref('')
+const root = ref<HTMLElement | null>(null),
+  trigger = ref<HTMLButtonElement | null>(null),
+  menu = ref<HTMLElement | null>(null)
+const name = computed(
+  () =>
+    currentUser.value?.nickname || currentUser.value?.username || label('Not signed in', '未登录'),
+)
+const initial = computed(() => name.value.charAt(0).toUpperCase())
+function close(focus = false): void {
   menuOpen.value = false
-  if (closeTimer !== null) {
-    window.clearTimeout(closeTimer)
-    closeTimer = null
+  languageOpen.value = false
+  if (focus) trigger.value?.focus()
+}
+async function toggle(focus = false): Promise<void> {
+  if (isHydrating.value) return
+  menuOpen.value = !menuOpen.value
+  languageOpen.value = false
+  error.value = ''
+  if (menuOpen.value && focus) {
+    await nextTick()
+    menu.value?.querySelector<HTMLButtonElement>('button')?.focus()
   }
 }
-
-/** 鼠标移入：首次恢复登录态完成后展开菜单。 */
-function handleEnter(): void {
-  if (triggerDisabled.value) return
-  if (closeTimer !== null) {
-    window.clearTimeout(closeTimer)
-    closeTimer = null
-  }
-  menuOpen.value = true
-}
-
-/** 鼠标移出：延迟收起（150ms 容错，防鼠标跨越边缘时的抖动） */
-function handleLeave(): void {
-  closeTimer = window.setTimeout(() => {
-    menuOpen.value = false
-    closeTimer = null
-  }, 150)
-}
-
-async function doLogin(): Promise<void> {
-  closeMenu()
+async function authenticate(): Promise<void> {
+  if (pending.value) return
+  pending.value = true
+  error.value = ''
   try {
-    await login()
-  } catch (err) {
-    console.error('[UserMenu] 打开登录窗口失败:', err)
+    if (isLoggedIn.value) await logout()
+    else await login()
+    close()
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : String(reason)
+  } finally {
+    pending.value = false
   }
 }
-
-async function doLogout(): Promise<void> {
-  closeMenu()
+async function website(): Promise<void> {
   try {
-    await logout()
-  } catch (err) {
-    console.error('[UserMenu] 登出失败:', err)
+    await openConfiguredUrl('websiteUrl')
+    close()
+  } catch (reason) {
+    error.value = reason instanceof Error ? reason.message : String(reason)
   }
 }
-
-/** 跳转 com 账号详情页（系统浏览器打开） */
-function openAccountDetails(): void {
-  closeMenu()
-  void openConfiguredUrl('accountPageUrl').catch((error) => {
-    console.error('[UserMenu] 打开账号中心失败:', error)
-  })
+function changeLanguage(value: 'zh' | 'en'): void {
+  setLang(value)
+  close(true)
 }
-
-/** ESC 关闭菜单 */
-function handleKeydown(e: KeyboardEvent): void {
-  if (e.key === 'Escape' && menuOpen.value) {
-    closeMenu()
-  }
+function update(): void {
+  close(true)
+  emit('update')
 }
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  if (closeTimer !== null) {
-    window.clearTimeout(closeTimer)
+function outside(event: PointerEvent): void {
+  if (!root.value?.contains(event.target as Node)) close()
+}
+function keyboard(event: KeyboardEvent): void {
+  if (!menuOpen.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    close(true)
+    return
   }
-})
-
-// 路由切换时关闭菜单（避免菜单跨页面残留）
+  if (event.key === 'Tab') {
+    close()
+    return
+  }
+  if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+  const options = Array.from(
+    menu.value?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+  )
+  const index = options.indexOf(document.activeElement as HTMLButtonElement)
+  const next =
+    event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? options.length - 1
+        : (index + (event.key === 'ArrowUp' ? -1 : 1) + options.length) % options.length
+  event.preventDefault()
+  options[next]?.focus()
+}
+onMounted(() => document.addEventListener('pointerdown', outside))
+onUnmounted(() => document.removeEventListener('pointerdown', outside))
 watch(
   () => router.currentRoute.value.path,
-  () => closeMenu(),
+  () => close(),
 )
-
-watch(isLoggedIn, () => closeMenu())
+watch(isLoggedIn, () => close())
 </script>
 
 <template>
-  <div ref="menuRef" class="user-menu" @mouseenter="handleEnter" @mouseleave="handleLeave">
+  <div ref="root" class="account-menu" @keydown="keyboard">
     <button
-      class="avatar-trigger"
-      :class="`avatar-trigger--${triggerVisual}`"
-      :disabled="triggerDisabled"
-      :aria-label="triggerLabel"
+      ref="trigger"
+      class="account-trigger"
+      :class="{ 'account-trigger--open': menuOpen }"
+      type="button"
+      :disabled="isHydrating"
       :aria-busy="isHydrating"
       aria-haspopup="menu"
       :aria-expanded="menuOpen"
-      type="button"
+      :aria-label="name"
+      @click="toggle()"
+      @keydown.down.prevent="toggle(true)"
+      @keydown.up.prevent="toggle(true)"
     >
-      <span v-if="triggerVisual === 'skeleton'" class="skeleton-pulse" aria-hidden="true"></span>
-      <UserAvatar
-        v-else-if="triggerVisual === 'logged-in'"
-        :src="currentUser?.avatar"
-        :fallback="initial"
-        aria-hidden="true"
-      />
-      <span v-else class="material-symbols-outlined" aria-hidden="true">person_add</span>
+      <span class="account-avatar">
+        <UserAvatar
+          v-if="isLoggedIn"
+          :src="currentUser?.avatar"
+          :fallback="initial"
+          aria-hidden="true"
+        />
+        <DesignIcon v-else name="person" :size="16" />
+      </span>
+      <span class="account-name">{{ isHydrating ? label('Loading…', '正在加载…') : name }}</span>
     </button>
-
-    <transition name="menu-pop">
-      <div v-if="menuOpen" class="user-popover" role="menu">
-        <!-- 已登录菜单 -->
-        <template v-if="isLoggedIn">
-          <div class="popover-header">
-            <div class="header-avatar">
-              <UserAvatar
-                :src="currentUser?.avatar"
-                :fallback="initial"
-                :alt="currentUser?.nickname || currentUser?.username || ''"
-              />
-            </div>
-            <div class="header-info">
-              <div class="header-name">{{ currentUser?.nickname || currentUser?.username }}</div>
-              <div class="header-username">@{{ currentUser?.username }}</div>
-            </div>
-          </div>
-          <div class="popover-divider"></div>
-          <button class="menu-item" role="menuitem" type="button" @click="openAccountDetails">
-            <span class="material-symbols-outlined">person</span>
-            {{ tr('accountDetails') }}
-          </button>
-          <div class="popover-divider"></div>
+    <Transition name="account-pop">
+      <div
+        v-if="menuOpen"
+        ref="menu"
+        class="account-popover selection-list"
+        role="menu"
+        :aria-label="label('Account menu', '账号菜单')"
+      >
+        <button type="button" role="menuitem" @click="website">
+          <DesignIcon name="globe" :size="16" />
+          <span>{{ label('Website', '官网') }}</span>
+          <DesignIcon name="externalLink" :size="14" />
+        </button>
+        <div class="account-language">
           <button
-            class="menu-item menu-item--danger"
-            role="menuitem"
             type="button"
-            @click="doLogout"
-          >
-            <span class="material-symbols-outlined">logout</span>
-            {{ tr('logout') }}
-          </button>
-        </template>
-
-        <!-- 未登录菜单（方案 C 增强版：状态说明 + 登录 CTA + 设置） -->
-        <template v-else>
-          <div class="popover-header">
-            <div class="header-avatar header-avatar--guest">
-              <span class="material-symbols-outlined">person_add</span>
-            </div>
-            <div class="header-info">
-              <div class="header-name">{{ tr('guestLabel') }}</div>
-              <div class="header-desc">{{ tr('loginValueHint') }}</div>
-            </div>
-          </div>
-          <div class="popover-divider"></div>
-          <button
-            class="menu-item menu-item--primary"
             role="menuitem"
-            type="button"
-            @click="doLogin"
+            aria-haspopup="menu"
+            :aria-expanded="languageOpen"
+            @click="languageOpen = !languageOpen"
+            @keydown.right.prevent="languageOpen = true"
           >
-            <span class="material-symbols-outlined">login</span>
-            {{ tr('loginBtn') }}
+            <DesignIcon name="globe" :size="16" />
+            <span>{{ label('Interface language', '界面语言') }}</span>
+            <DropdownChevron :open="languageOpen" direction="right" />
           </button>
-        </template>
+          <Transition name="account-pop">
+            <div
+              v-if="languageOpen"
+              class="account-language-menu selection-list"
+              role="menu"
+              :aria-label="label('Interface language', '界面语言')"
+            >
+              <button
+                role="menuitemradio"
+                :aria-checked="currentLang === 'zh'"
+                type="button"
+                @click="changeLanguage('zh')"
+              >
+                <span>简体中文</span>
+                <DesignIcon v-if="currentLang === 'zh'" name="check" :size="14" />
+              </button>
+              <button
+                role="menuitemradio"
+                :aria-checked="currentLang === 'en'"
+                type="button"
+                @click="changeLanguage('en')"
+              >
+                <span>English</span>
+                <DesignIcon v-if="currentLang === 'en'" name="check" :size="14" />
+              </button>
+            </div>
+          </Transition>
+        </div>
+        <div class="account-divider" role="separator" />
+        <button type="button" role="menuitem" aria-haspopup="dialog" @click="update">
+          <DesignIcon name="update" :size="16" />
+          <span>{{ label('Update', '更新') }}</span>
+        </button>
+        <div class="account-divider" role="separator" />
+        <button type="button" role="menuitem" :disabled="pending" @click="authenticate">
+          <DesignIcon :name="isLoggedIn ? 'logout' : 'login'" :size="16" />
+          <span>{{ isLoggedIn ? label('Sign out', '退出登录') : label('Sign in', '登录') }}</span>
+        </button>
+        <p v-if="error" class="account-error" role="alert">{{ error }}</p>
       </div>
-    </transition>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
-.material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 18px;
-  line-height: 1;
-  letter-spacing: 0;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  direction: ltr;
-  font-feature-settings: 'liga';
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-  font-variation-settings:
-    'FILL' 0,
-    'wght' 400,
-    'GRAD' 0,
-    'opsz' 24;
-}
-
-.user-menu {
-  position: relative;
-  display: inline-flex;
-}
-
-.avatar-trigger {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    opacity 0.15s ease;
-}
-
-.avatar-trigger:hover:not(:disabled) {
-  background: var(--surface-container-high);
-}
-
-.avatar-trigger:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-/* skeleton：灰色脉动圆（启动水合） */
-.avatar-trigger--skeleton {
-  background: var(--surface-container-high);
-  border-color: var(--border);
-}
-
-.skeleton-pulse {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: var(--text-muted);
-  animation: skeleton-pulse 1.2s ease-in-out infinite;
-}
-
-@keyframes skeleton-pulse {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-}
-
-/* 已登录：渐变圆 + 首字母（复用 AppLayout 原 profile-dot 视觉语言） */
-.avatar-trigger--logged-in {
-  background: linear-gradient(135deg, #2a2a2c, #5516be);
-  color: var(--primary);
-  border-color: var(--border-strong);
-  font-size: var(--type-caption);
-  font-weight: var(--weight-semibold);
-}
-
-:root[data-theme='light'] .avatar-trigger--logged-in {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
-  color: var(--primary-deep);
-}
-
-.avatar-initial {
-  font-weight: var(--weight-semibold);
-}
-
-/* 未登录：虚线圆 + person_add 图标（与已登录形成视觉对比，一眼可辨） */
-.avatar-trigger--guest {
-  background: transparent;
-  border-style: dashed;
-  color: var(--text-muted);
-}
-
-.avatar-trigger--guest:hover:not(:disabled) {
-  color: var(--primary);
-  border-color: var(--primary);
-}
-
-.avatar-trigger--guest .material-symbols-outlined {
-  font-size: 16px;
-}
-
-/* popover 下拉菜单 */
-.user-popover {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 60;
-  min-width: 240px;
-  padding: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
-}
-
-.popover-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px;
-}
-
-.header-avatar {
-  width: 36px;
-  height: 36px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2a2a2c, #5516be);
-  color: var(--primary);
-  border: 1px solid var(--border-strong);
-  font-size: 13px;
-  font-weight: var(--weight-semibold);
-}
-
-:root[data-theme='light'] .header-avatar {
-  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
-  color: var(--primary-deep);
-}
-
-.header-avatar--guest {
-  background: var(--surface-container-high);
-  color: var(--text-muted);
-}
-
-.header-info {
+.account-menu {
+  flex: 1;
   min-width: 0;
-  flex: 1 1 auto;
+  position: relative;
 }
-
-.header-name {
-  font-size: 14px;
-  font-weight: var(--weight-semibold);
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-username {
-  font-size: 12px;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 16px;
-}
-
-.popover-divider {
-  height: 1px;
-  margin: 6px 0;
-  background: var(--border-strong);
-}
-
-.menu-item {
+.account-trigger {
+  width: 100%;
+  height: 40px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 9px 10px;
+  gap: 8px;
+  padding: 0 4px;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-size: 14px;
-  text-align: left;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    opacity 0.15s ease;
 }
-
-.menu-item:hover {
-  background: var(--surface-container-high);
+.account-trigger:hover,
+.account-trigger--open {
+  background: var(--bg-hover);
 }
-
-.menu-item .material-symbols-outlined {
-  font-size: 18px;
+.account-trigger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.account-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-low);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-muted);
 }
-
-/* 主色 CTA（未登录菜单的登录按钮） */
-.menu-item--primary {
-  background: var(--primary);
-  color: var(--primary-on);
-  font-weight: var(--weight-semibold);
+.account-name {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.menu-item--primary:hover {
-  opacity: 0.9;
-  background: var(--primary);
+.account-popover,
+.account-language-menu {
+  position: absolute;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-low);
+  box-shadow: var(--shadow-popover);
 }
-
-.menu-item--primary .material-symbols-outlined {
-  color: var(--primary-on);
+.account-popover {
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: 196px;
+  z-index: 100;
 }
-
-/* 危险操作（退出登录） */
-.menu-item--danger {
+.account-popover button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.account-popover button > span:not(.design-icon, .dropdown-chevron) {
+  flex: 1;
+  white-space: nowrap;
+}
+.account-popover button:hover {
+  background: var(--bg-hover);
+}
+.account-popover .design-icon {
+  color: var(--text-muted);
+}
+.account-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--border);
+}
+.account-language {
+  position: relative;
+}
+.account-language-menu {
+  left: calc(100% + 8px);
+  top: 0;
+  width: 160px;
+}
+.account-error {
+  margin: 8px;
+  font-size: 12px;
   color: var(--error);
+  overflow-wrap: anywhere;
 }
-
-.menu-item--danger:hover {
-  background: rgba(220, 38, 38, 0.08);
-}
-
-.menu-item--danger .material-symbols-outlined {
-  color: var(--error);
-}
-
-/* 进出场动画 */
-.menu-pop-enter-active,
-.menu-pop-leave-active {
+.account-pop-enter-active,
+.account-pop-leave-active {
   transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
+    opacity var(--motion-popover) var(--motion-ease),
+    transform var(--motion-popover) var(--motion-ease);
 }
-
-.menu-pop-enter-from,
-.menu-pop-leave-to {
+.account-pop-enter-from,
+.account-pop-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(4px);
 }
 </style>

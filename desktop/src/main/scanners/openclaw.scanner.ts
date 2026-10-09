@@ -21,6 +21,7 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { tokenBuckets } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
 
 export class OpenClawScanner implements AgentScanner {
   readonly agentName = 'openclaw'
@@ -151,6 +152,9 @@ export class OpenClawScanner implements AgentScanner {
         timestamp,
         hour: hourFromTimestamp(timestamp),
         model,
+        evidence: usageEvidence({
+          reportedUsd: isObject(usage.cost) ? usage.cost.total : undefined,
+        }),
         ...buckets,
       }
       if (!isApiCallInWindow(apiCall, context)) continue

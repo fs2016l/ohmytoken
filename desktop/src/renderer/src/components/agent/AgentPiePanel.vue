@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from '../../utils/charts'
+import { chartMotion } from '../../config/motion'
 import { useI18n } from '../../i18n/useI18n'
 import { useLegendSelection } from '../../composables/useLegendSelection'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
@@ -18,7 +19,6 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   openAgent: [agent: string]
   showAllUserSessions: []
-  showAllApiRecords: []
 }>()
 
 const { label, tr } = useI18n()
@@ -62,12 +62,12 @@ function renderChart(): void {
   if (!chartRef.value || !props.overview?.agentTotals) return
   showEmpty(chartRef.value, null)
   if (chartRef.value.clientWidth === 0) return
-  if (chart) chart.dispose()
-  chart = echarts.init(chartRef.value)
+  chart ??= echarts.init(chartRef.value)
 
   const totals = props.overview.agentTotals || {}
   const visibleAgents = legendItems.value.filter((agent) => legend.isSelected(agent))
   const data = visibleAgents.map((agent) => ({
+    id: agent,
     name: agentNames[agent] || agent,
     value: totals[agent],
     itemStyle: { color: agentColors[agent] || '#94a3b8' },
@@ -89,76 +89,82 @@ function renderChart(): void {
   const chartText = getChartText()
   const cc = getChartColors()
 
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: cc.tooltipBg,
-      borderColor: cc.tooltipBorder,
-      textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
-      padding: [10, 12],
-      formatter: (p: unknown) => {
-        const item = p as { name?: string; value?: number; percent?: number }
-        const name = escapeTooltipHtml(item.name || '')
-        const hint = escapeTooltipHtml(tr('clickToViewDetails'))
-        return `${name}: ${formatTokens(item.value || 0)} (${(item.percent || 0).toFixed(1)}%)<br/>${hint}`
-      },
-    },
-    legend: { show: false },
-    graphic: [
-      {
-        type: 'group',
-        left: 'center',
-        top: '40%',
-        cursor: 'default',
-        children: [
-          {
-            type: 'text',
-            cursor: 'default',
-            style: {
-              text: formatTokens(agentTotal),
-              fill: cc.centerValue,
-              fontFamily: chartText.fontFamily,
-              fontSize: 18,
-              fontWeight: 600,
-              textAlign: 'center',
-            },
-            left: 'center',
-          },
-          {
-            type: 'text',
-            cursor: 'default',
-            style: {
-              text: getTotalLabel(),
-              fill: cc.centerLabel,
-              fontFamily: chartText.fontFamily,
-              fontSize: 12,
-              textAlign: 'center',
-            },
-            left: 'center',
-            top: 24,
-          },
-        ],
-      },
-    ],
-    series: [
-      {
-        type: 'pie',
-        cursor: 'pointer',
-        radius: ['48%', '72%'],
-        center: ['50%', '48%'],
-        data,
-        minAngle: 8,
-        label: { show: false },
-        itemStyle: { borderRadius: 4, borderColor: cc.pieBorder, borderWidth: 2 },
-        emphasis: {
-          itemStyle: { shadowBlur: 18, shadowColor: cc.pieEmphasisShadow },
-          scaleSize: 5,
+  chart.setOption(
+    {
+      ...chartMotion(reduced.value),
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: cc.tooltipBg,
+        borderColor: cc.tooltipBorder,
+        textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
+        padding: [10, 12],
+        formatter: (p: unknown) => {
+          const item = p as { name?: string; value?: number; percent?: number }
+          const name = escapeTooltipHtml(item.name || '')
+          const hint = escapeTooltipHtml(tr('clickToViewDetails'))
+          return `${name}: ${formatTokens(item.value || 0)} (${(item.percent || 0).toFixed(1)}%)<br/>${hint}`
         },
       },
-    ],
-  })
+      legend: { show: false },
+      graphic: [
+        {
+          type: 'group',
+          left: 'center',
+          top: '40%',
+          cursor: 'default',
+          children: [
+            {
+              type: 'text',
+              cursor: 'default',
+              style: {
+                text: formatTokens(agentTotal),
+                fill: cc.centerValue,
+                fontFamily: chartText.fontFamily,
+                fontSize: 18,
+                fontWeight: 600,
+                textAlign: 'center',
+              },
+              left: 'center',
+            },
+            {
+              type: 'text',
+              cursor: 'default',
+              style: {
+                text: getTotalLabel(),
+                fill: cc.centerLabel,
+                fontFamily: chartText.fontFamily,
+                fontSize: 12,
+                textAlign: 'center',
+              },
+              left: 'center',
+              top: 24,
+            },
+          ],
+        },
+      ],
+      series: [
+        {
+          id: 'distribution',
+          type: 'pie',
+          cursor: 'pointer',
+          radius: ['48%', '72%'],
+          center: ['50%', '48%'],
+          data,
+          minAngle: 8,
+          label: { show: false },
+          itemStyle: { borderRadius: 4, borderColor: cc.pieBorder, borderWidth: 2 },
+          emphasis: {
+            itemStyle: { shadowBlur: 18, shadowColor: cc.pieEmphasisShadow },
+            scaleSize: 5,
+          },
+        },
+      ],
+    },
+    { replaceMerge: ['series'] },
+  )
 
+  chart.off('click')
   chart.on('click', (params: unknown) => {
     const name = (params as { name?: string }).name
     if (!name) return
@@ -167,8 +173,9 @@ function renderChart(): void {
   })
 }
 
-const { requestRender } = useChartRenderLifecycle(chartRef, {
+const { requestRender, reduced } = useChartRenderLifecycle(chartRef, {
   render: renderChart,
+  chart: () => chart,
   resize: () => chart?.resize(),
   dispose: () => {
     chart?.dispose()
@@ -204,16 +211,6 @@ watch(
         >
           <span class="material-symbols-outlined">account_tree</span>
           <span>{{ tr('allUserSessions') }}</span>
-        </button>
-        <button
-          class="panel-action-btn"
-          type="button"
-          :title="tr('viewAllApiRecords')"
-          :aria-label="tr('viewAllApiRecords')"
-          @click="emit('showAllApiRecords')"
-        >
-          <span class="material-symbols-outlined">dataset</span>
-          <span>{{ tr('allApiRecords') }}</span>
         </button>
         <LegendVisibilityButton :state="legendVisibilityState" @toggle="legend.toggleAll" />
       </div>

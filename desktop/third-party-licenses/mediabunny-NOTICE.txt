@@ -1,0 +1,17 @@
+Mediabunny 1.58.0
+Copyright (c) Vanilagy and contributors
+License: Mozilla Public License 2.0 (MPL-2.0)
+
+This application includes portions of Mediabunny in the video export worker.
+The original source files have not been modified.
+The complete MPL-2.0 license is provided in mediabunny-MPL-2.0.txt.
+
+Source code for the included version (including source files and license):
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.58.0.tgz
+Project: https://github.com/Vanilagy/mediabunny
+
+MPL-covered source remains available under MPL-2.0. Other portions of this
+application retain their respective licenses. MPL-2.0 grants certain patent
+rights from contributors, but does not by itself provide blanket clearance
+for third-party codec patents, including H.264. This notice grants no
+additional patent rights.

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>net.ohmytoken.desktop.network-filter</string>
+  <key>CFBundleExecutable</key><string>ohmytoken-network-filter</string>
+  <key>CFBundleName</key><string>OhMyToken Network Monitor</string>
+  <key>CFBundlePackageType</key><string>SYSX</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>OMTTeamIdentifier</key><string>__TEAM__</string>
+  <key>NetworkExtension</key><dict>
+    <key>NEMachServiceName</key><string>__TEAM__.net.ohmytoken.desktop.network.monitor</string>
+    <key>NEProviderClasses</key><dict><key>com.apple.networkextension.filter-data</key><string>OMTNetwork.FilterDataProvider</string></dict>
+  </dict>
+  <key>NSSystemExtensionUsageDescription</key><string>Measure the bytes sent and received by the applications you choose. Request contents are not read or stored.</string>
+</dict></plist>

@@ -1,6 +1,7 @@
 /** Z Code 扫描器：model_usage 为权威源，全量时补齐尚未迁移的 message 历史。 */
 import { existsSync } from 'fs'
 import Database from 'better-sqlite3'
+import { usageEvidence } from '../cost/usage-evidence'
 import { formatDateFromMs } from '../lib/date-utils'
 import { getZCodeDbCandidates } from '../lib/paths'
 import {
@@ -30,6 +31,7 @@ import type {
   TokenUsageSession,
 } from './types'
 import { normalizeZCodeTokenBuckets } from './zcode-usage'
+import { zCodeGenerationTiming } from './zcode-generation-timing'
 
 type DbValue = number | string | bigint | Uint8Array | null | undefined
 type QueryParam = string | number | bigint | null
@@ -131,9 +133,15 @@ export class ZCodeScanner implements AgentScanner {
         'assistant_message_id',
         'query_source',
         'model_id',
+        'provider_id',
+        'base_url',
         'agent',
         'started_at',
+        'status',
+        'first_token_at',
         'completed_at',
+        'time_to_first_token_ms',
+        'retry_count',
         'input_tokens',
         'output_tokens',
         'reasoning_tokens',
@@ -242,6 +250,14 @@ export class ZCodeScanner implements AgentScanner {
       timestamp,
       hour: hourFromTimestamp(timestamp),
       model: dbString(row.model_id) || session?.model || 'unknown',
+      evidence: usageEvidence({
+        modelSource: dbString(row.model_id) ? 'response' : 'session',
+        bucketQuality:
+          !legacyInclusiveSchema && computedTotal > 0 && computedTotal === split.totalTokens
+            ? 'verified'
+            : 'uncertain',
+      }),
+      generationTiming: zCodeGenerationTiming(row),
       ...split,
     }
   }
@@ -358,6 +374,13 @@ export class ZCodeScanner implements AgentScanner {
         readJsonString(data, 'model') ||
         session?.model ||
         'unknown',
+      evidence: usageEvidence({
+        modelSource:
+          readJsonString(data, 'modelID') || readJsonString(data, 'model') ? 'response' : 'session',
+        bucketQuality:
+          sourceTotal > 0 && sourceTotal === split.totalTokens ? 'verified' : 'uncertain',
+        reportedUsd: typeof data.cost === 'number' ? data.cost : undefined,
+      }),
       ...split,
     }
   }

@@ -4,13 +4,17 @@
  * 每轮扫描完成即回收进程，确保大规模历史解析扩张的 V8 堆能完整释放。
  */
 import { join } from 'path'
-import { utilityProcess, type UtilityProcess } from 'electron'
+import { randomUUID } from 'crypto'
+import { BrowserWindow, utilityProcess, type UtilityProcess } from 'electron'
 import type { ScanMode, ScanOptions, ScanResult } from '../../shared/models'
+import type { ScanProgress } from '../../shared/scan-progress'
+import { IPC } from '../ipc/channels'
 import { isScanWorkerResponse, type ScanWorkerRequest } from './scan-worker.protocol'
 
 export { performScanWithScanners } from './scan-core.service'
 
 const SCAN_REQUEST_TIMEOUT_MS = 10 * 60 * 1000
+const SCAN_WORKER_EXIT_TIMEOUT_MS = 5 * 1000
 
 interface ActiveScan {
   mode: ScanMode
@@ -18,6 +22,7 @@ interface ActiveScan {
 }
 
 interface PendingScan {
+  scanId: string
   resolve: (result: ScanResult) => void
   reject: (error: Error) => void
   timeout: NodeJS.Timeout
@@ -29,7 +34,39 @@ let scanWorker: UtilityProcess | null = null
 let scanWorkerReady: Promise<UtilityProcess> | null = null
 let nextRequestId = 1
 let stopping = false
+let scanStopPromise: Promise<void> | null = null
+const liveScanWorkers = new Set<UtilityProcess>()
 const pendingScans = new Map<number, PendingScan>()
+let latestProgress: ScanProgress | null = null
+const progressListeners = new Set<(progress: ScanProgress) => void>()
+
+export function onScanProgress(callback: (progress: ScanProgress) => void): () => void {
+  progressListeners.add(callback)
+  return () => {
+    progressListeners.delete(callback)
+  }
+}
+
+export function getScanProgress(): ScanProgress | null {
+  return latestProgress
+}
+
+function publishProgress(progress: ScanProgress): void {
+  if (progress.status !== 'running')
+    progress = { ...progress, finishedAt: progress.finishedAt ?? Date.now() }
+  latestProgress =
+    latestProgress?.scanId === progress.scanId ? { ...latestProgress, ...progress } : progress
+  for (const callback of progressListeners) callback(progress)
+  for (const window of BrowserWindow.getAllWindows()) {
+    try {
+      if (!window.isDestroyed() && !window.webContents.isDestroyed())
+        window.webContents.send(IPC.SCAN_PROGRESS, progress)
+    } catch {
+      /* 窗口在发送期间关闭不影响扫描。 */
+    }
+  }
+  if (progress.status !== 'running') latestProgress = { ...latestProgress, preview: undefined }
+}
 
 /**
  * 进程级调度：主页和小窗的增量请求共享当前任务；增量进行中收到 full 时排队一次，
@@ -51,19 +88,53 @@ export function performScan(options: ScanOptions = {}): Promise<ScanResult> {
   return queuedFullScan
 }
 
-/** 应用退出时终止当前扫描进程；未提交的 SQLite 事务会自动回滚。 */
-export function stopBackgroundScan(): void {
-  if (stopping) return
+/**
+ * 应用退出/更新前终止全部扫描进程，并等待操作系统确认进程退出。
+ * 未提交的 SQLite 事务会自动回滚；超时后仍由 NSIS 的进程门禁阻止文件替换。
+ */
+export function stopBackgroundScan(): Promise<void> {
+  if (scanStopPromise) return scanStopPromise
   stopping = true
   rejectPendingScans(new Error('应用正在退出，后台扫描已停止'))
-  const worker = scanWorker
   scanWorker = null
   scanWorkerReady = null
-  worker?.kill()
+
+  const workers = [...liveScanWorkers]
+  scanStopPromise = Promise.all(workers.map((worker) => stopScanWorker(worker))).then(
+    () => undefined,
+  )
+  return scanStopPromise
+}
+
+/** 安装器未能启动且应用没有退出时，恢复扫描能力。 */
+export function resumeBackgroundScan(): void {
+  stopping = false
+  scanStopPromise = null
 }
 
 function startScan(mode: ScanMode): Promise<ScanResult> {
-  const promise = requestBackgroundScan(mode)
+  const scanId = randomUUID()
+  publishProgress({
+    scanId,
+    sequence: 0,
+    startedAt: Date.now(),
+    mode,
+    status: 'running',
+    phase: 'discovering',
+    rebuilding: mode === 'full',
+    completedAgents: 0,
+    totalAgents: 0,
+  })
+  const promise = requestBackgroundScan(mode, scanId).catch((error: Error) => {
+    if (latestProgress?.scanId === scanId)
+      publishProgress({
+        ...latestProgress,
+        sequence: latestProgress.sequence + 1,
+        status: 'failed',
+        error: error.message,
+      })
+    throw error
+  })
   activeScan = { mode, promise }
   const clearActive = (): void => {
     if (activeScan?.promise === promise) activeScan = null
@@ -72,13 +143,13 @@ function startScan(mode: ScanMode): Promise<ScanResult> {
   return promise
 }
 
-async function requestBackgroundScan(mode: ScanMode): Promise<ScanResult> {
+async function requestBackgroundScan(mode: ScanMode, scanId: string): Promise<ScanResult> {
   const worker = await ensureScanWorker()
   if (stopping) throw new Error('应用正在退出，无法启动后台扫描')
 
   const requestId = nextRequestId
   nextRequestId += 1
-  const request: ScanWorkerRequest = { type: 'scan', requestId, options: { mode } }
+  const request: ScanWorkerRequest = { type: 'scan', requestId, scanId, options: { mode } }
 
   return new Promise<ScanResult>((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -90,7 +161,7 @@ async function requestBackgroundScan(mode: ScanMode): Promise<ScanResult> {
         worker.kill()
       }
     }, SCAN_REQUEST_TIMEOUT_MS)
-    pendingScans.set(requestId, { resolve, reject, timeout })
+    pendingScans.set(requestId, { scanId, resolve, reject, timeout })
     try {
       worker.postMessage(request)
     } catch (error) {
@@ -116,6 +187,7 @@ function ensureScanWorker(): Promise<UtilityProcess> {
     return Promise.reject(error)
   }
 
+  liveScanWorkers.add(worker)
   scanWorker = worker
   scanWorkerReady = new Promise<UtilityProcess>((resolve, reject) => {
     let settled = false
@@ -137,6 +209,7 @@ function ensureScanWorker(): Promise<UtilityProcess> {
       console.error(`[scan-worker] 后台进程异常 (${type}, ${location})`)
     })
     worker.once('exit', (code) => {
+      liveScanWorkers.delete(worker)
       const error = new Error(`扫描后台进程已退出（code=${code}）`)
       if (!settled) {
         settled = true
@@ -148,10 +221,48 @@ function ensureScanWorker(): Promise<UtilityProcess> {
   return scanWorkerReady
 }
 
+function stopScanWorker(worker: UtilityProcess): Promise<void> {
+  return new Promise((resolve) => {
+    let settled = false
+    let timeout: NodeJS.Timeout | null = null
+
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      if (timeout) clearTimeout(timeout)
+      worker.removeListener('exit', finish)
+      resolve()
+    }
+
+    worker.once('exit', finish)
+    timeout = setTimeout(() => {
+      console.warn('[scan-worker] 等待后台扫描进程退出超时，将交由安装器进程门禁处理')
+      finish()
+    }, SCAN_WORKER_EXIT_TIMEOUT_MS)
+    timeout.unref()
+
+    try {
+      worker.kill()
+    } catch (error) {
+      console.warn('[scan-worker] 终止后台扫描进程失败，将交由安装器进程门禁处理:', error)
+      finish()
+    }
+  })
+}
+
 function handleWorkerMessage(worker: UtilityProcess, message: unknown): void {
   if (scanWorker !== worker || !isScanWorkerResponse(message)) return
   const pending = pendingScans.get(message.requestId)
   if (!pending) return
+  if (message.type === 'scan-progress') {
+    if (
+      message.progress.scanId === pending.scanId &&
+      (!latestProgress || message.progress.sequence > latestProgress.sequence)
+    ) {
+      publishProgress(message.progress)
+    }
+    return
+  }
   pendingScans.delete(message.requestId)
   clearTimeout(pending.timeout)
 

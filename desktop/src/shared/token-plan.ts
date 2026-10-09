@@ -1,74 +1,102 @@
-/** 当前桌面端支持的套餐厂商。 */
-export const TOKEN_PLAN_PROVIDER_IDS = ['minimax', 'zhipu'] as const
+export const TOKEN_PLAN_PROVIDER_IDS = [
+  'minimax',
+  'zhipu',
+  'openai',
+  'anthropic',
+  'kimi',
+  'google',
+  'xai',
+] as const
 
 export type TokenPlanProviderId = (typeof TOKEN_PLAN_PROVIDER_IDS)[number]
-
-export const TOKEN_PLAN_WINDOW_IDS = ['5h', '7d'] as const
-
-export type TokenPlanWindowId = (typeof TOKEN_PLAN_WINDOW_IDS)[number]
-
-export type TokenPlanUnavailableReason = 'not_returned_by_api'
-
 export type TokenPlanErrorCode =
-  | 'not_configured'
+  | 'not_connected'
+  | 'expired'
   | 'invalid_credential'
+  | 'permission_denied'
   | 'rate_limited'
   | 'provider_unavailable'
   | 'invalid_response'
   | 'network_error'
+  | 'region_restricted'
+  | 'region_unknown'
+  | 'unsupported'
 
-export interface TokenPlanCredentialInput {
+export interface TokenPlanConnection {
+  id: string
   providerId: TokenPlanProviderId
-  apiKey: string
-}
-
-export interface TokenPlanCredentialStatus {
-  providerId: TokenPlanProviderId
-  configured: boolean
-  updatedAt: number | null
+  region: 'cn' | 'global'
+  sources: string[]
+  accountLabel: string | null
+  authType: 'oauth' | 'api-key' | 'client'
+  state: 'ready' | 'expired' | 'unsupported'
+  scope: 'account' | 'project'
+  identity?: 'account' | 'credential'
+  connectionCount?: number
 }
 
 export interface TokenPlanWindowUsage {
-  id: TokenPlanWindowId
+  id: string
+  label: string
+  kind: 'model' | 'tool' | 'balance'
+  windowMinutes: number | null
   available: boolean
-  /** 已用百分比，范围 0-100。厂商只返回剩余百分比时由主进程换算。 */
+  unlimited: boolean
   usedPercent: number | null
   remainingPercent: number | null
   used: number | null
   limit: number | null
   remaining: number | null
-  unit: 'requests' | 'tokens' | 'credits' | null
+  unit: 'tokens' | 'requests' | 'credits' | 'USD' | 'CNY' | null
   startsAt: number | null
   resetsAt: number | null
-  unavailableReason: TokenPlanUnavailableReason | null
+  details: Array<{ name: string; used: number }>
 }
 
-export interface TokenPlanExtraQuotaDetail {
-  name: string
-  used: number
-}
-
-/** 不能混入模型窗口的额外额度，例如智谱每月 MCP 工具调用次数。 */
-export interface TokenPlanExtraQuota {
-  id: string
-  label: string
-  used: number
-  limit: number
-  remaining: number
-  unit: 'requests'
-  resetsAt: number | null
-  details: TokenPlanExtraQuotaDetail[]
+export interface TokenPlanInformation {
+  product: string
+  tier: string | null
+  tierSource: 'provider' | 'login' | null
+  expiresAt: number | null
+  renewalAt: number | null
+  parallelLimit: number | null
 }
 
 export interface TokenPlanUsageSnapshot {
+  connectionId: string
   providerId: TokenPlanProviderId
   status: 'ok' | 'partial' | 'error'
-  keyVerified: boolean
-  queriedAt: number
-  planName: string | null
-  modelCount: number | null
+  observedAt: number | null
+  checkedAt: number
+  stale: boolean
+  plan: TokenPlanInformation
   models: string[]
   windows: TokenPlanWindowUsage[]
-  extraQuotas: TokenPlanExtraQuota[]
   errorCode: TokenPlanErrorCode | null
+  retryAt: number | null
+}
+
+export interface TokenPlanDiscoveryIssue {
+  source: string
+  reason: 'unreadable' | 'invalid_config' | 'unsupported' | 'scope_missing'
+}
+
+export interface TokenPlanInventory {
+  connections: TokenPlanConnection[]
+  snapshots: TokenPlanUsageSnapshot[]
+  checkedSources: string[]
+  issues: TokenPlanDiscoveryIssue[]
+  discoveredAt: number
+}
+
+export const QUOTA_REFRESH_INTERVALS = [0, 30_000, 60_000, 300_000, 900_000] as const
+export type QuotaRefreshInterval = (typeof QUOTA_REFRESH_INTERVALS)[number]
+
+export interface TokenPlanMonitorState {
+  revision: number
+  inventory: TokenPlanInventory
+  refreshInterval: QuotaRefreshInterval
+  discovering: boolean
+  refreshing: string[]
+  error: string
 }

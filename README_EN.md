@@ -14,6 +14,19 @@
 
 ---
 
+## License and commercial authorization
+
+This version uses the [Oh My Token Source-Available License 1.0](LICENSE).
+Personal and internal business use, modification, and free redistribution are permitted without software license fees, subject to its terms.
+**Selling the software or derivative versions, making access to the software conditional on purchasing a paid product or service, or charging third parties for hosted access to all or substantially all of its functionality, requires the licensor's prior written authorization.**
+**Modified versions distributed outside the organization or offered as online services to third parties must have their complete corresponding source made publicly available at no charge, with covered derivative modifications under the same license. Internal-only modifications need not be published.**
+Sales or hosting authorization does not waive those source obligations. Section 4 describes permitted genuine technical services.
+
+This is not MIT or an OSI-approved open-source license. Previously granted MIT rights and the independent licenses of third-party components remain effective; see [licensing scope](LICENSE_SCOPE.md) and the [historical MIT notice](LICENSE-MIT-LEGACY).
+See the [commercial authorization guide](COMMERCIAL_LICENSE.md) for examples and authorization details. Commercial authorization must be confirmed separately in writing by the licensor; payment or donation alone is not authorization. The official project website is [ohmytoken.net](https://ohmytoken.net).
+
+Third-party versions, sources, and original licenses are listed in [third-party software notices](desktop/third-party-licenses/THIRD_PARTY_NOTICES.md), also available offline in Settings → About and updates → Open-source software notices.
+
 ## Get started
 
 1. Visit the [Oh My Token website](https://ohmytoken.net) to get the app.
@@ -79,5 +92,6 @@ Oh My Token tracks token usage across multiple AI agents.
   <br><br>
   <kbd>MiniMax Code</kbd>&nbsp;&nbsp;
   <kbd>KimiWork</kbd>&nbsp;&nbsp;
-  <kbd>WorkBuddy</kbd>
+  <kbd>WorkBuddy</kbd>&nbsp;&nbsp;
+  <kbd>DeepSeek Harness</kbd>
 </p>

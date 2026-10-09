@@ -55,9 +55,9 @@ const STANDARD_WEIGHTS: FontWeightProfile = {
   display: 600,
 }
 
-export const DEFAULT_INTERFACE_FONT: InterfaceFont = 'system'
-export const DEFAULT_CODE_FONT: CodeFont = 'system'
-export const DEFAULT_NUMBER_FONT: NumberFont = 'interface'
+export const DEFAULT_INTERFACE_FONT: InterfaceFont = 'source-han-sans'
+export const DEFAULT_CODE_FONT: CodeFont = 'source-code-pro'
+export const DEFAULT_NUMBER_FONT: NumberFont = 'source-code-pro'
 
 export const interfaceFontOptions: readonly FontOption<InterfaceFont>[] = [
   {

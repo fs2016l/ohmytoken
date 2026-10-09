@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'fs'
 import type { Dirent } from 'fs'
-import { join, relative, sep } from 'path'
+import { dirname, join, relative, sep } from 'path'
 import type { ScannerScanContext, TokenUsageApiCall } from './types'
 import { getWorkBuddyProjectsDir } from '../lib/paths'
 import { readUtf8Lines } from '../lib/line-reader'
@@ -12,7 +12,13 @@ import {
   shouldScanFile,
 } from './incremental-utils'
 import { parseWorkBuddyProviderUsage } from './workbuddy-usage'
+import { usageEvidence } from '../cost/usage-evidence'
 import { extractProjectPath } from './project-path'
+import {
+  readWorkBuddyGenerationTimings,
+  matchWorkBuddyGenerationTiming,
+  type WorkBuddyTimingIndex,
+} from './workbuddy-generation-timing'
 
 export interface WorkBuddySessionInfo {
   date: string
@@ -33,6 +39,8 @@ export interface WorkBuddyProjectScanResult {
   coveredRootSessionIds: Set<string>
 }
 
+const projectRequestIds = new Map<string, Set<string>>()
+
 export function loadWorkBuddyProjectApiCalls(
   agentName: string,
   sessions: ReadonlyMap<string, WorkBuddySessionInfo>,
@@ -45,23 +53,42 @@ export function loadWorkBuddyProjectScan(
   agentName: string,
   sessions: ReadonlyMap<string, WorkBuddySessionInfo>,
   context?: ScannerScanContext,
+  projectsDir = getWorkBuddyProjectsDir(),
 ): WorkBuddyProjectScanResult {
-  const projectsDir = getWorkBuddyProjectsDir()
   if (!existsSync(projectsDir)) return { apiCalls: [], coveredRootSessionIds: new Set() }
 
   const scanContext = normalizeScanContext(context)
+  const timings = readWorkBuddyGenerationTimings(
+    join(dirname(projectsDir), 'logs'),
+    isIncrementalContext(scanContext) ? scanContext.sinceMs : undefined,
+  )
+  const recentRequestIds = new Set(
+    [...timings.samples]
+      .filter(([, entries]) =>
+        entries.some((sample) => sample.completedAtMs >= (scanContext.sinceMs ?? 0)),
+      )
+      .map(([id]) => id),
+  )
   const apiCalls: TokenUsageApiCall[] = []
   const coveredRootSessionIds = new Set<string>()
-  for (const jsonlFile of listFiles(projectsDir, '.jsonl').sort()) {
+  const jsonlFiles = listFiles(projectsDir, '.jsonl').sort()
+  const presentFiles = new Set(jsonlFiles)
+  for (const file of projectRequestIds.keys())
+    if (file.startsWith(projectsDir + sep) && !presentFiles.has(file))
+      projectRequestIds.delete(file)
+  for (const jsonlFile of jsonlFiles) {
     // 增量模式不读取窗口外文件，但仍可从路径识别其根会话来源，避免同根 trace
     // 在 project 文件未变化时被误当成新增明细。
     if (isIncrementalContext(scanContext)) {
       const rootSessionId = projectPathInfo(projectsDir, jsonlFile).rootSessionId
       if (rootSessionId) coveredRootSessionIds.add(rootSessionId)
     }
-    if (!shouldScanFile(jsonlFile, scanContext)) continue
+    const hasRecentTiming = [...(projectRequestIds.get(jsonlFile) ?? [])].some((id) =>
+      recentRequestIds.has(id),
+    )
+    if (!shouldScanFile(jsonlFile, scanContext) && !hasRecentTiming) continue
     apiCalls.push(
-      ...parseProjectJsonlFile(agentName, projectsDir, jsonlFile, sessions, scanContext),
+      ...parseProjectJsonlFile(agentName, projectsDir, jsonlFile, sessions, scanContext, timings),
     )
   }
   const deduplicated = deduplicateApiCalls(apiCalls)
@@ -75,16 +102,18 @@ export function normalizeWorkBuddyModel(model: string): string {
   return model.startsWith('custom-local:') ? model.substring('custom-local:'.length) : model
 }
 
-function parseProjectJsonlFile(
+export function parseProjectJsonlFile(
   agentName: string,
   projectsDir: string,
   jsonlFile: string,
   sessions: ReadonlyMap<string, WorkBuddySessionInfo>,
   context: ScannerScanContext,
+  timings: WorkBuddyTimingIndex,
 ): TokenUsageApiCall[] {
   const pathInfo = projectPathInfo(projectsDir, jsonlFile)
   const apiCalls: TokenUsageApiCall[] = []
   const relativeFile = relative(projectsDir, jsonlFile).split(sep).join('/')
+  const requestIds = new Set<string>()
   try {
     for (const { line, lineIndex } of readUtf8Lines(jsonlFile)) {
       const apiCall = parseProjectJsonlLine({
@@ -94,12 +123,22 @@ function parseProjectJsonlFile(
         line,
         pathInfo,
         sessions,
+        timings,
+        requestIds,
       })
-      if (apiCall && isApiCallInWindow(apiCall, context)) apiCalls.push(apiCall)
+      if (
+        apiCall &&
+        (isApiCallInWindow(apiCall, context) ||
+          (apiCall.generationTiming &&
+            context.sinceMs !== undefined &&
+            apiCall.generationTiming.completedAtMs >= context.sinceMs))
+      )
+        apiCalls.push(apiCall)
     }
   } catch (e) {
     throw new Error(`WorkBuddy project 文件不可读 (${jsonlFile}): ${(e as Error).message}`)
   }
+  projectRequestIds.set(jsonlFile, requestIds)
   return apiCalls
 }
 
@@ -110,6 +149,8 @@ function parseProjectJsonlLine(params: {
   line: string
   pathInfo: ProjectPathInfo
   sessions: ReadonlyMap<string, WorkBuddySessionInfo>
+  timings: WorkBuddyTimingIndex
+  requestIds: Set<string>
 }): TokenUsageApiCall | null {
   const line = params.line.trim()
   if (!line) return null
@@ -124,6 +165,8 @@ function parseProjectJsonlLine(params: {
 
   const providerData = objectValue(root.providerData)
   if (providerData === null) return null
+  for (const id of [providerData.traceId, providerData.conversationRequestId])
+    if (typeof id === 'string' && id.trim()) params.requestIds.add(id.trim())
 
   const usage = parseWorkBuddyProviderUsage(providerData)
   if (usage === null) return null
@@ -163,11 +206,26 @@ function parseProjectJsonlLine(params: {
     hour: hourFromTimestamp(timestamp),
     model,
     inputTokens: usage.inputTokens,
+    evidence: usageEvidence({
+      modelSource: firstString(
+        providerData.model,
+        providerData.requestModelName,
+        providerData.requestModelId,
+      )
+        ? 'response'
+        : 'session',
+    }),
     outputTokens: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     totalTokens: usage.totalTokens,
     reasoningTokens: usage.reasoningTokens,
+    generationTiming: matchWorkBuddyGenerationTiming(
+      params.timings,
+      root,
+      providerData,
+      Date.parse(timestamp),
+    ),
   }
   const parentSessionId = params.pathInfo.parentSessionId ?? undefined
   if (parentSessionId && parentSessionId !== sessionId) apiCall.parentSessionId = parentSessionId
@@ -210,6 +268,8 @@ function isPreferredApiCall(candidate: TokenUsageApiCall, current: TokenUsageApi
   if (candidate.totalTokens !== current.totalTokens) {
     return candidate.totalTokens > current.totalTokens
   }
+  if (Boolean(candidate.generationTiming) !== Boolean(current.generationTiming))
+    return Boolean(candidate.generationTiming)
   return apiCallSignature(candidate) > apiCallSignature(current)
 }
 

@@ -1,7 +1,8 @@
 /** 读取 Qwen Code 转录并生成统一用量记录。 */
 import { readdirSync, statSync } from 'fs'
-import { basename, join, relative, sep } from 'path'
+import { basename, dirname, join, relative, sep } from 'path'
 import type { Dirent } from 'fs'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -18,8 +19,17 @@ import {
   hourFromTimestamp,
   timestampsFromValue,
 } from './detail-utils'
-import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
+import {
+  isApiCallInWindow,
+  isIncrementalContext,
+  normalizeScanContext,
+  shouldScanFile,
+} from './incremental-utils'
 import { normalizeGeminiStyleUsage, type ExclusiveTokenUsage } from './gemini-style-usage'
+import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { createProjectPathLookup } from './project-metadata'
+import { extractProjectPath } from './project-path'
+import { QwenGenerationTiming, type QwenTimingCandidate } from './qwen-generation-timing'
 
 export class QwenScanner implements AgentScanner {
   readonly agentName = 'qwen'
@@ -52,10 +62,11 @@ export class QwenScanner implements AgentScanner {
     }
     if (!isDir) return { records, sessions: [], apiCalls }
 
+    const projectPathFor = createProjectPathLookup(dirname(projectsDir))
     for (const file of listQwenJsonlFiles(projectsDir)) {
       if (!shouldScanFile(file, scanContext)) continue
       try {
-        this.parseFile(file, projectsDir, scanContext, apiCalls)
+        this.parseFile(file, projectsDir, scanContext, apiCalls, projectPathFor(file))
       } catch (e) {
         throw new Error(`Qwen 会话文件不可读 (${file}): ${(e as Error).message}`)
       }
@@ -71,6 +82,7 @@ export class QwenScanner implements AgentScanner {
     projectsDir: string,
     context: ScannerScanContext,
     apiCalls: TokenUsageApiCall[],
+    projectPath?: string,
   ): void {
     const fallbackSessionId = qwenPathSessionId(file, projectsDir)
     let fallbackMtime = 0
@@ -80,8 +92,11 @@ export class QwenScanner implements AgentScanner {
       fallbackMtime = 0
     }
     let messageIndex = 0
+    let turn: ConversationTurn | undefined
+    const timings = new QwenGenerationTiming()
+    const candidates: QwenTimingCandidate[] = []
 
-    for (const { line } of readUtf8Lines(file)) {
+    for (const { line, lineIndex } of readUtf8Lines(file)) {
       if (!line) continue
       let obj: unknown
       try {
@@ -90,6 +105,12 @@ export class QwenScanner implements AgentScanner {
         continue
       }
       if (!isObject(obj)) continue
+      timings.record(obj, fallbackSessionId)
+      projectPath = extractProjectPath(obj) ?? projectPath
+      if (obj.type === 'user' && isObject(obj.message) && isUserPrompt(obj.message.parts)) {
+        if (!obj.provenance || obj.provenance === 'real_user')
+          turn = conversationTurn(obj.uuid ?? `user:${lineIndex}`, obj.isSidechain !== true)
+      }
       if (obj.type !== 'assistant') continue
       const usageMetadata = obj.usageMetadata
       if (!isObject(usageMetadata)) continue
@@ -120,33 +141,49 @@ export class QwenScanner implements AgentScanner {
             ? obj.timestamp
             : fallbackMtime
 
-      pushQwenApiCall(
+      const call = qwenApiCall(
         this.agentName,
-        apiCalls,
-        context,
         `qwen:${sessionId}:${messageIndex}`,
         sessionId,
         model,
         timestampValue,
         usage,
+        turn,
+        projectPath,
       )
+      candidates.push({
+        call,
+        parentUuid: typeof obj.parentUuid === 'string' ? obj.parentUuid : '',
+      })
       messageIndex += 1
+    }
+    timings.apply(candidates)
+    for (const { call } of candidates) {
+      if (
+        isApiCallInWindow(call, context) ||
+        (isIncrementalContext(context) &&
+          call.generationTiming &&
+          call.generationTiming.completedAtMs >= context.sinceMs)
+      )
+        apiCalls.push(call)
     }
   }
 }
 
-function pushQwenApiCall(
+function qwenApiCall(
   agentName: string,
-  apiCalls: TokenUsageApiCall[],
-  context: ScannerScanContext,
   apiCallId: string,
   sessionId: string,
   model: string,
   timestampValue: string | number,
   usage: ExclusiveTokenUsage,
-): void {
+  turn?: ConversationTurn,
+  projectPath?: string,
+): TokenUsageApiCall {
   const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, 'unknown')
   const apiCall: TokenUsageApiCall = {
+    ...(projectPath ? { projectPath } : {}),
+    turn,
     agent: agentName,
     apiCallId,
     sessionId,
@@ -156,14 +193,14 @@ function pushQwenApiCall(
     hour: hourFromTimestamp(timestamp),
     model,
     inputTokens: usage.inputTokens,
+    evidence: usageEvidence({ bucketQuality: usage.bucketQuality }),
     outputTokens: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,
     totalTokens: usage.totalTokens,
     reasoningTokens: usage.reasoningTokens,
   }
-  if (!isApiCallInWindow(apiCall, context)) return
-  apiCalls.push(apiCall)
+  return apiCall
 }
 
 /** 生成会话标识；优先采用记录内提供的 ID。 */

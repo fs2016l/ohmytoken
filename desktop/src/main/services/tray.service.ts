@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, nativeImage, Tray, type Event } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
+import { createHash } from 'crypto'
 import type { CloseBehavior } from '../../shared/models'
 import { IPC } from '../ipc/channels'
 
@@ -14,6 +15,7 @@ interface TrayPreferences {
 
 interface TrayConfiguration {
   getMainWindow: () => BrowserWindow | null
+  restoreMainWindow?: () => BrowserWindow | null
   getIconPath: () => string
   isFloatingWindowVisible: () => boolean
   toggleFloatingWindow: () => void
@@ -27,20 +29,46 @@ let tray: Tray | null = null
 let configuration: TrayConfiguration | null = null
 let preferences: TrayPreferences | null = null
 let closePromptPending = false
+let lifecycleConfigured = false
 
 export function configureTray(options: TrayConfiguration): void {
   configuration = options
 }
 
 export function initializeTray(): void {
-  if (tray || !configuration) return
+  if ((tray && !tray.isDestroyed()) || !configuration) return
   const iconPath = configuration.getIconPath()
   const image = nativeImage.createFromPath(iconPath)
   if (process.platform === 'darwin') image.setTemplateImage(true)
-  tray = new Tray(image)
+  tray = new Tray(image, process.platform === 'win32' ? trayGuid() : undefined)
   tray.on('click', showMainWindow)
   tray.on('double-click', showMainWindow)
   rebuildTrayMenu()
+  configureTrayLifecycle()
+}
+
+export function refreshTrayIcon(): void {
+  if (!tray || tray.isDestroyed() || !configuration) return
+  // macOS 托盘按系统规范使用单色模板图，不随主题配色变化。
+  if (process.platform === 'darwin') return
+  tray.setImage(nativeImage.createFromPath(configuration.getIconPath()))
+}
+
+function trayGuid(): string {
+  const hash = createHash('sha256')
+    .update(
+      `ohmytoken:tray:${process.execPath.toLowerCase()}:${app.getPath('userData').toLowerCase()}`,
+    )
+    .digest('hex')
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`
+}
+
+function configureTrayLifecycle(): void {
+  if (lifecycleConfigured) return
+  lifecycleConfigured = true
+  process.once('exit', destroyTray)
+  process.once('SIGINT', () => app.quit())
+  process.once('SIGTERM', () => app.quit())
 }
 
 export function handleMainWindowClose(event: Event, window: BrowserWindow): void {
@@ -103,12 +131,12 @@ export function setTrayLanguage(language: string): void {
 
 export function destroyTray(): void {
   closePromptPending = false
-  tray?.destroy()
+  if (tray && !tray.isDestroyed()) tray.destroy()
   tray = null
 }
 
 function showMainWindow(): void {
-  const window = configuration?.getMainWindow()
+  const window = configuration?.restoreMainWindow?.() ?? configuration?.getMainWindow()
   if (!window || window.isDestroyed()) return
   if (window.isMinimized()) window.restore()
   window.show()
@@ -147,7 +175,7 @@ async function openOfficialWebsite(): Promise<void> {
 }
 
 function rebuildTrayMenu(): void {
-  if (!tray) return
+  if (!tray || tray.isDestroyed()) return
   const current = loadPreferences()
   const zh = current.language === 'zh'
   const floatingWindowVisible = configuration?.isFloatingWindowVisible() === true

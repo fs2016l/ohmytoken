@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from '../../utils/charts'
+import { chartMotion } from '../../config/motion'
 import type { ProjectUsageOverview } from '@shared/models'
 import { useI18n } from '../../i18n/useI18n'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
@@ -82,12 +83,12 @@ function buildTrendSeries(key: string, data: number[]) {
 function renderChart(): void {
   if (!chartRef.value) return
   showEmpty(chartRef.value, null)
-  chart?.dispose()
-  chart = null
   if (chartRef.value.clientWidth === 0) return
 
   const points = props.singleDayRange ? props.overview.hourly : props.overview.daily
   if (projectsWithData.value.length === 0 || points.length === 0) {
+    chart?.dispose()
+    chart = null
     showEmpty(
       chartRef.value,
       props.overview.projects.length === 0 ? tr('noProjects') : tr('noProjectData'),
@@ -97,11 +98,13 @@ function renderChart(): void {
 
   const visibleKeys = legendItems.value.filter((key) => legend.isSelected(key))
   if (visibleKeys.length === 0) {
+    chart?.dispose()
+    chart = null
     showEmpty(chartRef.value, tr('allProjectsHidden'))
     return
   }
 
-  chart = echarts.init(chartRef.value)
+  chart ??= echarts.init(chartRef.value)
   const cc = getChartColors()
   const chartText = getChartText()
   const axisLine = getAxisLine()
@@ -115,41 +118,46 @@ function renderChart(): void {
       ),
     ),
   )
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: cc.tooltipBg,
-      borderColor: cc.tooltipBorder,
-      textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
-      padding: [10, 12],
-      formatter: (params: unknown) =>
-        makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
-    },
-    legend: { show: false },
-    grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: axisLabels,
-      axisLabel: { ...chartText, fontSize: 12 },
-      axisLine,
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: {
-        ...chartText,
-        formatter: (value: number) => formatTokens(value),
-        fontSize: 12,
+  chart.setOption(
+    {
+      ...chartMotion(reduced.value),
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: cc.tooltipBg,
+        borderColor: cc.tooltipBorder,
+        textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
+        padding: [10, 12],
+        formatter: (params: unknown) =>
+          makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
       },
-      splitLine,
+      legend: { show: false },
+      grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: axisLabels,
+        axisLabel: { ...chartText, fontSize: 12 },
+        axisLine,
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: {
+          ...chartText,
+          formatter: (value: number) => formatTokens(value),
+          fontSize: 12,
+        },
+        splitLine,
+      },
+      series,
     },
-    series,
-  })
+    { replaceMerge: ['series'] },
+  )
 }
 
-const { requestRender } = useChartRenderLifecycle(chartRef, {
+const { requestRender, reduced } = useChartRenderLifecycle(chartRef, {
   render: renderChart,
+  chart: () => chart,
   resize: () => chart?.resize(),
   dispose: () => {
     chart?.dispose()

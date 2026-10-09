@@ -10,9 +10,12 @@
  */
 import { closeSync, existsSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'fs'
 import { createHash } from 'crypto'
-import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path'
+import { conversationTurn, type ConversationTurn } from './conversation-turn'
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path'
 import type { Dirent } from 'fs'
 import Database from 'better-sqlite3'
+import { parseCodexFiles, ParserWorkerUnavailableError } from './codex-parse-pool'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerUsageDetails,
@@ -23,6 +26,9 @@ import type {
 } from './types'
 import { readByteSnippet, readUtf8Lines } from '../lib/line-reader'
 import { timestampEpochMs } from '../lib/date-utils'
+import type { LatestTurnFirstToken } from '../../shared/models'
+import { latestTurnFirstToken, normalizeLatestTurnFirstToken } from '../../shared/turn-timing'
+import { codexTurnFirstToken } from './codex-turn-timing'
 import {
   getCodexArchivedSessionsDir,
   getCodexCleanupArchiveDir,
@@ -42,7 +48,6 @@ import {
 } from './detail-utils'
 import {
   addCodexUsage,
-  assertCodexCumulativeMatches,
   codexUsageSum,
   codexUsageSignature,
   emptyCodexUsage,
@@ -58,11 +63,10 @@ import {
   type CodexSessionRelation,
 } from './codex-session-relation'
 import {
-  isApiCallInWindow,
-  isIncrementalContext,
-  normalizeScanContext,
-  shouldScanFile,
-} from './incremental-utils'
+  CodexGenerationEstimate,
+  type CodexGenerationEstimateState,
+} from './codex-generation-timing'
+import { isApiCallInWindow, isIncrementalContext, normalizeScanContext } from './incremental-utils'
 import { extractProjectPath } from './project-path'
 import {
   getSourceStatesByType,
@@ -81,7 +85,7 @@ interface CodexThreadMeta {
   updatedAt: number
 }
 
-interface ParseContext {
+export interface ParseContext {
   sessionFile: string
   rootDir: string
   fallbackDate: string
@@ -90,13 +94,19 @@ interface ParseContext {
   model?: string
 }
 
-interface ParsedCodexSession extends CodexSessionRelation {
+export interface ParsedCodexSession extends CodexSessionRelation {
   sessionId: string
   title: string
   apiCalls: TokenUsageApiCall[]
+  latestTurnFirstToken?: LatestTurnFirstToken
 }
 
 interface CodexParserCheckpointState {
+  latestTurnFirstToken?: LatestTurnFirstToken
+  generationEstimate?: CodexGenerationEstimateState
+  currentTurnId?: string
+  turn?: ConversationTurn
+  modelFromTurn: boolean
   sessionId: string
   sessionMetaSeen: boolean
   copiedSessionMetaSeen: boolean
@@ -128,7 +138,7 @@ interface CodexParserCheckpoint {
 }
 
 interface CodexFileCursor {
-  version: 4
+  version: 9
   endOffset: number
   checkpoints: CodexParserCheckpoint[]
   smallPrefixHash?: string
@@ -147,7 +157,7 @@ const CODEX_CHECKPOINT_BYTES = 4 * 1024 * 1024
 const CODEX_MAX_CHECKPOINTS = 64
 const CODEX_CHECKPOINT_PREFIX_CHARS = 96
 const CODEX_MAX_LINE_BYTES = 4 * 1024 * 1024
-const CODEX_ROLLOUT_CURSOR_VERSION = 4
+const CODEX_ROLLOUT_CURSOR_VERSION = 9
 
 export class CodexScanner implements AgentScanner {
   readonly agentName = 'codex'
@@ -155,6 +165,7 @@ export class CodexScanner implements AgentScanner {
   private readonly sourceStates = new Map<string, ScanSourceStateRow>()
   private sourceStatesLoaded: boolean
   private pendingCursorCommits: PendingCursorCommit[] = []
+  private parsedSourceUpdates: ScanSourceStateUpdate[] = []
 
   constructor(sourceStates?: readonly ScanSourceStateRow[]) {
     this.sourceStatesLoaded = sourceStates !== undefined
@@ -177,19 +188,24 @@ export class CodexScanner implements AgentScanner {
   takeScanStateUpdates(): ScanSourceStateUpdate[] {
     const commits = this.pendingCursorCommits
     this.pendingCursorCommits = []
-    return commits.map((commit) => ({
-      agent: this.agentName,
-      source_id: commit.sourceId,
-      source_type: 'codex-rollout',
-      source_scope: '',
-      current_path: commit.filePath,
-      source_size: commit.size,
-      source_mtime_ms: commit.mtimeMs,
-      cursor_offset: commit.cursor.endOffset,
-      cursor_json: JSON.stringify(commit.cursor),
-      fingerprint: '',
-      event_watermark_ms: commit.eventWatermarkMs,
-    }))
+    const parsedUpdates = this.parsedSourceUpdates
+    this.parsedSourceUpdates = []
+    return [
+      ...parsedUpdates,
+      ...commits.map((commit) => ({
+        agent: this.agentName,
+        source_id: commit.sourceId,
+        source_type: 'codex-rollout',
+        source_scope: '',
+        current_path: commit.filePath,
+        source_size: commit.size,
+        source_mtime_ms: commit.mtimeMs,
+        cursor_offset: commit.cursor.endOffset,
+        cursor_json: JSON.stringify(commit.cursor),
+        fingerprint: '',
+        event_watermark_ms: commit.eventWatermarkMs,
+      })),
+    ]
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
@@ -198,6 +214,7 @@ export class CodexScanner implements AgentScanner {
     const sessions: TokenUsageSession[] = []
     const apiCalls: TokenUsageApiCall[] = []
     this.pendingCursorCommits = []
+    this.parsedSourceUpdates = []
     if (!this.isAvailable()) return { records, sessions, apiCalls }
 
     if (isIncrementalContext(scanContext) && !this.sourceStatesLoaded) {
@@ -211,14 +228,18 @@ export class CodexScanner implements AgentScanner {
     const titleBySessionId = new Map<string, string>()
     const relationBySessionId = new Map<string, CodexSessionRelation>()
     const apiCallById = new Map<string, TokenUsageApiCall>()
+    const turnFirstTokens = new Map<string, LatestTurnFirstToken>()
     const acceptedSourceIds = new Set<string>()
 
-    for (const parseContext of this.collectRolloutContexts(scanContext)) {
-      const sourceId = codexRolloutSourceId(parseContext.sessionFile, parseContext.sessionId)
-      if (acceptedSourceIds.has(sourceId)) continue
+    const contexts = this.collectRolloutContexts(scanContext).filter((context) => {
+      const sourceId = codexRolloutSourceId(context.sessionFile)
+      if (acceptedSourceIds.has(sourceId)) return false
       acceptedSourceIds.add(sourceId)
-      const parsed = this.parseRolloutWithCursor(parseContext, scanContext)
-      if (!parsed) continue
+      return true
+    })
+    const workerOptions = scanContext.parserWorkers
+    const mergeSession = (parsed: ParsedCodexSession | null, parseContext: ParseContext): void => {
+      if (!parsed) return
       const existingRelation = relationBySessionId.get(parsed.sessionId)
       relationBySessionId.set(parsed.sessionId, {
         parentSessionId: parsed.parentSessionId || existingRelation?.parentSessionId,
@@ -228,8 +249,61 @@ export class CodexScanner implements AgentScanner {
       const title = sessionIndexTitles.get(parsed.sessionId) || parseContext.title || parsed.title
       if (title) titleBySessionId.set(parsed.sessionId, title)
       for (const apiCall of parsed.apiCalls) apiCallById.set(apiCall.apiCallId, apiCall)
+      const latest = latestTurnFirstToken(
+        turnFirstTokens.get(parsed.sessionId),
+        parsed.latestTurnFirstToken,
+      )
+      if (latest) turnFirstTokens.set(parsed.sessionId, latest)
+    }
+    let parsedInParallel = false
+    if (
+      workerOptions &&
+      workerOptions.concurrency > 1 &&
+      contexts.length >= 8 &&
+      existsSync(workerOptions.entry)
+    ) {
+      try {
+        await parseCodexFiles(
+          contexts.map((file) => ({
+            file,
+            state: this.sourceStates.get(codexRolloutSourceId(file.sessionFile)),
+          })),
+          scanContext,
+          workerOptions,
+          (result, index) => {
+            this.parsedSourceUpdates.push(...result.sourceStates)
+            mergeSession(result.session, contexts[index])
+          },
+        )
+        parsedInParallel = true
+      } catch (error) {
+        if (!(error instanceof ParserWorkerUnavailableError)) throw error
+        this.parsedSourceUpdates = []
+        titleBySessionId.clear()
+        relationBySessionId.clear()
+        apiCallById.clear()
+        turnFirstTokens.clear()
+        console.warn('[codex] 日志解析线程不可用，本轮使用顺序解析')
+      }
+    }
+    let processedFiles = 0
+    if (!parsedInParallel) {
+      for (const parseContext of contexts) {
+        scanContext.reportProgress?.({
+          unit: 'files',
+          completed: processedFiles,
+          total: contexts.length,
+        })
+        processedFiles++
+        mergeSession(this.parseRolloutWithCursor(parseContext, scanContext), parseContext)
+      }
     }
 
+    scanContext.reportProgress?.({
+      unit: 'files',
+      completed: contexts.length,
+      total: contexts.length,
+    })
     apiCalls.push(...apiCallById.values())
     applyCodexSessionRelations(apiCalls, relationBySessionId)
     const detailSessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
@@ -237,7 +311,7 @@ export class CodexScanner implements AgentScanner {
     sessions.push(...detailSessions)
     records.push(...buildRecordsFromSessions(this.agentName, detailSessions))
 
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurnFirstTokens: [...turnFirstTokens.values()] }
   }
 
   private collectRolloutContexts(scanContext: ScannerScanContext): ParseContext[] {
@@ -260,10 +334,11 @@ export class CodexScanner implements AgentScanner {
     }
 
     contexts.push(...this.buildDirectoryFallbackContexts(visitedFiles, scanContext))
-    return selectPreferredCodexRollouts(contexts)
+    return contexts
   }
 
-  private parseRolloutWithCursor(
+  /** 单文件解析入口；工作线程与顺序扫描共用同一套游标和证据规则。 */
+  parseRolloutWithCursor(
     context: ParseContext,
     scanContext: ScannerScanContext,
   ): ParsedCodexSession | null {
@@ -275,7 +350,7 @@ export class CodexScanner implements AgentScanner {
       throw new Error(`Codex rollout 文件不可读 (${file}): ${(error as Error).message}`)
     }
 
-    const sourceId = codexRolloutSourceId(file, context.sessionId)
+    const sourceId = codexRolloutSourceId(file)
     const stored = isIncrementalContext(scanContext) ? this.sourceStates.get(sourceId) : undefined
     const cursor = stored ? decodeCodexCursor(stored.cursor_json) : null
     let resume: { startOffset: number; state: CodexParserCheckpointState } | null = null
@@ -354,7 +429,7 @@ export class CodexScanner implements AgentScanner {
     if (existsSync(sessionsDir)) {
       for (const file of listJsonlFiles(sessionsDir)) {
         if (visitedFiles.has(canonicalPath(file))) continue
-        if (!shouldScanFile(file, scanContext)) continue
+        if (!this.shouldScanRolloutFile(file, scanContext)) continue
         contexts.push({
           sessionFile: file,
           rootDir: sessionsDir,
@@ -366,7 +441,7 @@ export class CodexScanner implements AgentScanner {
     if (existsSync(archivedDir)) {
       for (const file of listJsonlFiles(archivedDir)) {
         if (visitedFiles.has(canonicalPath(file))) continue
-        if (!shouldScanFile(file, scanContext)) continue
+        if (!this.shouldScanRolloutFile(file, scanContext)) continue
         contexts.push({
           sessionFile: file,
           rootDir: archivedDir,
@@ -378,7 +453,7 @@ export class CodexScanner implements AgentScanner {
     if (existsSync(cleanupArchiveDir)) {
       for (const file of listJsonlFiles(cleanupArchiveDir)) {
         if (visitedFiles.has(canonicalPath(file))) continue
-        if (!shouldScanFile(file, scanContext)) continue
+        if (!this.shouldScanRolloutFile(file, scanContext)) continue
         contexts.push({
           sessionFile: file,
           rootDir: cleanupArchiveDir,
@@ -390,12 +465,31 @@ export class CodexScanner implements AgentScanner {
     return contexts
   }
 
+  private shouldScanRolloutFile(file: string, context: ScannerScanContext): boolean {
+    if (!isIncrementalContext(context)) return true
+    const stored = this.sourceStates.get(codexRolloutSourceId(file))
+    // 入库按事件时间替换窗口。旧 rollout 的 mtime 可能早于其中的调用时间，
+    // 即使线程索引已指向续写文件，也必须重读窗口内的旧文件；未知来源先解析一次。
+    if (!stored || stored.event_watermark_ms >= context.sinceMs) return true
+    try {
+      const current = statSync(file)
+      return (
+        current.mtimeMs >= context.sinceMs ||
+        current.size !== stored.source_size ||
+        current.mtimeMs !== stored.source_mtime_ms
+      )
+    } catch {
+      // 无法确认来源未变时交给解析器，读取失败会中止本轮，避免提交不完整的窗口。
+      return true
+    }
+  }
+
   /**
    * 解析单个 Codex rollout JSONL。
    * last_token_usage 是最近一次 API 快照；total_token_usage 是当前计数段累计值，
    * 同一 rollout 内也可能因 Codex 应用重启而重新起算。
    * Codex 会重复写入相同累计快照，因此只在累计值变化时接纳 last_token_usage，
-   * 并在文件解析结束后用最终累计值校验所有明细之和。
+   * 累计值用于识别重复与重置，不能代替逐次调用的原始用量。
    */
   private parseSessionFile(
     context: ParseContext,
@@ -413,6 +507,8 @@ export class CodexScanner implements AgentScanner {
     let sessionMetaSeen = false
     let copiedSessionMetaSeen = false
     let currentModel = context.model || 'unknown'
+    let currentTurnId = ''
+    let modelFromTurn = false
     let sessionDate = context.fallbackDate
     let sessionTitle = context.title || ''
     let parentSessionId = ''
@@ -427,11 +523,13 @@ export class CodexScanner implements AgentScanner {
     let previousCumulative: CodexUsageSnapshot | null = null
     let cumulativeSegmentBaseline = emptyCodexUsage()
     let completedCumulative = emptyCodexUsage()
-    let finalCumulative: CodexUsageSnapshot | null = null
     let acceptedUsage = emptyCodexUsage()
     let inheritedCumulativeBaseline: CodexUsageSnapshot | null = null
     let subAgentBoundaryApplied = false
     let lastEventMs = 0
+    let turn: ConversationTurn | undefined
+    let turnFirstToken = normalizeLatestTurnFirstToken(resume?.state.latestTurnFirstToken)
+    const generationEstimate = new CodexGenerationEstimate(resume?.state.generationEstimate)
 
     if (resume) {
       const state = resume.state
@@ -439,6 +537,7 @@ export class CodexScanner implements AgentScanner {
       sessionMetaSeen = state.sessionMetaSeen
       copiedSessionMetaSeen = state.copiedSessionMetaSeen
       currentModel = state.currentModel || currentModel
+      modelFromTurn = state.modelFromTurn
       sessionDate = state.sessionDate || sessionDate
       sessionTitle = state.sessionTitle
       projectPath = state.projectPath
@@ -457,13 +556,20 @@ export class CodexScanner implements AgentScanner {
       acceptedUsage = state.acceptedUsage
       inheritedCumulativeBaseline = state.inheritedCumulativeBaseline
       lastEventMs = state.lastEventMs
+      turn = state.turn
+      currentTurnId = state.currentTurnId ?? ''
     }
 
     const snapshotState = (): CodexParserCheckpointState => ({
+      latestTurnFirstToken: turnFirstToken,
+      generationEstimate: generationEstimate.snapshot(),
+      currentTurnId,
+      turn,
       sessionId,
       sessionMetaSeen,
       copiedSessionMetaSeen,
       currentModel,
+      modelFromTurn,
       sessionDate,
       sessionTitle,
       projectPath,
@@ -487,13 +593,16 @@ export class CodexScanner implements AgentScanner {
     })
 
     const resetInheritedUsage = (): void => {
+      turnFirstToken = undefined
+      generationEstimate.reset()
       apiCalls.length = 0
+      turn = undefined
+      currentTurnId = ''
       previousAcceptedCumulative = ''
       previousCumulativeSum = -1
       previousCumulative = null
       cumulativeSegmentBaseline = emptyCodexUsage()
       completedCumulative = emptyCodexUsage()
-      finalCumulative = null
       acceptedUsage = emptyCodexUsage()
       inheritedCumulativeBaseline = null
     }
@@ -504,7 +613,7 @@ export class CodexScanner implements AgentScanner {
     let endOffset = startOffset
 
     try {
-      for (const { line, byteOffset, byteLength, truncated } of readUtf8Lines(
+      for (const { line, byteOffset, byteLength, truncated, terminated } of readUtf8Lines(
         context.sessionFile,
         256 * 1024,
         startOffset,
@@ -514,17 +623,32 @@ export class CodexScanner implements AgentScanner {
         if (byteOffset - lastCheckpointOffset >= CODEX_CHECKPOINT_BYTES) {
           checkpoints.push({
             offset: byteOffset,
-            prefix: line.slice(0, CODEX_CHECKPOINT_PREFIX_CHARS),
+            prefix: line.slice(0, CODEX_CHECKPOINT_PREFIX_CHARS).split('').join(''),
             state: snapshotState(),
           })
+          if (checkpoints.length > CODEX_MAX_CHECKPOINTS) checkpoints.shift()
           lastCheckpointOffset = byteOffset
         }
         if (truncated) continue
         if (line.length === 0) continue
+        let tailObject: unknown
+        if (terminated === false) {
+          try {
+            tailObject = JSON.parse(line)
+          } catch {
+            // 不提交未写完行的尾部游标；后续追加时从该行开头恢复。
+            endOffset = byteOffset
+            break
+          }
+        }
+        if (isCodexModelOutputLine(line)) {
+          // 只识别原生 ResponseItem 的类型，不解析或保留模型正文。
+          generationEstimate.modelOutput(sessionId, currentTurnId || turn?.id || '')
+        }
         if (!isCodexRelevantLine(line)) continue
         let obj: unknown
         try {
-          obj = JSON.parse(line)
+          obj = tailObject ?? JSON.parse(line)
         } catch {
           continue
         }
@@ -565,12 +689,14 @@ export class CodexScanner implements AgentScanner {
         if (type === 'turn_context') {
           const payload = obj.payload
           if (isObject(payload)) {
+            currentTurnId = readString(payload.turn_id) || currentTurnId
             projectPath = projectPath || extractProjectPath(payload) || ''
             sessionTitle = preferSessionTitle(
               sessionTitle,
               readString(payload.summary) || readString(payload.name),
             )
             currentModel = readString(payload.model) || currentModel
+            if (readString(payload.model)) modelFromTurn = true
             const currentDate = readCodexDate(payload.current_date)
             if (currentDate) sessionDate = currentDate
           }
@@ -587,11 +713,41 @@ export class CodexScanner implements AgentScanner {
           subAgentBoundaryApplied = true
         }
 
+        if (type !== 'event_msg') {
+          generationEstimate.observe(obj, sessionId, currentTurnId || turn?.id || '')
+        }
         if (type === 'event_msg') {
           const payload = obj.payload
+          if (isObject(payload) && payload.type === 'task_started') {
+            currentTurnId = readString(payload.turn_id)
+            turn = undefined
+          }
+          if (
+            isObject(payload) &&
+            payload.type === 'item_completed' &&
+            isObject(payload.item) &&
+            payload.item.type === 'UserMessage'
+          ) {
+            turn = conversationTurn(
+              readString(payload.turn_id) ||
+                currentTurnId ||
+                readString(payload.item.client_id) ||
+                readString(payload.item.id),
+              !isThreadSpawnSubAgent,
+            )
+          }
           if (isObject(payload) && payload.type === 'user_message') {
             sessionTitle = keepFirstSessionTitle(sessionTitle, readString(payload.message))
+            turn = conversationTurn(
+              currentTurnId ||
+                readString(payload.client_id) ||
+                `user:${readString(obj.timestamp)}:${ordinal ?? byteOffset}`,
+              !isThreadSpawnSubAgent,
+            )
           }
+          generationEstimate.observe(obj, sessionId, currentTurnId || turn?.id || '')
+          const firstToken = codexTurnFirstToken(obj, sessionId, currentTurnId)
+          if (firstToken) turnFirstToken = latestTurnFirstToken(turnFirstToken, firstToken)
           if (isObject(payload) && payload.type === 'token_count') {
             const eventMs = codexEventTimestampMs(obj.timestamp)
             if (eventMs > lastEventMs) lastEventMs = eventMs
@@ -606,6 +762,11 @@ export class CodexScanner implements AgentScanner {
             const { timestamp, rawTimestamp } = timestampsFromValue(obj.timestamp, sessionDate)
             const usage = readCodexUsage(info.last_token_usage)
             if (!usage || !hasTokenUsage(usage)) continue
+            const physicalProgress =
+              !cumulative ||
+              !previousCumulative ||
+              cumulative.inputTokens + cumulative.outputTokens !==
+                previousCumulative.inputTokens + previousCumulative.outputTokens
 
             if (cumulative && previousCumulativeSum >= 0) {
               const cumulativeSum = codexUsageSum(cumulative)
@@ -631,8 +792,7 @@ export class CodexScanner implements AgentScanner {
                     ),
                   )
                 }
-                // 回退后 Codex 可能从旧累计快照续算，而不是从 0 开始。该基线已在
-                // 前一计数段统计过；当前段结束时只校验并计入基线之后的新增量。
+                // 回退后可能从已有快照续算。保留计数段基线，供增量检查点恢复状态。
                 cumulativeSegmentBaseline = subtractCodexUsageOrThrow(
                   cumulative,
                   usage,
@@ -641,7 +801,6 @@ export class CodexScanner implements AgentScanner {
               }
             }
 
-            if (cumulative) finalCumulative = cumulative
             const exclusiveUsage = normalizeCodexUsageExclusive(usage)
             if (
               usage.cacheReadTokens > usage.inputTokens ||
@@ -668,6 +827,7 @@ export class CodexScanner implements AgentScanner {
               )
             }
             const apiCall: TokenUsageApiCall = {
+              turn,
               agent: this.agentName,
               apiCallId: codexApiCallId(
                 sessionId,
@@ -683,6 +843,9 @@ export class CodexScanner implements AgentScanner {
               timestamp,
               hour: hourFromTimestamp(timestamp),
               model: currentModel,
+              evidence: usageEvidence({
+                modelSource: modelFromTurn ? 'response' : 'session',
+              }),
               inputTokens: exclusiveUsage.inputTokens,
               outputTokens: exclusiveUsage.outputTokens,
               cacheReadTokens: exclusiveUsage.cacheReadTokens,
@@ -695,7 +858,19 @@ export class CodexScanner implements AgentScanner {
                 exclusiveUsage.reasoningTokens,
               reasoningTokens: exclusiveUsage.reasoningTokens,
             }
-            // 累计校验使用 acceptedUsage；窗口外 API 对象无需留在数组中。
+            const timing =
+              !readString(payload.thread_id) || readString(payload.thread_id) === sessionId
+                ? generationEstimate.accept(
+                    sessionId,
+                    currentTurnId || turn?.id || '',
+                    eventMs,
+                    usage.outputTokens,
+                    physicalProgress,
+                    readString(payload.turn_id),
+                  )
+                : undefined
+            if (timing) apiCall.generationTiming = timing
+            // 已接受用量进入检查点；窗口外 API 对象无需留在数组中。
             if (isApiCallInWindow(apiCall, scanContext)) apiCalls.push(apiCall)
             if (cumulativeSignature) {
               previousAcceptedCumulative = cumulativeSignature
@@ -711,31 +886,15 @@ export class CodexScanner implements AgentScanner {
       throw new Error(`Codex rollout 文件不可读 (${context.sessionFile}): ${(e as Error).message}`)
     }
 
-    if (finalCumulative) {
-      assertCodexCumulativeMatches(
-        context.sessionFile,
-        acceptedUsage,
-        addCodexUsage(
-          completedCumulative,
-          normalizeCodexUsageExclusive(
-            subtractCodexUsageOrThrow(
-              finalCumulative,
-              cumulativeSegmentBaseline,
-              context.sessionFile,
-            ),
-          ),
-        ),
-        isThreadSpawnSubAgent || Boolean(forkedFromSessionId) || subAgentBoundaryApplied
-          ? inheritedCumulativeBaseline
-          : null,
-      )
-    }
+    // 累计快照会随上下文恢复、压缩和补发事件变化，不能据此否定已记录的请求。
+    // 单次分桶仍逐条校验；快照仅用于重复与重置判断，不把差额生成额外调用。
     const finalState = snapshotState()
     return {
       session: {
         sessionId,
         title: sessionTitle,
         apiCalls,
+        ...(turnFirstToken ? { latestTurnFirstToken: turnFirstToken } : {}),
         ...(parentSessionId ? { parentSessionId } : {}),
         ...(subAgentName ? { subAgentName } : {}),
         ...(isThreadSpawnSubAgent ? { isThreadSpawn: true } : {}),
@@ -778,53 +937,10 @@ function codexEventTimestampMs(value: unknown): number {
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : 0
 }
 
-function codexRolloutSourceId(file: string, explicitSessionId?: string): string {
-  if (explicitSessionId) return `id:${explicitSessionId}`
-  const stem = basename(file).replace(/\.jsonl$/i, '')
-  const uuid = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i.exec(stem)
-  if (uuid) return `id:${uuid[1].toLowerCase()}`
+/** 同一线程的不同文件可能各有独立尾部，游标不能按线程或文件名中的 UUID 合并。 */
+function codexRolloutSourceId(file: string): string {
   const digest = createHash('sha256').update(canonicalPath(file)).digest('hex').slice(0, 32)
   return `path:${digest}`
-}
-
-/** 同一线程可能同时保留旧 rollout 与续写后的完整副本；优先读取字节数最大的版本。 */
-function selectPreferredCodexRollouts(contexts: ParseContext[]): ParseContext[] {
-  const selected = new Map<string, { context: ParseContext; size: number; index: number }>()
-  for (const [index, context] of contexts.entries()) {
-    const sourceId = codexRolloutSourceId(context.sessionFile, context.sessionId)
-    let size = -1
-    try {
-      size = statSync(context.sessionFile).size
-    } catch {
-      // 真正解析时会抛出带文件路径的明确错误。
-    }
-    const current = selected.get(sourceId)
-    if (!current) {
-      selected.set(sourceId, { context, size, index })
-    } else if (size > current.size) {
-      selected.set(sourceId, {
-        context: mergeCodexParseContext(context, current.context),
-        size,
-        index: current.index,
-      })
-    } else {
-      current.context = mergeCodexParseContext(current.context, context)
-    }
-  }
-  return [...selected.values()]
-    .sort((left, right) => left.index - right.index)
-    .map((entry) => entry.context)
-}
-
-function mergeCodexParseContext(preferred: ParseContext, metadata: ParseContext): ParseContext {
-  return {
-    ...preferred,
-    fallbackDate:
-      preferred.fallbackDate !== 'unknown' ? preferred.fallbackDate : metadata.fallbackDate,
-    sessionId: preferred.sessionId || metadata.sessionId,
-    title: metadata.title || preferred.title,
-    model: preferred.model || metadata.model,
-  }
 }
 
 function decodeCodexCursor(json: string): CodexFileCursor | null {
@@ -866,7 +982,7 @@ function selectCodexResumePoint(
   for (let index = 0; index < cursor.checkpoints.length; index += 1) {
     const checkpoint = cursor.checkpoints[index]
     if (checkpoint.offset > fileSize) break
-    if ((checkpoint.state.lastEventMs ?? 0) <= sinceMs) chosenIndex = index
+    if ((checkpoint.state.lastEventMs ?? 0) < sinceMs) chosenIndex = index
     else break
   }
   if (chosenIndex < 0) return null
@@ -1156,9 +1272,21 @@ function preferSessionTitle(current: string, next: string): string {
 
 const CODEX_RELEVANT_LINE =
   /"type":\s*"(session_meta|turn_context|event_msg|inter_agent_communication_metadata)"/
+const CODEX_TOOL_OUTPUT_LINE = /"type":\s*"(function_call_output|custom_tool_call_output)"/
+const CODEX_MODEL_OUTPUT_LINE =
+  /"payload":\s*\{\s*"type":\s*"(reasoning|function_call|custom_tool_call)"/
+const CODEX_ASSISTANT_MESSAGE_LINE = /"payload":\s*\{\s*"type":\s*"message"/
+
+function isCodexModelOutputLine(line: string): boolean {
+  return (
+    /"type":\s*"response_item"/.test(line) &&
+    (CODEX_MODEL_OUTPUT_LINE.test(line) ||
+      (CODEX_ASSISTANT_MESSAGE_LINE.test(line) && /"role":\s*"assistant"/.test(line)))
+  )
+}
 
 function isCodexRelevantLine(line: string): boolean {
-  return CODEX_RELEVANT_LINE.test(line)
+  return CODEX_RELEVANT_LINE.test(line) || CODEX_TOOL_OUTPUT_LINE.test(line)
 }
 
 function sameCodexUsage(left: CodexUsageSnapshot, right: CodexUsageSnapshot): boolean {

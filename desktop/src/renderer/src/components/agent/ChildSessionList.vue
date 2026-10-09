@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import SessionCost from './SessionCost.vue'
 import { computed, ref } from 'vue'
 import type { TokenUsageSession } from '@shared/models'
 import { useI18n } from '../../i18n/useI18n'
+import DropdownChevron from '../base/DropdownChevron.vue'
 import { formatTokens } from '../../utils/format'
 
 const props = defineProps<{
@@ -100,9 +102,7 @@ function toggleExpanded(): void {
         @click="toggleExpanded"
       >
         <span>{{ expanded ? label('Collapse', '收起') : label('Expandable', '可展开') }}</span>
-        <span class="material-symbols-outlined" aria-hidden="true">
-          {{ expanded ? 'keyboard_arrow_up' : 'keyboard_arrow_down' }}
-        </span>
+        <DropdownChevron :open="expanded" />
       </button>
       <span v-else class="child-session-state">{{ stateLabel }}</span>
     </header>
@@ -133,8 +133,21 @@ function toggleExpanded(): void {
         <div class="child-session-meta">
           <span class="child-model" :title="child.model">{{ child.model }}</span>
           <span>{{ formatMoment(child.startedAt) }} → {{ formatMoment(child.endedAt) }}</span>
-          <span>{{ tr('apiCalls') }} {{ child.apiCallCount }}</span>
-          <span class="child-token-total">{{ formatTokens(child.totalTokens) }}</span>
+          <span>
+            {{ tr('apiCalls') }}
+            {{
+              child.apiCallCountComplete === false
+                ? label('Not provided', '未提供')
+                : formatTokens(child.apiCallCount)
+            }}
+          </span>
+          <span class="child-token-total">
+            {{ formatTokens(child.totalTokens) }}
+          </span>
+        </div>
+        <div class="child-cost">
+          <span>{{ label('API equivalent', 'API 参考费用') }}</span>
+          <SessionCost :summary="child.costSummary" variant="metric" />
         </div>
       </div>
     </div>
@@ -156,14 +169,22 @@ function toggleExpanded(): void {
         <strong>{{ toggleTitle }}</strong>
         <small>{{ toggleHint }}</small>
       </span>
-      <span class="toggle-chevron material-symbols-outlined" aria-hidden="true">
-        keyboard_arrow_down
-      </span>
+      <DropdownChevron class="toggle-chevron" :open="expanded" />
     </button>
   </section>
 </template>
 
 <style scoped>
+.child-cost {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+
 .child-session-list {
   --child-gap: 8px;
   min-width: 0;
@@ -446,11 +467,6 @@ function toggleExpanded(): void {
 
 .toggle-chevron {
   color: var(--primary);
-  transition: transform 180ms ease;
-}
-
-.expanded .toggle-chevron {
-  transform: rotate(180deg);
 }
 
 @keyframes reveal-child-session {

@@ -15,6 +15,18 @@ import {
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
+import { conversationTurn, kimiConversationTurn, type ConversationTurn } from './conversation-turn'
+import { readKimiCodeModelNames } from './kimi-code-models'
+import {
+  kimiGenerationTimingFiles,
+  kimiTimingRequest,
+  matchKimiGenerationTiming,
+  readKimiGenerationTimings,
+  type KimiTimingIndex,
+  type KimiTimingRequest,
+} from './kimi-generation-timing'
+import { kimiWireGenerationTiming } from './kimi-wire-timing'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -43,14 +55,28 @@ export class KimiCodeScanner implements AgentScanner {
     const scanContext = normalizeScanContext(context)
     const apiCallById = new Map<string, TokenUsageApiCall>()
     const titleBySessionId = new Map<string, string>()
+    const timingByLogDirectory = new Map<string, KimiTimingIndex>()
 
     for (const source of getKimiCodeSessionsSources()) {
       if (!existsSync(source.dir)) continue
+      const modelNames =
+        source.kind === 'kimi-code' ? readKimiCodeModelNames(source.dir) : new Map()
       for (const file of listWireFiles(source.dir)) {
-        if (!shouldScanFile(file, scanContext)) continue
+        const timingFiles = source.kind === 'kimi-code' ? kimiGenerationTimingFiles(file) : []
+        if (
+          !shouldScanFile(file, scanContext) &&
+          !timingFiles.some((timingFile) => shouldScanFile(timingFile, scanContext))
+        )
+          continue
+        const timingKey = timingFiles[0] ? dirname(timingFiles[0]) : file
+        let timings = timingByLogDirectory.get(timingKey)
+        if (!timings) {
+          timings = readKimiGenerationTimings(timingFiles)
+          timingByLogDirectory.set(timingKey, timings)
+        }
         const parsed =
           source.kind === 'kimi-code'
-            ? this.parseKimiCodeFile(file, source, scanContext)
+            ? this.parseKimiCodeFile(file, source, scanContext, modelNames, timings)
             : this.parseLegacyKimiFile(file, source, scanContext)
         for (const call of parsed.apiCalls) mergeKimiCall(apiCallById, call)
         if (parsed.title && parsed.apiCalls[0]) {
@@ -73,12 +99,18 @@ export class KimiCodeScanner implements AgentScanner {
     file: string,
     source: KimiCodeSessionsSource,
     context: ScannerScanContext,
+    modelNames = readKimiCodeModelNames(source.dir),
+    timings: KimiTimingIndex = new Map(),
   ): ParsedKimiCodeFile {
     const apiCalls: TokenUsageApiCall[] = []
     const identity = kimiCodeIdentity(file, source.dir)
     const fallbackMtime = fileMtime(file)
     let latestConcreteModel = ''
+    let latestModelAlias = ''
     let title = ''
+    let turn: ConversationTurn | undefined
+    let timingRequest: KimiTimingRequest | undefined
+    let completedStep: Record<string, unknown> | undefined
 
     for (const { line, lineIndex } of readUtf8Lines(file)) {
       if (!line) continue
@@ -89,14 +121,30 @@ export class KimiCodeScanner implements AgentScanner {
         continue
       }
       if (!isObject(value)) continue
+      turn = kimiConversationTurn(turn, value, `prompt:${relative(source.dir, file)}:${lineIndex}`)
 
       const lineType = stringValue(value.type)
       if (!title) title = kimiTitle(value)
+      if (lineType === 'turn.prompt' || lineType === 'turn.steer') completedStep = undefined
+      if (lineType === 'context.append_loop_event' && isObject(value.event)) {
+        if (value.event.type === 'step.end') completedStep = value
+        else if (value.event.type === 'step.start') completedStep = undefined
+      }
       if (lineType === 'llm.request') {
-        latestConcreteModel = concreteKimiModel(stringValue(value.model)) || latestConcreteModel
+        completedStep = undefined
+        timingRequest = kimiTimingRequest(value, file)
+        const requestedModel = concreteKimiModel(stringValue(value.model))
+        if (requestedModel) {
+          latestConcreteModel = requestedModel
+          latestModelAlias = stringValue(value.modelAlias) || stringValue(value.model)
+        }
         continue
       }
       if (lineType !== 'usage.record' || value.usageScope !== 'turn') continue
+      const request = timingRequest
+      timingRequest = undefined
+      const nativeTiming = kimiWireGenerationTiming(completedStep, value)
+      completedStep = undefined
       const usage = isObject(value.usage) ? value.usage : null
       if (!usage) continue
       const buckets = tokenBuckets({
@@ -107,8 +155,14 @@ export class KimiCodeScanner implements AgentScanner {
       })
       if (buckets.totalTokens <= 0) continue
 
-      const model =
-        concreteKimiModel(stringValue(value.model)) || latestConcreteModel || 'kimi-for-coding'
+      const recordedModelId = concreteKimiModel(stringValue(value.model)) || latestConcreteModel
+      const modelId = recordedModelId || 'kimi-for-coding'
+      const displayName = recordedModelId
+        ? modelNames.get(stringValue(value.model)) ||
+          (modelId === latestConcreteModel ? modelNames.get(latestModelAlias) : undefined) ||
+          modelNames.get(modelId)
+        : undefined
+      const model = displayName || modelId
       const sourceTime = positiveNumber(value.time)
       // Kimi Code 的 time 固定是 epoch 毫秒，不可套用秒/毫秒猜测。
       const timestampValue = sourceTime > 0 ? sourceTime : fallbackMtime
@@ -116,6 +170,7 @@ export class KimiCodeScanner implements AgentScanner {
       const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, fallbackDate)
       const explicitId = stringValue(value.id)
       const apiCall: TokenUsageApiCall = {
+        turn,
         agent: this.agentName,
         apiCallId:
           explicitId ||
@@ -124,7 +179,7 @@ export class KimiCodeScanner implements AgentScanner {
             relative(source.dir, file),
             lineIndex,
             timestampValue,
-            model,
+            modelId,
             buckets,
           ),
         sessionId: identity.sessionId,
@@ -135,8 +190,21 @@ export class KimiCodeScanner implements AgentScanner {
         hour: hourFromTimestamp(timestamp),
         model,
         ...buckets,
+        generationTiming:
+          nativeTiming ?? matchKimiGenerationTiming(timings, request, value, buckets.outputTokens),
+        evidence: usageEvidence({
+          modelId,
+          modelDisplayNameSource: displayName ? 'current-config' : undefined,
+          modelSource: recordedModelId ? 'response' : 'session',
+        }),
       }
-      if (isApiCallInWindow(apiCall, context)) apiCalls.push(apiCall)
+      if (
+        isApiCallInWindow(apiCall, context) ||
+        (apiCall.generationTiming &&
+          context.sinceMs !== undefined &&
+          apiCall.generationTiming.completedAtMs >= context.sinceMs)
+      )
+        apiCalls.push(apiCall)
     }
     return { apiCalls, title }
   }
@@ -151,6 +219,7 @@ export class KimiCodeScanner implements AgentScanner {
       basename(dirname(file)) || relative(source.dir, dirname(file)).split(sep).join('/')
     const fallbackMtime = fileMtime(file)
     const model = readLegacyKimiModel(source.dir)
+    let turn: ConversationTurn | undefined
 
     for (const { line, lineIndex } of readUtf8Lines(file)) {
       if (!line) continue
@@ -162,6 +231,7 @@ export class KimiCodeScanner implements AgentScanner {
       }
       if (!isObject(value) || value.type === 'metadata') continue
       const message = isObject(value.message) ? value.message : null
+      if (message?.type === 'TurnBegin') turn = conversationTurn(`prompt:${lineIndex}`)
       const payload =
         message && message.type === 'StatusUpdate' && isObject(message.payload)
           ? message.payload
@@ -182,6 +252,7 @@ export class KimiCodeScanner implements AgentScanner {
       const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, fallbackDate)
       const messageId = payload ? stringValue(payload.message_id) : ''
       const apiCall: TokenUsageApiCall = {
+        turn,
         agent: this.agentName,
         apiCallId:
           messageId ||
@@ -200,6 +271,7 @@ export class KimiCodeScanner implements AgentScanner {
         hour: hourFromTimestamp(timestamp),
         model,
         ...buckets,
+        evidence: usageEvidence({ modelSource: 'current-config' }),
       }
       if (isApiCallInWindow(apiCall, context)) apiCalls.push(apiCall)
     }
@@ -225,11 +297,23 @@ function kimiCodeIdentity(
     }
     const projectPath = isAbsolute(decodedWorkspace)
       ? normalizeCollectedProjectPath(decodedWorkspace)
-      : undefined
+      : kimiCodeStateProjectPath(sessionDir)
     return { sessionId: basename(sessionDir), ...(projectPath ? { projectPath } : {}) }
   }
   return {
     sessionId: basename(dirname(file)) || relative(sessionsDir, dirname(file)).split(sep).join('/'),
+  }
+}
+
+/** 新版工作区目录是 wd_* 不透明 ID，目录名解码不出路径；改读会话 state.json 的 cwd。 */
+function kimiCodeStateProjectPath(sessionDir: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(readFileSync(join(sessionDir, 'state.json'), 'utf8'))
+    if (!isObject(value)) return undefined
+    return normalizeCollectedProjectPath(value.cwd) || undefined
+  } catch {
+    // state.json 缺失或半写时保持无项目归属。
+    return undefined
   }
 }
 

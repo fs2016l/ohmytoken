@@ -3,6 +3,8 @@
  * 旧的 usage_records 日聚合表保持不变，本服务只读写新增明细表。
  */
 import type {
+  LatestGeneration,
+  LatestTurnFirstToken,
   PageResult,
   TokenUsageApiCall,
   TokenUsageRecord,
@@ -18,10 +20,37 @@ import type {
 } from '../../shared/models'
 import { hasExplicitTimezone, localTimestampFromValue, timestampEpochMs } from '../lib/date-utils'
 import { openDatabase } from './sqlite-storage.service'
-import { buildProjectSqlFilter, buildTrackedProjectsSqlFilter } from './project.service'
-import { USAGE_SESSION_SEARCH_CONTENT_VIEW } from './session-title-search'
+import { canonicalModelName } from '../cost/price-catalog'
+import { modelSqlSelection } from './model-identity.service'
+import { ensureLocalFavoriteSchema } from './local-favorite-schema'
+import {
+  buildProjectSqlFilter,
+  buildTrackedProjectsSqlFilter,
+  projectOwnerSql,
+} from './project.service'
+import {
+  searchableSessionTitleSql,
+  USAGE_SESSION_SEARCH_CONTENT_VIEW,
+} from './session-title-search'
+import { workspaceSearchKeywords } from '../../shared/workspace-search'
+import { orderByLatestActivity, updateLatestActivity } from '../../shared/usage-activity'
+import { evidenceForCall, parseUsageEvidence } from '../cost/usage-evidence'
+import { readCallCost, writeCallCost } from '../cost/cost-cache'
+import type { CostRollupRow } from '../cost/cost-rollup-storage'
+import { hasProjectScope, readSessionCost, sessionSourceSql } from './session-project-scope'
+import { combineCostRollups, unpricedCostRollup } from '../../shared/cost-rollup'
+import { PRICE_CATALOG_VERSION } from '../cost/price-catalog'
+import { usageCallTime } from './usage-call-time'
+import { attachSessionTurns } from './session-turns'
+import { attachSessionGeneration } from './session-generation-read'
+import { storeLatestTurnFirstTokens } from './session-turn-timing-storage'
+import {
+  storeLatestGenerationCalls,
+  storeLatestGenerationSamples,
+} from './session-generation-storage'
 
-interface UsageSessionRow {
+interface UsageSessionRow extends CostRollupRow {
+  cost_groups?: string | null
   agent: string
   session_id: string
   parent_session_id: string | null
@@ -42,9 +71,11 @@ interface UsageSessionRow {
   total_tokens: number
   reasoning_tokens: number
   api_call_count: number
+  api_count_complete?: number
 }
 
 interface UsageApiCallRow {
+  usage_evidence: string | null
   agent: string
   api_call_id: string
   session_id: string
@@ -102,9 +133,10 @@ export interface UsageAgentModelAggregate {
 }
 
 type MutableUserSession = TokenUsageUserSession & {
-  agentSet: Set<string>
-  modelSet: Set<string>
-  modelTotals: Map<string, number>
+  missingCost: boolean
+  agentActivity: Map<string, number>
+  modelActivity: Map<string, number>
+  modelTokenMap: Map<string, number>
 }
 
 interface UserSessionPageKey {
@@ -124,12 +156,36 @@ type QueryParam = string | number
 
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 100
+const MAX_DAILY_AGGREGATE_RANGES = 8
+
+interface DailyAggregateCache {
+  dataVersion: number
+  totalChanges: number
+  ranges: Map<string, TokenUsageRecord[]>
+}
+
+const dailyAggregateCaches = new WeakMap<ReturnType<typeof openDatabase>, DailyAggregateCache>()
 
 export function saveUsageSessions(sessions: TokenUsageSession[]): void {
   if (sessions.length === 0) return
   const db = openDatabase()
   const insertMany = db.transaction((rows: TokenUsageSession[]) => {
     insertSessionRows(rows)
+    const latest = new Map<string, LatestGeneration[]>()
+    const turnFirstTokens = new Map<string, LatestTurnFirstToken[]>()
+    for (const row of rows) {
+      if (row.latestTurnFirstToken?.sessionId === row.sessionId) {
+        const samples = turnFirstTokens.get(row.agent) ?? []
+        samples.push(row.latestTurnFirstToken)
+        turnFirstTokens.set(row.agent, samples)
+      }
+      if (!row.latestGeneration || row.latestGeneration.sessionId !== row.sessionId) continue
+      const samples = latest.get(row.agent) ?? []
+      samples.push(row.latestGeneration)
+      latest.set(row.agent, samples)
+    }
+    for (const [agent, samples] of latest) storeLatestGenerationSamples(db, agent, samples)
+    for (const [agent, samples] of turnFirstTokens) storeLatestTurnFirstTokens(db, agent, samples)
   })
   insertMany(sessions)
 }
@@ -139,8 +195,22 @@ export function saveUsageApiCalls(apiCalls: TokenUsageApiCall[]): void {
   const db = openDatabase()
   const insertMany = db.transaction((rows: TokenUsageApiCall[]) => {
     insertApiCallRows(rows)
+    storeApiCallGenerations(db, rows)
   })
   insertMany(apiCalls)
+}
+
+function storeApiCallGenerations(
+  db: ReturnType<typeof openDatabase>,
+  apiCalls: TokenUsageApiCall[],
+): void {
+  const grouped = new Map<string, TokenUsageApiCall[]>()
+  for (const call of apiCalls) {
+    const calls = grouped.get(call.agent) ?? []
+    calls.push(call)
+    grouped.set(call.agent, calls)
+  }
+  for (const [agent, calls] of grouped) storeLatestGenerationCalls(db, agent, calls)
 }
 
 export function replaceUsageDetailsForAgents(
@@ -156,7 +226,9 @@ export function replaceUsageDetailsForAgents(
     db.prepare(`DELETE FROM usage_sessions WHERE agent IN (${placeholders})`).run(...agentNames)
     db.prepare(`DELETE FROM usage_api_calls WHERE agent IN (${placeholders})`).run(...agentNames)
     insertSessionRows(sessions.filter((session) => agentNames.includes(session.agent)))
-    insertApiCallRows(apiCalls.filter((apiCall) => agentNames.includes(apiCall.agent)))
+    const scopedCalls = apiCalls.filter((apiCall) => agentNames.includes(apiCall.agent))
+    insertApiCallRows(scopedCalls)
+    storeApiCallGenerations(db, scopedCalls)
   })
   replaceMany(uniqueAgents)
 }
@@ -205,7 +277,10 @@ export function insertSessionRows(sessions: TokenUsageSession[]): void {
   }
 }
 
-export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
+export function insertApiCallRows(
+  apiCalls: TokenUsageApiCall[],
+  reportProgress?: (completed: number) => void,
+): void {
   if (apiCalls.length === 0) return
   const db = openDatabase()
   const stmt = db.prepare(`
@@ -213,17 +288,17 @@ export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
       (agent, api_call_id, session_id, parent_session_id, root_session_id, sub_agent_name,
        project_path, role, date, raw_timestamp, timestamp, hour, model, input_tokens, output_tokens,
        cache_read_tokens, cache_write_tokens, total_tokens, reasoning_tokens,
-       event_timestamp_ms, source_scope)
+       event_timestamp_ms, source_scope, usage_evidence)
     VALUES
       (@agent, @api_call_id, @session_id, @parent_session_id, @root_session_id,
        @sub_agent_name, @project_path, @role, @date, @raw_timestamp, @timestamp, @hour, @model,
        @input_tokens, @output_tokens, @cache_read_tokens, @cache_write_tokens,
-       @total_tokens, @reasoning_tokens, @event_timestamp_ms, @source_scope)
+       @total_tokens, @reasoning_tokens, @event_timestamp_ms, @source_scope, @usage_evidence)
   `)
+  let completed = 0
   for (const row of apiCalls) {
-    const timestamp = localTimestampFromValue(row.timestamp, row.date)
-    const timeParts = localTimestampParts(timestamp, row.date, row.hour)
-    stmt.run({
+    const { timestamp, ...timeParts } = usageCallTime(row)
+    const stored = {
       agent: row.agent,
       api_call_id: row.apiCallId,
       session_id: row.sessionId,
@@ -237,6 +312,7 @@ export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
       timestamp,
       event_timestamp_ms: timestampEpochMs(row.rawTimestamp) || timestampEpochMs(row.timestamp),
       source_scope: row.rootSessionId ?? row.sessionId,
+      usage_evidence: JSON.stringify(evidenceForCall(row)),
       hour: timeParts.hour,
       model: row.model,
       input_tokens: row.inputTokens,
@@ -245,17 +321,32 @@ export function insertApiCallRows(apiCalls: TokenUsageApiCall[]): void {
       cache_write_tokens: row.cacheWriteTokens,
       total_tokens: row.totalTokens,
       reasoning_tokens: row.reasoningTokens,
-    })
+    }
+    stmt.run(stored)
+    writeCallCost(db, stored)
+    completed++
+    if (completed % 256 === 0 || completed === apiCalls.length) reportProgress?.(completed)
   }
 }
 
 export function listUsageSessions(filter: UsageDetailFilter): TokenUsageSession[] {
-  return selectSessionRows(filter).map(rowToSession)
+  const sessions = selectSessionRows(filter).map(rowToSession)
+  attachSessionGeneration(openDatabase(), sessions)
+  for (const session of sessions)
+    attachSessionTurns(openDatabase(), [session], {
+      ...filter,
+      from: session.date,
+      to: session.date,
+      model: session.model,
+    })
+  return sessions
 }
 
 export function listUserUsageSessions(filter: UsageDetailFilter): TokenUsageUserSession[] {
   const rows = selectSessionRows(filter)
-  return buildUserSessions(rows)
+  const sessions = buildUserSessions(rows)
+  attachSessionTurns(openDatabase(), sessions, filter)
+  return sessions
 }
 
 export function listUserUsageSessionsPage(
@@ -263,13 +354,14 @@ export function listUserUsageSessionsPage(
 ): PageResult<TokenUsageUserSession> {
   const db = openDatabase()
   const { whereSql, params } = buildSessionWhere(filter)
+  const source = sessionSourceSql(filter)
   const rootExpression = "COALESCE(NULLIF(root_session_id, ''), session_id)"
-  const search = buildSessionSearchScore(filter.query)
+  const search = buildSessionSearchScore(filter.query, hasProjectScope(filter))
   const searchColumn = search.scoreSql ? `, (${search.scoreSql}) AS match_score` : ''
   const searchHaving = search.scoreSql ? 'HAVING match_score > 0' : ''
   const countRow = db
     .prepare(
-      `SELECT COUNT(*) AS total FROM (
+      `${source} SELECT COUNT(*) AS total FROM (
         SELECT agent, ${rootExpression}${searchColumn}
         FROM usage_sessions
         ${search.joinSql}
@@ -285,7 +377,7 @@ export function listUserUsageSessionsPage(
 
   const pageKeys = db
     .prepare(
-      `SELECT
+      `${source} SELECT
         agent,
         ${rootExpression} AS root_session_id,
         ${search.scoreSql ? `(${search.scoreSql})` : '0'} AS match_score,
@@ -320,7 +412,7 @@ export function listUserUsageSessionsPage(
   const pageParams = pageKeys.flatMap((key) => [key.agent, key.root_session_id])
   const rows = db
     .prepare(
-      `SELECT * FROM usage_sessions
+      `${source} SELECT * FROM usage_sessions
       ${whereSql}
       ${whereSql ? 'AND' : 'WHERE'} (${pageWhere})
       ORDER BY ended_at_ms DESC, started_at_ms DESC, date DESC,
@@ -337,6 +429,7 @@ export function listUserUsageSessionsPage(
     const session = byKey.get(groupKey(key.agent, key.root_session_id))
     return session ? [session] : []
   })
+  attachSessionTurns(db, items, filter)
   return createPageResult(items, pagination, total)
 }
 
@@ -344,7 +437,39 @@ export function listUsageApiCalls(filter: UsageApiCallFilter): TokenUsageApiCall
   return listUsageApiRecords(filter)
 }
 
+/** Materialize only selected roots after workspace filtering and ordering. */
+export function readUserSessionsByKeys(
+  filter: UsageDetailFilter,
+  keys: Array<{ agent: string; rootSessionId: string }>,
+): TokenUsageUserSession[] {
+  if (!keys.length) return []
+  const db = openDatabase()
+  const { whereSql, params } = buildSessionWhere(filter)
+  const root = "COALESCE(NULLIF(root_session_id, ''), session_id)"
+  const selected = keys.map(() => `(agent = ? AND ${root} = ?)`).join(' OR ')
+  const rows = db
+    .prepare(
+      `${sessionSourceSql(filter)} SELECT * FROM usage_sessions ${whereSql}
+    ${whereSql ? 'AND' : 'WHERE'} (${selected})
+    ORDER BY ended_at_ms DESC, started_at_ms DESC, date DESC, ended_at DESC`,
+    )
+    .all(...params, ...keys.flatMap((key) => [key.agent, key.rootSessionId])) as UsageSessionRow[]
+  const sessions = new Map(
+    buildUserSessions(rows).map((session) => [
+      groupKey(session.agent, session.rootSessionId),
+      session,
+    ]),
+  )
+  const ordered = keys.flatMap((key) => sessions.get(groupKey(key.agent, key.rootSessionId)) ?? [])
+  attachSessionTurns(db, ordered, filter)
+  return ordered
+}
+
 export function listUsageApiRecords(filter: UsageApiRecordFilter): TokenUsageApiCall[] {
+  return readApiSnapshot(() => selectUsageApiRecords(filter))
+}
+
+function selectUsageApiRecords(filter: UsageApiRecordFilter): TokenUsageApiCall[] {
   const db = openDatabase()
   const { whereSql, params } = buildApiCallWhere(filter)
 
@@ -358,6 +483,12 @@ export function listUsageApiRecords(filter: UsageApiRecordFilter): TokenUsageApi
 }
 
 export function listUsageApiRecordsPage(
+  filter: UsageApiRecordPageFilter,
+): PageResult<TokenUsageApiCall> {
+  return readApiSnapshot(() => selectUsageApiRecordsPage(filter))
+}
+
+function selectUsageApiRecordsPage(
   filter: UsageApiRecordPageFilter,
 ): PageResult<TokenUsageApiCall> {
   const db = openDatabase()
@@ -396,7 +527,7 @@ export function listAgentModelAggregates(
         SUM(cache_write_tokens) AS cache_write_tokens,
         SUM(total_tokens) AS total_tokens,
         SUM(reasoning_tokens) AS reasoning_tokens
-      FROM usage_api_calls
+      FROM usage_token_totals
       ${whereSql}
       GROUP BY agent, model
       ORDER BY total_tokens DESC, model ASC, agent ASC`,
@@ -416,6 +547,45 @@ export function listAgentModelAggregates(
 
 export function listDailyAgentModelAggregates(from: string, to: string): TokenUsageRecord[] {
   const db = openDatabase()
+  // 事务内可能读取尚未提交的数据，不能与普通查询共享结果。
+  if (db.inTransaction) return queryDailyAgentModelAggregates(db, from, to)
+
+  const dataVersion = db.pragma('data_version', { simple: true }) as number
+  const { totalChanges } = db.prepare('SELECT total_changes() AS totalChanges').get() as {
+    totalChanges: number
+  }
+  let cache = dailyAggregateCaches.get(db)
+  if (cache?.dataVersion !== dataVersion || cache.totalChanges !== totalChanges) {
+    cache = { dataVersion, totalChanges, ranges: new Map() }
+    dailyAggregateCaches.set(db, cache)
+  }
+
+  const key = JSON.stringify([from, to])
+  const cached = cache.ranges.get(key)
+  if (cached) return cached.map((row) => ({ ...row }))
+
+  const rows = queryDailyAgentModelAggregates(db, from, to)
+  // 扫描在其他进程提交时 data_version 会变化；查询期间有提交则不缓存这一批结果。
+  if (db.pragma('data_version', { simple: true }) === dataVersion) {
+    if (cache.ranges.size >= MAX_DAILY_AGGREGATE_RANGES) {
+      const oldest = cache.ranges.keys().next().value
+      if (oldest !== undefined) cache.ranges.delete(oldest)
+    }
+    cache.ranges.set(
+      key,
+      rows.map((row) => ({ ...row })),
+    )
+  } else {
+    dailyAggregateCaches.delete(db)
+  }
+  return rows
+}
+
+function queryDailyAgentModelAggregates(
+  db: ReturnType<typeof openDatabase>,
+  from: string,
+  to: string,
+): TokenUsageRecord[] {
   const rows = db
     .prepare(
       `SELECT
@@ -428,7 +598,7 @@ export function listDailyAgentModelAggregates(from: string, to: string): TokenUs
         SUM(cache_write_tokens) AS cache_write_tokens,
         SUM(total_tokens) AS total_tokens,
         SUM(reasoning_tokens) AS reasoning_tokens
-      FROM usage_api_calls
+      FROM usage_token_totals
       WHERE date >= ? AND date <= ?
       GROUP BY agent, date, model
       ORDER BY date ASC, agent ASC, model ASC`,
@@ -449,6 +619,10 @@ export function listDailyAgentModelAggregates(from: string, to: string): TokenUs
 }
 
 export function listUsageApiCallsByDate(date: string): TokenUsageApiCall[] {
+  return readApiSnapshot(() => selectUsageApiCallsByDate(date))
+}
+
+function selectUsageApiCallsByDate(date: string): TokenUsageApiCall[] {
   const db = openDatabase()
   const rows = db
     .prepare('SELECT * FROM usage_api_calls WHERE date = ? ORDER BY hour ASC, timestamp ASC')
@@ -548,6 +722,7 @@ function selectSessionRows(filter: UsageDetailFilter): UsageSessionRow[] {
   const { whereSql, params } = buildSessionWhere(filter)
 
   const sql = `
+    ${sessionSourceSql(filter)}
     SELECT * FROM usage_sessions
     ${whereSql}
     ORDER BY ended_at_ms DESC, started_at_ms DESC, date DESC,
@@ -574,35 +749,47 @@ function buildUserSessions(rows: UsageSessionRow[]): TokenUsageUserSession[] {
     }
   }
 
-  return [...grouped.values()]
+  const userSessions = [...grouped.values()]
     .map((session) => {
       session.children.sort(compareSessionRecent)
-      session.agents = [...session.agentSet].sort()
-      session.models = [...session.modelTotals.entries()]
-        .sort(
-          ([modelA, tokensA], [modelB, tokensB]) =>
-            tokensB - tokensA || modelA.localeCompare(modelB),
-        )
-        .map(([model]) => model)
+      session.agents = orderByLatestActivity(session.agentActivity)
+      session.models = orderByLatestActivity(session.modelActivity)
+      session.modelTotals = Object.fromEntries(session.modelTokenMap)
       const {
-        agentSet: _agentSet,
-        modelSet: _modelSet,
-        modelTotals: _modelTotals,
+        missingCost,
+        agentActivity: _agentActivity,
+        modelActivity: _modelActivity,
+        modelTokenMap: _modelTokenMap,
         ...cleanSession
       } = session
+      if (missingCost && !cleanSession.costSummary?.pricedRecords)
+        cleanSession.costSummary = undefined
       return cleanSession
     })
     .sort(compareUserSessionRecent)
+  attachSessionGeneration(openDatabase(), userSessions, true)
+  return userSessions
 }
 
-function buildSessionWhere(filter: UsageDetailFilter): {
+export function buildSessionWhere(filter: UsageDetailFilter): {
   whereSql: string
   params: QueryParam[]
 } {
   const clauses: string[] = []
   const params: QueryParam[] = []
+  if (filter.onlyFavorites === true) {
+    ensureLocalFavoriteSchema(openDatabase())
+    clauses.push(`EXISTS (SELECT 1 FROM local_favorites f WHERE f.entity_type = 'session'
+      AND f.agent = usage_sessions.agent
+      AND f.entity_id = COALESCE(NULLIF(usage_sessions.root_session_id, ''), usage_sessions.session_id))`)
+  }
   addEqualsFilter(clauses, params, 'agent', filter.agent)
-  addEqualsFilter(clauses, params, 'model', filter.model)
+  if (filter.model) {
+    const selection = modelSqlSelection('model', [filter.model])
+    clauses.push(selection.sql)
+    params.push(...selection.params)
+  }
+  addSelectionFilters(clauses, params, filter)
   if (filter.rootSessionId) {
     clauses.push("COALESCE(NULLIF(root_session_id, ''), session_id) = ?")
     params.push(filter.rootSessionId)
@@ -610,6 +797,44 @@ function buildSessionWhere(filter: UsageDetailFilter): {
   addProjectFilter(clauses, params, filter.projectId, filter.trackedProjectsOnly)
   addDateFilters(clauses, params, filter.from, filter.to)
   return { whereSql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params }
+}
+
+function addSelectionFilters(
+  clauses: string[],
+  params: QueryParam[],
+  filter: Pick<UsageDetailFilter, 'agents' | 'models' | 'projectIds'>,
+): void {
+  for (const [column, values] of [
+    ['agent', filter.agents],
+    ['model', filter.models],
+  ] as const) {
+    if (!values?.length) continue
+    if (
+      !Array.isArray(values) ||
+      values.length > 256 ||
+      values.some((value) => typeof value !== 'string')
+    )
+      throw new Error('Invalid session filter')
+    if (column === 'model') {
+      const selection = modelSqlSelection(column, values)
+      clauses.push(selection.sql)
+      params.push(...selection.params)
+    } else {
+      clauses.push(`${column} IN (${values.map(() => '?').join(',')})`)
+      params.push(...values)
+    }
+  }
+  if (filter.projectIds?.length) {
+    if (
+      !Array.isArray(filter.projectIds) ||
+      filter.projectIds.length > 256 ||
+      filter.projectIds.some((value) => typeof value !== 'string')
+    )
+      throw new Error('Invalid project filter')
+    const projects = filter.projectIds.map((id) => buildProjectSqlFilter(id, 'project_path'))
+    clauses.push(`(${projects.map((project) => project.clause || '0 = 1').join(' OR ')})`)
+    params.push(...projects.flatMap((project) => project.params))
+  }
 }
 
 function buildApiCallWhere(filter: UsageApiRecordFilter): {
@@ -620,11 +845,16 @@ function buildApiCallWhere(filter: UsageApiRecordFilter): {
   const params: QueryParam[] = []
   addEqualsFilter(clauses, params, 'agent', filter.agent)
   addEqualsFilter(clauses, params, 'session_id', filter.sessionId)
+  addSelectionFilters(clauses, params, filter)
   if (filter.rootSessionId) {
     clauses.push("COALESCE(NULLIF(root_session_id, ''), session_id) = ?")
     params.push(filter.rootSessionId)
   }
-  addEqualsFilter(clauses, params, 'model', filter.model)
+  if (filter.model) {
+    const selection = modelSqlSelection('model', [filter.model])
+    clauses.push(selection.sql)
+    params.push(...selection.params)
+  }
   addProjectFilter(clauses, params, filter.projectId, filter.trackedProjectsOnly)
   addDateFilters(clauses, params, filter.from, filter.to)
   return { whereSql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params }
@@ -704,43 +934,69 @@ const SEARCH_CONTENT_ALIAS = 'usage_session_search_content'
  * - 正常标题命中高于模型、Agent、子 Agent 和会话 ID；
  * - 多关键词同时出现在同一标题、保持输入顺序或靠近标题开头时继续加分；
  * - 超长标题和明显完整对话由 FTS 内容视图统一置空，不参与召回与评分。
- * 长词走 trigram FTS5，短词走参数化 LIKE；最终只在 SQLite 内排序并分页。
+ * 长词优先走 trigram FTS5，再用统一规范化文本匹配，忽略中英文字间空格和大小写。
+ * 项目和分析页复用同一 root 召回；最终仍在 SQLite 内评分、排序和分页。
  */
-function buildSessionSearchScore(query: string | undefined): SessionSearchScore {
-  const keywords = normalizeSearchKeywords(query)
+export function buildSessionSearchScore(
+  query: string | undefined,
+  projectScoped = false,
+): SessionSearchScore {
+  const keywords = workspaceSearchKeywords(query)
   if (keywords.length === 0) return { scoreSql: '', joinSql: '', params: [] }
 
   const scoreParts: string[] = []
   const params: QueryParam[] = []
   const searchableTitle = `${SEARCH_CONTENT_ALIAS}.search_title`
+  // A root title can live outside the selected date/model scope. It still identifies
+  // its children, without pulling the parent's out-of-scope usage into the totals.
+  const rootTitle = `(SELECT ${searchableSessionTitleSql('parent.title')}
+    FROM main.usage_sessions parent WHERE parent.agent = usage_sessions.agent
+      AND parent.session_id = COALESCE(NULLIF(usage_sessions.root_session_id, ''), usage_sessions.session_id)
+    ORDER BY parent.ended_at_ms DESC, parent.date DESC LIMIT 1)`
   for (const keyword of keywords) {
-    if ([...keyword].length >= 3) {
-      const phrase = `"${keyword.replace(/"/g, '""')}"`
-      scoreParts.push(`MAX(CASE
-        WHEN ${FTS_ROW_MATCH_SQL} THEN ${TITLE_KEYWORD_SCORE}
-        WHEN ${FTS_ROW_MATCH_SQL} THEN ${METADATA_KEYWORD_SCORE}
-        ELSE 0
-      END)`)
-      params.push(`title : ${phrase}`, `{${SEARCH_METADATA_FIELDS.join(' ')}} : ${phrase}`)
-      continue
-    }
-
-    const titleMatch = `LOWER(${searchableTitle}) LIKE ? ESCAPE '\\'`
+    const projectMatch = `INSTR(workspace_search_text(project_path), ?) > 0
+      OR ${projectOwnerSql('workspace_search_path(project_path)')} IN (SELECT id FROM tracked_projects
+        WHERE ignored = 0 AND (INSTR(workspace_search_text(name), ?) > 0
+          OR INSTR(workspace_search_text(notes), ?) > 0))`
+    const linkedProjects = projectScoped
+      ? ''
+      : ` OR EXISTS (
+      SELECT 1 FROM (
+        SELECT p.project_path FROM usage_session_projects p
+          WHERE p.agent = usage_sessions.agent AND p.session_id = usage_sessions.session_id
+            AND p.date = usage_sessions.date AND p.model = usage_sessions.model
+        UNION
+        SELECT a.project_path FROM usage_api_calls a
+          WHERE a.agent = usage_sessions.agent AND a.session_id = usage_sessions.session_id
+            AND a.date = usage_sessions.date AND a.model = usage_sessions.model
+      ) linked_projects WHERE ${projectMatch}
+    )`
+    scoreParts.push(`MAX(CASE WHEN ${projectMatch}${linkedProjects}
+      THEN ${METADATA_KEYWORD_SCORE} ELSE 0 END)`)
+    params.push(keyword, keyword, keyword)
+    if (!projectScoped) params.push(keyword, keyword, keyword)
+    const long = [...keyword].length >= 3
+    const phrase = `"${keyword.replace(/"/g, '""')}"`
+    const titleMatch = [searchableTitle, rootTitle]
+      .map((field) => `INSTR(workspace_search_text(${field}), ?) > 0`)
+      .join(' OR ')
     const metadataMatches = SEARCH_METADATA_FIELDS.map(
-      (field) => `LOWER(COALESCE(${field}, '')) LIKE ? ESCAPE '\\'`,
+      (field) => `INSTR(workspace_search_text(${field}), ?) > 0`,
     )
     scoreParts.push(`MAX(CASE
-      WHEN ${titleMatch} THEN ${TITLE_KEYWORD_SCORE}
-      WHEN (${metadataMatches.join(' OR ')}) THEN ${METADATA_KEYWORD_SCORE}
+      WHEN ${long ? FTS_ROW_MATCH_SQL + ' OR ' : ''}${titleMatch} THEN ${TITLE_KEYWORD_SCORE}
+      WHEN ${long ? FTS_ROW_MATCH_SQL + ' OR ' : ''}(${metadataMatches.join(' OR ')}) THEN ${METADATA_KEYWORD_SCORE}
       ELSE 0
     END)`)
-    const pattern = `%${escapeSearchLike(keyword.toLowerCase())}%`
-    params.push(pattern, ...metadataMatches.map(() => pattern))
+    if (long) params.push(`title : ${phrase}`)
+    params.push(keyword, keyword)
+    if (long) params.push(`{${SEARCH_METADATA_FIELDS.join(' ')}} : ${phrase}`)
+    params.push(...metadataMatches.map(() => keyword))
   }
 
   if (keywords.length > 1) {
     const allTitleMatches = keywords
-      .map(() => `INSTR(LOWER(${searchableTitle}), ?) > 0`)
+      .map(() => `INSTR(workspace_search_text(${searchableTitle}), ?) > 0`)
       .join(' AND ')
     scoreParts.push(`MAX(CASE WHEN ${allTitleMatches} THEN ${ALL_TITLE_KEYWORDS_BONUS} ELSE 0 END)`)
     params.push(...keywords.map((keyword) => keyword.toLowerCase()))
@@ -749,8 +1005,8 @@ function buildSessionSearchScore(query: string | undefined): SessionSearchScore 
       .slice(0, -1)
       .map(
         () =>
-          `(INSTR(LOWER(${searchableTitle}), ?) > 0
-            AND INSTR(LOWER(${searchableTitle}), ?) > INSTR(LOWER(${searchableTitle}), ?))`,
+          `(INSTR(workspace_search_text(${searchableTitle}), ?) > 0
+            AND INSTR(workspace_search_text(${searchableTitle}), ?) > INSTR(workspace_search_text(${searchableTitle}), ?))`,
       )
       .join(' AND ')
     scoreParts.push(
@@ -766,7 +1022,7 @@ function buildSessionSearchScore(query: string | undefined): SessionSearchScore 
   }
 
   scoreParts.push(
-    `MAX(CASE WHEN INSTR(LOWER(${searchableTitle}), ?) BETWEEN 1 AND 12 THEN ${TITLE_PREFIX_BONUS} ELSE 0 END)`,
+    `MAX(CASE WHEN INSTR(workspace_search_text(${searchableTitle}), ?) BETWEEN 1 AND 12 THEN ${TITLE_PREFIX_BONUS} ELSE 0 END)`,
   )
   params.push(keywords[0].toLowerCase())
 
@@ -781,24 +1037,40 @@ function buildSessionSearchScore(query: string | undefined): SessionSearchScore 
   }
 }
 
-function normalizeSearchKeywords(query: string | undefined): string[] {
-  if (typeof query !== 'string') return []
-  const unique = new Map<string, string>()
-  const sanitized = [...query]
-    .map((character) => (character.charCodeAt(0) < 32 ? ' ' : character))
-    .join('')
-  for (const raw of sanitized.trim().split(/\s+/u)) {
-    const keyword = raw.trim().slice(0, 80)
-    if (!keyword) continue
-    const key = keyword.toLocaleLowerCase()
-    if (!unique.has(key)) unique.set(key, keyword)
-    if (unique.size >= 12) break
-  }
-  return [...unique.values()]
+/** Shared search recall for the session, project and analytics workspaces. */
+export function readMatchingSessionRoots(filter: UsageDetailFilter): Set<string> | undefined {
+  const search = buildSessionSearchScore(filter.query, hasProjectScope(filter))
+  if (!search.scoreSql) return undefined
+  const { whereSql, params } = buildSessionWhere(filter)
+  const root = "COALESCE(NULLIF(root_session_id, ''), session_id)"
+  const source = sessionSourceSql(filter)
+  const rows = openDatabase()
+    .prepare(
+      `${source}
+    SELECT agent, ${root} AS root_id, (${search.scoreSql}) AS relevance
+    FROM usage_sessions ${search.joinSql} ${whereSql}
+    GROUP BY agent, ${root} HAVING relevance > 0`,
+    )
+    .all(...search.params, ...params) as Array<{ agent: string; root_id: string }>
+  return new Set(rows.map((row) => JSON.stringify([row.agent, row.root_id])))
 }
 
-function escapeSearchLike(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
+/** Match each project's actual usage paths, so a name hit does not leak to a
+ * second project merely because a root conversation touched both directories. */
+export function readMatchingSessionProjects(filter: UsageDetailFilter): Set<string> | undefined {
+  const search = buildSessionSearchScore(filter.query, true)
+  if (!search.scoreSql) return undefined
+  const scoped = { ...filter, trackedProjectsOnly: true, onlyFavorites: false }
+  const { whereSql, params } = buildSessionWhere(scoped)
+  const rows = openDatabase()
+    .prepare(
+      `${sessionSourceSql(scoped)}
+    SELECT ${projectOwnerSql('project_path')} AS project_id, (${search.scoreSql}) AS relevance
+    FROM usage_sessions ${search.joinSql} ${whereSql}
+    GROUP BY project_id HAVING relevance > 0`,
+    )
+    .all(...search.params, ...params) as Array<{ project_id: string }>
+  return new Set(rows.map((row) => row.project_id))
 }
 
 function normalizePagination(
@@ -863,6 +1135,8 @@ function createUserSession(
 ): MutableUserSession {
   const title = rootMeta?.title ?? session.title
   const base: MutableUserSession = {
+    missingCost: false,
+    projectPath: session.projectPath ?? rootMeta?.projectPath,
     agent: rootMeta?.agent ?? session.agent,
     sessionId: rootSessionId,
     rootSessionId,
@@ -880,9 +1154,9 @@ function createUserSession(
     agents: [],
     models: [],
     children: [],
-    agentSet: new Set<string>(),
-    modelSet: new Set<string>(),
-    modelTotals: new Map<string, number>(),
+    agentActivity: new Map<string, number>(),
+    modelActivity: new Map<string, number>(),
+    modelTokenMap: new Map<string, number>(),
   }
   if (title) base.title = title
   mergeIntoUserSession(base, session)
@@ -890,6 +1164,21 @@ function createUserSession(
 }
 
 function mergeIntoUserSession(target: MutableUserSession, session: TokenUsageSession): void {
+  target.missingCost ||= !session.costSummary
+  target.costSummary = combineCostRollups(
+    [
+      ...(target.costSummary ? [target.costSummary] : []),
+      session.costSummary ??
+        unpricedCostRollup(
+          session.agent,
+          session.model,
+          session.totalTokens,
+          session.apiCallCount,
+          PRICE_CATALOG_VERSION,
+        ),
+    ],
+    PRICE_CATALOG_VERSION,
+  )
   target.date = laterDate(target.date, session.date)
   target.startedAt = earlierTimestamp(target.startedAt, session.startedAt)
   target.endedAt = laterTimestamp(target.endedAt, session.endedAt)
@@ -900,11 +1189,17 @@ function mergeIntoUserSession(target: MutableUserSession, session: TokenUsageSes
   target.totalTokens += session.totalTokens
   target.reasoningTokens += session.reasoningTokens
   target.apiCallCount += session.apiCallCount
-  target.agentSet.add(session.agent)
-  target.modelSet.add(session.model)
-  target.modelTotals.set(
+  target.apiCallCountComplete =
+    target.apiCallCountComplete !== false && session.apiCallCountComplete !== false
+  const recent =
+    timestampEpochMs(session.endedAt) ||
+    timestampEpochMs(session.startedAt) ||
+    timestampEpochMs(session.date)
+  updateLatestActivity(target.agentActivity, session.agent, recent)
+  updateLatestActivity(target.modelActivity, session.model, recent)
+  target.modelTokenMap.set(
     session.model,
-    (target.modelTotals.get(session.model) || 0) + session.totalTokens,
+    (target.modelTokenMap.get(session.model) || 0) + session.totalTokens,
   )
   target.model = session.model
 
@@ -924,12 +1219,13 @@ function toSessionChild(session: TokenUsageSession, rootSessionId: string): Toke
 
 function rowToSession(row: UsageSessionRow): TokenUsageSession {
   const session: TokenUsageSession = {
+    costSummary: readSessionCost(row),
     agent: row.agent,
     sessionId: row.session_id,
     date: row.date,
     startedAt: row.started_at,
     endedAt: row.ended_at,
-    model: row.model,
+    model: canonicalModelName(row.model),
     inputTokens: row.input_tokens,
     outputTokens: row.output_tokens,
     cacheReadTokens: row.cache_read_tokens,
@@ -937,6 +1233,7 @@ function rowToSession(row: UsageSessionRow): TokenUsageSession {
     totalTokens: row.total_tokens,
     reasoningTokens: row.reasoning_tokens,
     apiCallCount: row.api_call_count,
+    apiCallCountComplete: row.api_count_complete !== 0,
   }
   const rootSessionId = row.root_session_id || row.session_id
   if (row.parent_session_id) session.parentSessionId = row.parent_session_id
@@ -964,6 +1261,7 @@ function rowToApiCall(row: UsageApiCallRow): TokenUsageApiCall {
     cacheWriteTokens: row.cache_write_tokens,
     totalTokens: row.total_tokens,
     reasoningTokens: row.reasoning_tokens,
+    evidence: parseUsageEvidence(row.usage_evidence),
   }
   const rootSessionId = row.root_session_id || row.session_id
   if (row.parent_session_id) apiCall.parentSessionId = row.parent_session_id
@@ -972,7 +1270,13 @@ function rowToApiCall(row: UsageApiCallRow): TokenUsageApiCall {
   if (row.sub_agent_name) apiCall.subAgentName = row.sub_agent_name
   if (row.project_path) apiCall.projectPath = row.project_path
   if (row.role) apiCall.role = row.role
+  apiCall.costAssessment = readCallCost(openDatabase(), row)
   return apiCall
+}
+
+function readApiSnapshot<T>(read: () => T): T {
+  const db = openDatabase()
+  return db.inTransaction ? read() : db.transaction(read).immediate()
 }
 
 function groupKey(agent: string, rootSessionId: string): string {
@@ -1016,18 +1320,4 @@ function laterTimestamp(a: string, b: string): string {
   if (!a) return b
   if (!b) return a
   return a >= b ? a : b
-}
-
-function localTimestampParts(
-  timestamp: string,
-  fallbackDate: string,
-  fallbackHour: number,
-): { date: string; hour: number } {
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):/.exec(timestamp)
-  if (!match) return { date: fallbackDate, hour: fallbackHour }
-  const hour = Number.parseInt(match[2], 10)
-  return {
-    date: match[1],
-    hour: Number.isFinite(hour) ? Math.min(23, Math.max(0, hour)) : fallbackHour,
-  }
 }

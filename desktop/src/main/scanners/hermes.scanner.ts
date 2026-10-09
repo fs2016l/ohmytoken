@@ -19,7 +19,8 @@ import {
   timestampsFromValue,
 } from './detail-utils'
 import { normalizeScanContext } from './incremental-utils'
-import { tokenBuckets } from './token-usage'
+import { tokenBuckets, tokenCount } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
 
 export class HermesScanner implements AgentScanner {
   readonly agentName = 'hermes'
@@ -102,6 +103,8 @@ export class HermesScanner implements AgentScanner {
             smu.session_id AS session_id,
             smu.model AS model,
             ${smuColumns.has('billing_provider') ? 'smu.billing_provider' : 'NULL'} AS billing_provider,
+            ${smuColumns.has('billing_base_url') ? "CASE WHEN COUNT(DISTINCT COALESCE(smu.billing_base_url, '')) = 1 THEN MAX(smu.billing_base_url) ELSE NULL END" : 'NULL'} AS billing_base_url,
+            1 AS model_attributed,
             ${sessionColumns.has('started_at') ? 's.started_at' : 'NULL'} AS started_at,
             ${sumCol('input_tokens')} AS input_tokens,
             ${sumCol('output_tokens')} AS output_tokens,
@@ -137,6 +140,8 @@ export class HermesScanner implements AgentScanner {
         id AS session_id,
         ${sessionColumns.has('model') ? 'model' : 'NULL'} AS model,
         ${sessionColumns.has('billing_provider') ? 'billing_provider' : 'NULL'} AS billing_provider,
+        ${sessionColumns.has('billing_base_url') ? 'billing_base_url' : 'NULL'} AS billing_base_url,
+        0 AS model_attributed,
         ${sessionColumns.has('started_at') ? 'started_at' : 'NULL'} AS started_at,
         ${totalCol('input_tokens')} AS input_tokens,
         ${totalCol('output_tokens')} AS output_tokens,
@@ -170,7 +175,8 @@ export class HermesScanner implements AgentScanner {
       row.billing_provider === null ? '<null>' : provider.length > 0 ? provider : '<empty>'
     const buckets = tokenBuckets({
       inputTokens: row.input_tokens,
-      outputTokens: row.output_tokens,
+      // 输出包含 reasoning；内部五桶只保留一次推理量。
+      outputTokens: Math.max(0, tokenCount(row.output_tokens) - tokenCount(row.reasoning_tokens)),
       cacheReadTokens: row.cache_read_tokens,
       cacheWriteTokens: row.cache_write_tokens,
       reasoningTokens: row.reasoning_tokens,
@@ -199,6 +205,14 @@ export class HermesScanner implements AgentScanner {
       hour: hourFromTimestamp(timestamp),
       model,
       ...buckets,
+      evidence: usageEvidence({
+        granularity: 'aggregate',
+        modelSource: row.model_attributed === 1 ? 'response' : 'session',
+        bucketQuality:
+          tokenCount(row.reasoning_tokens) <= tokenCount(row.output_tokens)
+            ? 'verified'
+            : 'uncertain',
+      }),
     }
   }
 }

@@ -1,21 +1,19 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useBodyScrollLock } from '../../composables/useBodyScrollLock'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useUpdater, type UpdateInfo, type UpdateStatus } from '../../composables/useUpdater'
 import { useI18n } from '../../i18n/useI18n'
+import WorkspaceDialog from '../base/WorkspaceDialog.vue'
+import DesignIcon from '../base/DesignIcon.vue'
 
 type DialogStatus = Exclude<UpdateStatus, 'idle'>
 
-const { tr } = useI18n()
+const { tr, label } = useI18n()
 const updater = useUpdater({ versionFallback: '1.0.0', latestResetMs: 2000, errorResetMs: 2000 })
 const open = ref(false)
 const dialogStatus = ref<DialogStatus>('checking')
 const displayedInfo = ref<UpdateInfo | null>(null)
 const displayedError = ref('')
-const dialogRef = ref<HTMLElement>()
 let unsubscribe: (() => void) | undefined
-
-useBodyScrollLock(open)
 
 const currentVersion = computed(() => updater.currentVersion.value || '—')
 const downloadPercent = computed(() =>
@@ -23,62 +21,40 @@ const downloadPercent = computed(() =>
 )
 const releaseDate = computed(() => displayedInfo.value?.releaseDate?.slice(0, 10) || '')
 const releaseNotes = computed(() => String(displayedInfo.value?.releaseNotes || '').trim())
-
-const statusIcon = computed(() => {
-  switch (dialogStatus.value) {
-    case 'checking':
-      return 'sync'
-    case 'available':
-      return 'system_update_alt'
-    case 'downloading':
-      return 'downloading'
-    case 'downloaded':
-      return 'task_alt'
-    case 'latest':
-      return 'verified'
-    case 'error':
-      return 'cloud_off'
-    default:
-      return 'system_update'
-  }
-})
-
+const statusIcons = {
+  checking: 'networkRefresh',
+  available: 'update',
+  downloading: 'download',
+  paused: 'download',
+  'waiting-network': 'networkRefresh',
+  verifying: 'circleCheck',
+  downloaded: 'circleCheck',
+  latest: 'circleCheck',
+  error: 'networkInfo',
+} as const
+const statusTitles = {
+  checking: 'trayUpdateCheckingTitle',
+  available: 'trayUpdateAvailableTitle',
+  downloading: 'trayUpdateDownloadingTitle',
+  downloaded: 'trayUpdateDownloadedTitle',
+  latest: 'trayUpdateLatestTitle',
+  error: 'trayUpdateErrorTitle',
+} as const
 const statusTitle = computed(() => {
-  switch (dialogStatus.value) {
-    case 'checking':
-      return tr('trayUpdateCheckingTitle')
-    case 'available':
-      return tr('trayUpdateAvailableTitle')
-    case 'downloading':
-      return tr('trayUpdateDownloadingTitle')
-    case 'downloaded':
-      return tr('trayUpdateDownloadedTitle')
-    case 'latest':
-      return tr('trayUpdateLatestTitle')
-    case 'error':
-      return tr('trayUpdateErrorTitle')
-    default:
-      return tr('checkUpdate')
-  }
+  if (dialogStatus.value === 'paused') return label('Download paused', '下载已暂停')
+  if (dialogStatus.value === 'waiting-network') return label('Waiting for network', '等待网络恢复')
+  if (dialogStatus.value === 'verifying') return label('Verifying update', '正在校验更新')
+  return tr(statusTitles[dialogStatus.value])
 })
-
-const statusDescription = computed(() => {
-  switch (dialogStatus.value) {
-    case 'checking':
-      return tr('trayUpdateCheckingDesc')
-    case 'available':
-      return tr('trayUpdateAvailableDesc')
-    case 'downloading':
-      return tr('trayUpdateDownloadingDesc')
-    case 'downloaded':
-      return tr('trayUpdateDownloadedDesc')
-    case 'latest':
-      return tr('trayUpdateLatestDesc')
-    case 'error':
-      return tr('trayUpdateErrorDesc')
-    default:
-      return ''
-  }
+const versionDescription = computed(() => {
+  if (
+    ['downloading', 'paused', 'waiting-network', 'verifying', 'downloaded'].includes(
+      dialogStatus.value,
+    ) &&
+    displayedInfo.value?.version
+  )
+    return `Oh My Token v${displayedInfo.value.version}`
+  return `${tr('trayUpdateCurrentVersion')} v${currentVersion.value}`
 })
 
 function formatBytes(bytes: number): string {
@@ -93,16 +69,13 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
-function syncFromUpdater(status: UpdateStatus = updater.status.value): void {
+function syncFromUpdater(): void {
+  const status = updater.status.value
+  // Keep the result visible after the shared updater resets to idle.
   if (status === 'idle') return
   dialogStatus.value = status
   if (updater.info.value) displayedInfo.value = { ...updater.info.value }
   if (status === 'error') displayedError.value = updater.error.value || tr('trayUpdateUnknownError')
-}
-
-async function focusDialog(): Promise<void> {
-  await nextTick()
-  dialogRef.value?.focus()
 }
 
 async function runCheck(): Promise<void> {
@@ -114,544 +87,424 @@ async function runCheck(): Promise<void> {
   syncFromUpdater()
 }
 
-async function showFromTray(): Promise<void> {
-  open.value = true
-  await focusDialog()
-  await updater.init()
-  if (['available', 'downloading', 'downloaded'].includes(updater.status.value)) {
-    syncFromUpdater()
-    return
+async function show(): Promise<void> {
+  if (open.value) return
+  const hasActiveUpdate = () =>
+    [
+      'checking',
+      'available',
+      'downloading',
+      'paused',
+      'waiting-network',
+      'verifying',
+      'downloaded',
+    ].includes(updater.status.value)
+  if (hasActiveUpdate()) syncFromUpdater()
+  else {
+    dialogStatus.value = 'checking'
+    displayedInfo.value = null
+    displayedError.value = ''
   }
-  await runCheck()
+  open.value = true
+  await updater.init()
+  if (hasActiveUpdate()) syncFromUpdater()
+  else await runCheck()
 }
 
 function close(): void {
   open.value = false
 }
 
-async function retry(): Promise<void> {
-  await runCheck()
-}
-
 async function download(): Promise<void> {
+  if (updater.status.value === 'downloading') return
   dialogStatus.value = 'downloading'
   displayedError.value = ''
   await updater.download()
   syncFromUpdater()
 }
 
-function install(): void {
-  updater.install()
-}
-
-function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && open.value) close()
-}
-
-watch(updater.status, (status) => {
-  if (open.value) syncFromUpdater(status)
+watch([updater.status, updater.info, updater.error], () => {
+  if (open.value) syncFromUpdater()
 })
 
 onMounted(() => {
-  unsubscribe = window.api.onTrayCheckUpdateRequested(() => void showFromTray())
-  window.addEventListener('keydown', onKeydown)
-  void updater.init()
+  unsubscribe = window.api.onTrayCheckUpdateRequested(() => void show())
 })
+onUnmounted(() => unsubscribe?.())
 
-onUnmounted(() => {
-  unsubscribe?.()
-  window.removeEventListener('keydown', onKeydown)
-})
+defineExpose({ show })
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="tray-update-dialog">
-      <div v-if="open" class="update-backdrop" @mousedown.self="close">
-        <section
-          ref="dialogRef"
-          class="update-dialog"
-          :class="`status-${dialogStatus}`"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="tray-update-title"
-          tabindex="-1"
-        >
-          <button class="dialog-close" type="button" :aria-label="tr('close')" @click="close">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+  <WorkspaceDialog
+    class="update-dialog"
+    :class="`status-${dialogStatus}`"
+    :open="open"
+    :title="tr('trayUpdateEyebrow')"
+    @close="close"
+  >
+    <template #heading>
+      <h2 class="dialog-heading">
+        <DesignIcon name="update" :size="16" />
+        {{ tr('trayUpdateEyebrow') }}
+      </h2>
+    </template>
 
-          <div class="dialog-eyebrow">
-            <span class="eyebrow-dot"></span>
-            {{ tr('trayUpdateEyebrow') }}
-          </div>
-
-          <div class="status-visual" aria-hidden="true">
-            <span class="visual-ring"></span>
-            <span
-              class="material-symbols-outlined"
-              :class="{ spinning: dialogStatus === 'checking' || dialogStatus === 'downloading' }"
-            >
-              {{ statusIcon }}
-            </span>
-          </div>
-
-          <div class="dialog-copy" aria-live="polite">
-            <span class="version-chip">
-              {{ tr('trayUpdateCurrentVersion') }} v{{ currentVersion }}
-            </span>
-            <h2 id="tray-update-title">{{ statusTitle }}</h2>
-            <p>{{ statusDescription }}</p>
-          </div>
-
-          <div v-if="dialogStatus === 'available' && displayedInfo" class="release-card">
-            <div class="release-heading">
-              <div>
-                <span>{{ tr('trayUpdateNewVersion') }}</span>
-                <strong>v{{ displayedInfo.version }}</strong>
-              </div>
-              <span v-if="releaseDate" class="release-date">
-                <span class="material-symbols-outlined">calendar_today</span>
-                {{ releaseDate }}
-              </span>
-            </div>
-            <p v-if="releaseNotes" class="release-notes">{{ releaseNotes }}</p>
-            <p v-else class="release-notes release-notes--muted">
-              {{ tr('trayUpdateNoReleaseNotes') }}
-            </p>
-          </div>
-
-          <div v-if="dialogStatus === 'downloading'" class="download-card">
-            <div class="progress-heading">
-              <span>{{ tr('trayUpdateDownloadProgress') }}</span>
-              <strong>{{ downloadPercent }}%</strong>
-            </div>
-            <div class="progress-track" role="progressbar" :aria-valuenow="downloadPercent">
-              <span class="progress-fill" :style="{ width: `${downloadPercent}%` }"></span>
-            </div>
-            <div v-if="updater.progress.value" class="progress-meta">
-              <span>{{ formatBytes(updater.progress.value.transferred) }}</span>
-              <span>{{ formatBytes(updater.progress.value.total) }}</span>
-            </div>
-          </div>
-
-          <div v-if="dialogStatus === 'error'" class="error-card">
-            <span class="material-symbols-outlined">info</span>
-            <span>{{ displayedError }}</span>
-          </div>
-
-          <footer class="dialog-actions">
-            <template v-if="dialogStatus === 'available'">
-              <button class="secondary-action" type="button" @click="close">
-                {{ tr('trayUpdateLater') }}
-              </button>
-              <button class="primary-action" type="button" @click="download">
-                <span class="material-symbols-outlined">download</span>
-                {{ tr('updateDownload') }}
-              </button>
-            </template>
-            <template v-else-if="dialogStatus === 'downloaded'">
-              <button class="secondary-action" type="button" @click="close">
-                {{ tr('trayUpdateLater') }}
-              </button>
-              <button class="primary-action" type="button" @click="install">
-                <span class="material-symbols-outlined">restart_alt</span>
-                {{ tr('updateInstall') }}
-              </button>
-            </template>
-            <template v-else-if="dialogStatus === 'latest'">
-              <button class="secondary-action" type="button" @click="retry">
-                <span class="material-symbols-outlined">refresh</span>
-                {{ tr('trayUpdateCheckAgain') }}
-              </button>
-              <button class="primary-action" type="button" @click="close">
-                {{ tr('trayUpdateDone') }}
-              </button>
-            </template>
-            <template v-else-if="dialogStatus === 'error'">
-              <button class="secondary-action" type="button" @click="close">
-                {{ tr('close') }}
-              </button>
-              <button class="primary-action" type="button" @click="retry">
-                <span class="material-symbols-outlined">refresh</span>
-                {{ tr('updateRetry') }}
-              </button>
-            </template>
-            <template v-else>
-              <button class="secondary-action single-action" type="button" @click="close">
-                {{
-                  dialogStatus === 'downloading'
-                    ? tr('trayUpdateBackgroundDownload')
-                    : tr('trayUpdateRunInBackground')
-                }}
-              </button>
-            </template>
-          </footer>
-        </section>
+    <div class="update-status">
+      <div class="status-visual" aria-hidden="true">
+        <DesignIcon
+          :name="statusIcons[dialogStatus]"
+          :size="23"
+          :class="{ spinning: dialogStatus === 'checking' }"
+        />
       </div>
-    </Transition>
-  </Teleport>
+      <div class="dialog-copy" aria-live="polite">
+        <h3>{{ statusTitle }}</h3>
+        <p>
+          {{ dialogStatus === 'checking' ? tr('trayUpdateCheckingDesc') : versionDescription }}
+        </p>
+      </div>
+    </div>
+
+    <div v-if="dialogStatus === 'available' && displayedInfo" class="release-card">
+      <div class="release-heading">
+        <span>{{ label("What's new", '本次更新') }}</span>
+        <strong>v{{ displayedInfo.version }}</strong>
+      </div>
+      <p v-if="releaseNotes" class="release-notes">{{ releaseNotes }}</p>
+      <p v-else class="release-notes">{{ tr('trayUpdateNoReleaseNotes') }}</p>
+      <p v-if="releaseDate" class="release-date">{{ releaseDate }}</p>
+    </div>
+
+    <template
+      v-else-if="['downloading', 'paused', 'waiting-network', 'verifying'].includes(dialogStatus)"
+    >
+      <div class="download-card">
+        <div class="progress-heading">
+          <span>{{ tr('trayUpdateDownloadProgress') }}</span>
+          <strong>{{ downloadPercent }}%</strong>
+        </div>
+        <div
+          class="progress-track"
+          role="progressbar"
+          :aria-label="tr('trayUpdateDownloadProgress')"
+          :aria-valuenow="downloadPercent"
+          :aria-valuemin="0"
+          :aria-valuemax="100"
+        >
+          <span class="progress-fill" :style="{ width: `${downloadPercent}%` }" />
+        </div>
+        <div v-if="updater.progress.value" class="progress-meta">
+          <span>
+            {{ label('Downloaded', '已下载') }}
+            {{ formatBytes(updater.progress.value.transferred) }}
+          </span>
+          <span>{{ label('Total', '共') }} {{ formatBytes(updater.progress.value.total) }}</span>
+        </div>
+      </div>
+      <p class="status-detail">
+        {{
+          dialogStatus === 'paused'
+            ? label(
+                'Your progress is saved. Continue whenever you are ready.',
+                '进度已保存，点击继续下载即可恢复。',
+              )
+            : dialogStatus === 'waiting-network'
+              ? label(
+                  'Download will resume automatically when the network recovers.',
+                  '网络恢复后将自动继续下载。',
+                )
+              : dialogStatus === 'verifying'
+                ? label(
+                    'Checking the package and preparing installation…',
+                    '正在校验更新包并准备安装…',
+                  )
+                : tr('trayUpdateDownloadingDesc')
+        }}
+      </p>
+    </template>
+
+    <p v-else-if="dialogStatus === 'downloaded'" class="status-detail">
+      {{ tr('trayUpdateDownloadedDesc') }}
+    </p>
+    <p v-else-if="dialogStatus === 'latest'" class="status-detail result-detail">
+      {{ tr('trayUpdateLatestDesc') }}
+    </p>
+    <p v-else-if="dialogStatus === 'error'" class="error-card" role="alert">
+      {{ displayedError }}
+    </p>
+    <p v-else class="status-detail result-detail">
+      {{ tr('trayUpdateCurrentVersion') }} v{{ currentVersion }}
+    </p>
+
+    <template #footer>
+      <template v-if="['downloading', 'paused', 'waiting-network'].includes(dialogStatus)">
+        <button class="workspace-button quiet-action" type="button" @click="close">
+          {{ dialogStatus === 'paused' ? tr('close') : tr('trayUpdateBackgroundDownload') }}
+        </button>
+        <button
+          class="workspace-button workspace-button--primary"
+          type="button"
+          @click="dialogStatus === 'paused' ? updater.resume() : updater.pause()"
+        >
+          {{
+            dialogStatus === 'paused'
+              ? label('Continue download', '继续下载')
+              : label('Pause download', '暂停下载')
+          }}
+        </button>
+      </template>
+      <template v-else-if="dialogStatus === 'available'">
+        <button class="workspace-button quiet-action" type="button" @click="close">
+          {{ tr('trayUpdateLater') }}
+        </button>
+        <button class="workspace-button workspace-button--primary" type="button" @click="download">
+          <DesignIcon name="download" :size="14" />
+          {{ label('Download update', '下载更新') }}
+        </button>
+      </template>
+      <template v-else-if="dialogStatus === 'downloaded'">
+        <button class="workspace-button quiet-action" type="button" @click="close">
+          {{ tr('trayUpdateLater') }}
+        </button>
+        <button
+          class="workspace-button workspace-button--primary"
+          type="button"
+          @click="updater.install"
+        >
+          <DesignIcon name="floatingRefresh" :size="14" />
+          {{ label('Restart and update', '重启并更新') }}
+        </button>
+      </template>
+      <template v-else-if="dialogStatus === 'latest'">
+        <button class="workspace-button quiet-action" type="button" @click="runCheck">
+          <DesignIcon name="networkRefresh" :size="14" />
+          {{ tr('trayUpdateCheckAgain') }}
+        </button>
+        <button class="workspace-button workspace-button--primary" type="button" @click="close">
+          {{ tr('trayUpdateDone') }}
+        </button>
+      </template>
+      <template v-else-if="dialogStatus === 'error'">
+        <button class="workspace-button quiet-action" type="button" @click="close">
+          {{ tr('close') }}
+        </button>
+        <button
+          class="workspace-button workspace-button--primary"
+          type="button"
+          @click="updater.info.value ? updater.resume() : runCheck()"
+        >
+          <DesignIcon name="networkRefresh" :size="14" />
+          {{ tr('updateRetry') }}
+        </button>
+      </template>
+      <button v-else class="workspace-button" type="button" @click="close">
+        {{
+          dialogStatus === 'downloading'
+            ? tr('trayUpdateBackgroundDownload')
+            : tr('trayUpdateRunInBackground')
+        }}
+      </button>
+    </template>
+  </WorkspaceDialog>
 </template>
 
 <style scoped>
-.update-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1700;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, #020617 74%, transparent);
-  backdrop-filter: blur(16px) saturate(0.82);
+/* WorkspaceDialog teleports its root, so target its forwarded class explicitly. */
+:global(.workspace-dialog.update-dialog) {
+  --dialog-width: 408px;
+  --status-color: var(--accent);
+  background: var(--surface-low);
 }
-
-.update-dialog {
-  --status-color: var(--primary);
-  position: relative;
-  width: min(520px, 100%);
-  overflow: hidden;
-  padding: 28px;
-  color: var(--text);
-  background:
-    radial-gradient(
-      circle at 50% -18%,
-      color-mix(in srgb, var(--status-color) 22%, transparent),
-      transparent 46%
-    ),
-    var(--surface-low);
-  border: 1px solid color-mix(in srgb, var(--status-color) 30%, var(--border));
-  border-radius: 24px;
-  box-shadow:
-    0 36px 110px rgba(2, 6, 23, 0.56),
-    inset 0 1px 0 color-mix(in srgb, white 7%, transparent);
-  outline: none;
+:global(.workspace-dialog.update-dialog::backdrop) {
+  background: color-mix(in srgb, var(--omt-overlay-scrim) 30%, transparent);
 }
-
-.update-dialog.status-latest,
-.update-dialog.status-downloaded {
-  --status-color: #22c55e;
+:global(.update-dialog.status-latest),
+:global(.update-dialog.status-downloaded) {
+  --status-color: var(--success);
 }
-
-.update-dialog.status-error {
-  --status-color: #fb7185;
+:global(.update-dialog.status-error) {
+  --status-color: var(--warning);
 }
-
-.update-dialog.status-downloading {
-  --status-color: #38bdf8;
+:global(.update-dialog > header) {
+  padding: 14px 16px 12px 24px;
+  border: 0;
 }
-
-.dialog-close {
-  position: absolute;
-  top: 18px;
-  right: 18px;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  color: var(--text-muted);
-  background: color-mix(in srgb, var(--surface-container-high) 75%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 11px;
+:global(.update-dialog > .dialog-content) {
+  padding: 7px 24px 24px;
 }
-
-.dialog-close:hover,
-.dialog-close:focus-visible {
-  color: var(--text);
-  border-color: var(--border-strong);
+:global(.update-dialog > footer) {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 24px 21px;
+  border: 0;
 }
-
-.dialog-close .material-symbols-outlined {
-  font-size: 19px;
-}
-
-.dialog-eyebrow {
+.dialog-heading {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text-soft);
-  font-size: 10px;
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.16em;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
 }
-
-.eyebrow-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--status-color);
-  border-radius: 50%;
-  box-shadow: 0 0 14px var(--status-color);
+.dialog-heading .design-icon {
+  color: var(--accent);
 }
-
+.update-status {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 57px;
+}
 .status-visual {
-  position: relative;
-  width: 76px;
-  height: 76px;
   display: grid;
   place-items: center;
-  margin: 26px auto 18px;
+  flex: 0 0 43px;
+  width: 43px;
+  height: 43px;
+  border-radius: 12px;
   color: var(--status-color);
-  background: color-mix(in srgb, var(--status-color) 12%, var(--surface-container));
-  border: 1px solid color-mix(in srgb, var(--status-color) 36%, var(--border));
-  border-radius: 24px;
-  box-shadow: 0 18px 42px color-mix(in srgb, var(--status-color) 18%, transparent);
+  background: color-mix(in srgb, var(--status-color) 10%, var(--surface-low));
 }
-
-.visual-ring {
-  position: absolute;
-  inset: -9px;
-  border: 1px solid color-mix(in srgb, var(--status-color) 18%, transparent);
-  border-radius: 30px;
+.dialog-copy {
+  min-width: 0;
 }
-
-.status-visual .material-symbols-outlined {
-  font-size: 36px;
-  font-variation-settings: 'FILL' 1;
+.dialog-copy h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
 }
-
+.dialog-copy p,
+.status-detail {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+}
+.status-detail {
+  margin-top: 15px;
+}
+.result-detail {
+  margin-top: 21px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.release-card,
+.download-card {
+  margin-top: 23px;
+  padding: 16px 17px 14px;
+  border-radius: 9px;
+  background: var(--surface-container);
+}
+.release-heading,
+.progress-heading,
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 12px;
+}
+.release-heading strong {
+  color: var(--accent);
+  font-weight: 500;
+}
+.release-notes {
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+.release-date {
+  margin: 12px 0 0;
+  color: var(--text-soft);
+  font-size: 11px;
+}
+.progress-heading strong {
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.progress-track {
+  height: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--border);
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width var(--motion-hover) var(--motion-ease);
+}
+.progress-meta {
+  flex-wrap: wrap;
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.error-card {
+  margin: 21px 0 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  color: var(--status-color);
+  background: color-mix(in srgb, var(--status-color) 10%, var(--surface-low));
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.8;
+}
+:global(.update-dialog > footer .workspace-button) {
+  min-height: 34px;
+  padding: 0 14px;
+  gap: 7px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+.quiet-action {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+}
 .spinning {
-  animation: update-spin 1.05s linear infinite;
+  animation: update-spin 1.5s linear infinite;
 }
-
 @keyframes update-spin {
   to {
     transform: rotate(360deg);
   }
 }
-
-.dialog-copy {
-  text-align: center;
-}
-
-.version-chip {
-  display: inline-flex;
-  padding: 4px 9px;
-  color: var(--text-soft);
-  background: var(--surface-container);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-family: var(--font-number);
-  font-size: 10px;
-}
-
-.dialog-copy h2 {
-  margin: 12px 0 7px;
-  font-size: 23px;
-  line-height: 1.3;
-}
-
-.dialog-copy p {
-  max-width: 390px;
-  margin: 0 auto;
-  color: var(--text-soft);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.release-card,
-.download-card,
-.error-card {
-  margin-top: 22px;
-  padding: 15px;
-  background: color-mix(in srgb, var(--surface-container) 78%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-}
-
-.release-heading,
-.progress-heading,
-.progress-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.release-heading > div {
-  display: grid;
-  gap: 3px;
-}
-
-.release-heading span,
-.progress-heading span {
-  color: var(--text-soft);
-  font-size: 11px;
-}
-
-.release-heading strong {
-  color: var(--status-color);
-  font-family: var(--font-number);
-  font-size: 19px;
-}
-
-.release-date {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: var(--font-number);
-}
-
-.release-date .material-symbols-outlined {
-  font-size: 14px;
-}
-
-.release-notes {
-  max-height: 104px;
-  margin: 13px 0 0;
-  overflow-y: auto;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.release-notes--muted {
-  color: var(--text-soft);
-}
-
-.progress-heading strong {
-  color: var(--status-color);
-  font-family: var(--font-number);
-  font-size: 14px;
-}
-
-.progress-track {
-  height: 8px;
-  margin-top: 12px;
-  overflow: hidden;
-  background: var(--bg-base);
-  border-radius: 999px;
-}
-
-.progress-fill {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--status-color), #818cf8);
-  border-radius: inherit;
-  transition: width 0.22s ease;
-}
-
-.progress-meta {
-  margin-top: 7px;
-  color: var(--text-soft);
-  font-family: var(--font-number);
-  font-size: 10px;
-}
-
-.error-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  color: color-mix(in srgb, #fb7185 86%, var(--text));
-  background: color-mix(in srgb, #fb7185 8%, var(--surface-container));
-  border-color: color-mix(in srgb, #fb7185 30%, var(--border));
-  font-size: 12px;
-  line-height: 1.55;
-}
-
-.error-card .material-symbols-outlined {
-  flex: 0 0 auto;
-  font-size: 18px;
-}
-
-.dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 24px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-}
-
-.dialog-actions button {
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 16px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: var(--weight-semibold);
-}
-
-.dialog-actions .material-symbols-outlined {
-  font-size: 17px;
-}
-
-.secondary-action {
-  color: var(--text-muted);
-  background: var(--surface-container);
-  border: 1px solid var(--border);
-}
-
-.secondary-action:hover,
-.secondary-action:focus-visible {
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
-.primary-action {
-  color: var(--primary-on);
-  background: linear-gradient(135deg, var(--primary), #8068e8);
-  border: 1px solid transparent;
-  box-shadow: 0 10px 26px color-mix(in srgb, var(--primary) 24%, transparent);
-}
-
-.primary-action:hover,
-.primary-action:focus-visible {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
-}
-
-.single-action {
-  margin-left: auto;
-}
-
-.tray-update-dialog-enter-active,
-.tray-update-dialog-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.tray-update-dialog-enter-active .update-dialog,
-.tray-update-dialog-leave-active .update-dialog {
-  transition:
-    opacity 0.2s ease,
-    transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.tray-update-dialog-enter-from,
-.tray-update-dialog-leave-to {
-  opacity: 0;
-}
-
-.tray-update-dialog-enter-from .update-dialog,
-.tray-update-dialog-leave-to .update-dialog {
-  opacity: 0;
-  transform: translateY(12px) scale(0.975);
-}
-
-@media (max-width: 560px) {
-  .update-backdrop {
-    padding: 12px;
+@media (max-width: 480px) {
+  :global(.workspace-dialog.update-dialog) {
+    width: calc(100vw - 24px);
   }
-
-  .update-dialog {
-    padding: 24px 18px 18px;
-    border-radius: 20px;
+  :global(.update-dialog > header) {
+    padding-left: 18px;
   }
-
-  .dialog-actions {
-    align-items: stretch;
-    flex-direction: column-reverse;
+  :global(.update-dialog > .dialog-content) {
+    padding-inline: 18px;
   }
-
-  .dialog-actions button {
-    width: 100%;
+  :global(.update-dialog > footer) {
+    padding-inline: 18px;
+  }
+  .dialog-copy h3 {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinning {
+    animation: none;
+  }
+  .progress-fill {
+    transition: none;
   }
 }
 </style>

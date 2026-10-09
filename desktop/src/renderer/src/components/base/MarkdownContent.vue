@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onDeactivated, ref, watch } from 'vue'
 import { renderMarkdown } from '../../utils/markdown'
+import { useI18n } from '../../i18n/useI18n'
+import { motion } from '../../config/motion'
 
 const props = defineProps<{
   content: string
+  copyCode?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -11,9 +14,70 @@ const emit = defineEmits<{
 }>()
 
 const html = computed(() => renderMarkdown(props.content))
+const root = ref<HTMLElement | null>(null)
+const { label, currentLang } = useI18n()
+let buttons = new WeakMap<Element, string>()
+const timers = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>()
+let generation = 0
+function cleanup(): void {
+  generation++
+  for (const [button, timer] of timers) {
+    clearTimeout(timer)
+    button.textContent = label('Copy', '复制')
+  }
+  timers.clear()
+}
+watch(
+  [html, () => props.copyCode, currentLang],
+  async () => {
+    cleanup()
+    await nextTick()
+    buttons = new WeakMap()
+    root.value?.querySelectorAll('.markdown-copy').forEach((button) => button.remove())
+    if (!props.copyCode) return
+    root.value?.querySelectorAll('pre').forEach((pre) => {
+      const code = pre.querySelector('code')?.textContent ?? pre.textContent ?? ''
+      const button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'markdown-copy'
+      button.textContent = label('Copy', '复制')
+      button.setAttribute('aria-label', label('Copy code', '复制代码'))
+      buttons.set(button, code)
+      pre.appendChild(button)
+    })
+  },
+  { immediate: true, flush: 'post' },
+)
+onDeactivated(cleanup)
+onBeforeUnmount(cleanup)
+async function copy(button: HTMLButtonElement): Promise<void> {
+  const value = buttons.get(button)
+  if (value === undefined) return
+  const current = generation
+  clearTimeout(timers.get(button))
+  try {
+    await navigator.clipboard.writeText(value)
+    if (current === generation) button.textContent = label('Copied', '已复制')
+  } catch {
+    if (current === generation) button.textContent = label('Retry', '重试')
+  }
+  if (current === generation)
+    timers.set(
+      button,
+      setTimeout(() => {
+        button.textContent = label('Copy', '复制')
+        timers.delete(button)
+      }, motion.copyFeedback),
+    )
+}
 
 function handleClick(event: MouseEvent): void {
   if (!(event.target instanceof Element)) return
+  const button = event.target.closest<HTMLButtonElement>('.markdown-copy')
+  if (button && buttons.has(button)) {
+    void copy(button)
+    return
+  }
 
   const anchor = event.target.closest('a')
   if (!anchor) return
@@ -26,8 +90,15 @@ function handleClick(event: MouseEvent): void {
 
 <template>
   <!-- html 已由 renderMarkdown 使用 DOMPurify 清洗。 -->
-  <!-- eslint-disable-next-line vue/no-v-html -->
-  <div class="markdown-content" @click="handleClick" v-html="html"></div>
+  <!-- eslint-disable vue/no-v-html -->
+  <div
+    ref="root"
+    class="markdown-content"
+    :class="{ 'markdown-content--copy': copyCode }"
+    @click="handleClick"
+    v-html="html"
+  ></div>
+  <!-- eslint-enable vue/no-v-html -->
 </template>
 
 <style scoped>
@@ -106,6 +177,24 @@ function handleClick(event: MouseEvent): void {
 .markdown-content :deep(pre code) {
   padding: 0;
   background: transparent;
+  font-weight: 400;
+}
+.markdown-content--copy :deep(pre) {
+  position: relative;
+  padding-right: 68px;
+  background: var(--code-background);
+  color: var(--code-foreground);
+}
+.markdown-content :deep(.markdown-copy) {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  padding: 3px;
+  font: 12px/18px var(--font-sans);
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
 }
 
 .markdown-content :deep(blockquote) {

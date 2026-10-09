@@ -2,6 +2,7 @@
 import { readFileSync, readdirSync, statSync } from 'fs'
 import { basename, dirname, join, relative, sep } from 'path'
 import type { Dirent } from 'fs'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -20,6 +21,8 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { normalizeGeminiStyleUsage, type ExclusiveTokenUsage } from './gemini-style-usage'
+import { createProjectPathLookup } from './project-metadata'
+import { extractProjectPath } from './project-path'
 
 export class GeminiScanner implements AgentScanner {
   readonly agentName = 'gemini'
@@ -52,13 +55,14 @@ export class GeminiScanner implements AgentScanner {
     }
     if (!isDir) return { records, sessions: [], apiCalls }
 
+    const projectPathFor = createProjectPathLookup(dirname(tmpDir))
     for (const file of listGeminiFiles(tmpDir)) {
       if (!shouldScanFile(file, scanContext)) continue
       try {
         if (file.endsWith('.jsonl')) {
-          this.parseJsonlStream(file, tmpDir, scanContext, apiCalls)
+          this.parseJsonlStream(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
         } else {
-          this.parseSessionJson(file, tmpDir, scanContext, apiCalls)
+          this.parseSessionJson(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
         }
       } catch (e) {
         throw new Error(`Gemini 会话文件不可读 (${file}): ${(e as Error).message}`)
@@ -77,6 +81,7 @@ export class GeminiScanner implements AgentScanner {
     tmpDir: string,
     context: ScannerScanContext,
     apiCalls: TokenUsageApiCall[],
+    directory?: string,
   ): void {
     let text: string
     try {
@@ -91,6 +96,7 @@ export class GeminiScanner implements AgentScanner {
       return
     }
     if (!isObject(root)) return
+    const projectPath = extractProjectPath(root) ?? directory
     const messages = Array.isArray(root.messages) ? root.messages : []
     const sessionId =
       (typeof root.sessionId === 'string' && root.sessionId) || fileSessionId(file, tmpDir)
@@ -117,6 +123,7 @@ export class GeminiScanner implements AgentScanner {
         model,
         timestampValue,
         usage,
+        extractProjectPath(message) ?? projectPath,
       )
     })
 
@@ -142,6 +149,7 @@ export class GeminiScanner implements AgentScanner {
             model,
             entry.timestampValue,
             entry.usage,
+            projectPath,
           )
         }
       }
@@ -154,6 +162,7 @@ export class GeminiScanner implements AgentScanner {
     tmpDir: string,
     context: ScannerScanContext,
     apiCalls: TokenUsageApiCall[],
+    projectPath?: string,
   ): void {
     const sessionId = fileSessionId(file, tmpDir)
     const fallbackMtime = fileMtimeMs(file)
@@ -174,6 +183,7 @@ export class GeminiScanner implements AgentScanner {
         continue
       }
       if (!isObject(obj)) continue
+      projectPath = extractProjectPath(obj) ?? projectPath
 
       if (typeof obj.sessionId === 'string' && obj.sessionId) streamSessionId = obj.sessionId
       else if (typeof obj.session_id === 'string' && obj.session_id)
@@ -198,6 +208,7 @@ export class GeminiScanner implements AgentScanner {
           model,
           timestampValue,
           usage,
+          projectPath,
         )
         continue
       }
@@ -225,6 +236,7 @@ export class GeminiScanner implements AgentScanner {
           model,
           entry.timestampValue,
           entry.usage,
+          projectPath,
         )
       }
     }
@@ -234,7 +246,7 @@ export class GeminiScanner implements AgentScanner {
 /** 读取一次用量；全零返回 null。 */
 function readGeminiUsage(
   tokens: Record<string, unknown>,
-  inputIncludesCache = false,
+  inputIncludesCache = true,
 ): ExclusiveTokenUsage | null {
   return normalizeGeminiStyleUsage({
     input: firstTokenValue(tokens, [
@@ -319,10 +331,12 @@ function pushGeminiApiCall(
   model: string,
   timestampValue: string | number,
   usage: ExclusiveTokenUsage,
+  projectPath?: string,
 ): void {
   const fallbackDate = 'unknown'
   const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, fallbackDate)
   const apiCall: TokenUsageApiCall = {
+    ...(projectPath ? { projectPath } : {}),
     agent: agentName,
     apiCallId,
     sessionId,
@@ -332,6 +346,10 @@ function pushGeminiApiCall(
     hour: hourFromTimestamp(timestamp),
     model,
     inputTokens: usage.inputTokens,
+    evidence: usageEvidence({
+      granularity: apiCallId.startsWith('gemini-stats:') ? 'aggregate' : 'request',
+      bucketQuality: usage.bucketQuality,
+    }),
     outputTokens: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
     cacheWriteTokens: usage.cacheWriteTokens,

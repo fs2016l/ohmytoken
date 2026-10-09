@@ -5,6 +5,19 @@ directories:
   output: release/${version}
   buildResources: build
 files:
+  - '!.local/**'
+  - '!native/**'
+  - '!resources/network-monitor/**'
+  - '!resources/window-material/**'
+  - '!scripts/build-window-material.mjs'
+  - '!scripts/window-material-before-pack.cjs'
+  - '!scripts/build-network-monitor*.mjs'
+  - '!scripts/network-monitor-*.cjs'
+  - '!scripts/third-party-notices.mjs'
+  - '!scripts/verify-packaged-notices.mjs'
+  - '!scripts/licenses-*.cjs'
+  - '!third-party-licenses/**'
+  - '!electron-builder.network-monitor.yml'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
@@ -23,22 +36,43 @@ files:
   - '!.playwright-mcp/**'
 asarUnpack:
   - '**/node_modules/better-sqlite3/**'
+beforePack: scripts/licenses-before-pack.cjs
+afterPack: scripts/licenses-after-pack.cjs
 extraResources:
   - from: ../LICENSE
-    to: licenses/ohmytoken-MIT.txt
+    to: LICENSE
+  - from: ../LICENSE_SCOPE.md
+    to: LICENSE_SCOPE.md
+  - from: ../COMMERCIAL_LICENSE.md
+    to: COMMERCIAL_LICENSE.md
+  - from: ../LICENSE-MIT-LEGACY
+    to: LICENSE-MIT-LEGACY
   - from: third-party-licenses
     to: licenses
+  - from: node_modules/electron/dist/LICENSES.chromium.html
+    to: licenses/runtime/LICENSES.chromium.html
   - from: src/renderer/public/brand
     to: brand
 win:
   icon: src/renderer/public/brand/app-icon.ico
   executableName: ohmytoken
   signAndEditExecutable: true
+  extraResources:
+    - from: resources/window-material/win32-${arch}
+      to: window-material/win32-${arch}
+      filter: ['window_material.node']
+    - from: resources/network-monitor/win32-x64
+      to: network-monitor/win32-x64
+      filter: ['ohmytoken-network-monitor.exe']
   target:
     - target: nsis
       arch: [x64]
 nsis:
   oneClick: false
+  installerLanguages:
+    - en_US
+    - zh_CN
+  displayLanguageSelector: true
   include: installer/installer.nsh
   perMachine: false
   allowToChangeInstallationDirectory: true
@@ -49,6 +83,10 @@ nsis:
   # 与 com 后端 ReleaseArtifactContract 保持一致；version 与应用内嵌版本同源。
   artifactName: ${name}-${version}-windows-${arch}-setup.${ext}
 mac:
+  extraResources:
+    - from: resources/window-material/darwin-${arch}
+      to: window-material/darwin-${arch}
+      filter: ['window_material.node']
   # macOS 使用已在 Apple Developer 注册的独立 Bundle ID；Windows 继续沿用顶层 appId。
   appId: net.ohmytoken.desktop
   icon: src/renderer/public/brand/app-icon.icns

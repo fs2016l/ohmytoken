@@ -1,175 +1,102 @@
-import { computed, reactive, ref } from 'vue'
-import {
-  TOKEN_PLAN_PROVIDER_IDS,
-  type TokenPlanCredentialStatus,
-  type TokenPlanProviderId,
-  type TokenPlanUsageSnapshot,
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import type {
+  QuotaRefreshInterval,
+  TokenPlanInventory,
+  TokenPlanMonitorState,
+  TokenPlanUsageSnapshot,
 } from '../../../shared/token-plan'
 
-type ProviderBooleanMap = Record<TokenPlanProviderId, boolean>
-type ProviderErrorMap = Record<TokenPlanProviderId, 'save' | 'remove' | 'query' | 'restart' | null>
-type SnapshotMap = Record<TokenPlanProviderId, TokenPlanUsageSnapshot | null>
-
-function booleanMap(): ProviderBooleanMap {
-  return Object.fromEntries(TOKEN_PLAN_PROVIDER_IDS.map((id) => [id, false])) as ProviderBooleanMap
-}
-
-function errorMap(): ProviderErrorMap {
-  return Object.fromEntries(TOKEN_PLAN_PROVIDER_IDS.map((id) => [id, null])) as ProviderErrorMap
-}
-
-function snapshotMap(): SnapshotMap {
-  return Object.fromEntries(TOKEN_PLAN_PROVIDER_IDS.map((id) => [id, null])) as SnapshotMap
-}
-
-const credentials = ref<TokenPlanCredentialStatus[]>([])
-const snapshots = reactive<SnapshotMap>(snapshotMap())
-const refreshing = reactive<ProviderBooleanMap>(booleanMap())
-const saving = reactive<ProviderBooleanMap>(booleanMap())
-const removing = reactive<ProviderBooleanMap>(booleanMap())
-const actionErrors = reactive<ProviderErrorMap>(errorMap())
+const inventory = shallowRef<TokenPlanInventory | null>(null)
+const snapshots = shallowRef<Record<string, TokenPlanUsageSnapshot>>({})
+const refreshing = ref<Set<string>>(new Set())
 const initializing = ref(false)
-const refreshingAll = ref(false)
 const loadFailed = ref(false)
-let initialized = false
+const lastRefreshAt = ref(0)
+const refreshInterval = ref<QuotaRefreshInterval>(0)
+let revision = -1
+let consumers = 0
+let activeConsumers = 0
+let unsubscribe: (() => void) | undefined
 
-function upsertCredential(status: TokenPlanCredentialStatus): void {
-  const index = credentials.value.findIndex((item) => item.providerId === status.providerId)
-  if (index >= 0) credentials.value.splice(index, 1, status)
-  else credentials.value.push(status)
-}
-
-function credentialFor(providerId: TokenPlanProviderId): TokenPlanCredentialStatus {
-  return (
-    credentials.value.find((item) => item.providerId === providerId) ?? {
-      providerId,
-      configured: false,
-      updatedAt: null,
-    }
+function apply(state: TokenPlanMonitorState): void {
+  // A slow read/refresh response must not roll back a newer broadcast.
+  if (state.revision < revision) return
+  revision = state.revision
+  inventory.value = state.inventory
+  snapshots.value = Object.fromEntries(
+    state.inventory.snapshots.map((row) => [row.connectionId, row]),
   )
+  refreshing.value = new Set(state.refreshing)
+  initializing.value = state.discovering
+  refreshInterval.value = state.refreshInterval
+  loadFailed.value = !!state.error
 }
 
-async function refreshProvider(providerId: TokenPlanProviderId): Promise<void> {
-  if (!credentialFor(providerId).configured) return
-  refreshing[providerId] = true
-  actionErrors[providerId] = null
+async function receive(request: Promise<TokenPlanMonitorState>): Promise<void> {
   try {
-    snapshots[providerId] = await window.api.tokenPlanUsageQuery(providerId)
-  } catch {
-    actionErrors[providerId] = 'query'
-  } finally {
-    refreshing[providerId] = false
-  }
-}
-
-async function refreshAllProviders(): Promise<void> {
-  const configured = TOKEN_PLAN_PROVIDER_IDS.filter((id) => credentialFor(id).configured)
-  if (configured.length === 0) return
-
-  refreshingAll.value = true
-  configured.forEach((id) => {
-    refreshing[id] = true
-    actionErrors[id] = null
-  })
-  try {
-    const results = await window.api.tokenPlanUsageQueryAll()
-    results.forEach((snapshot) => {
-      snapshots[snapshot.providerId] = snapshot
-    })
-  } catch {
-    configured.forEach((id) => {
-      actionErrors[id] = 'query'
-    })
-  } finally {
-    configured.forEach((id) => {
-      refreshing[id] = false
-    })
-    refreshingAll.value = false
-  }
-}
-
-async function saveCredential(providerId: TokenPlanProviderId, apiKey: string): Promise<boolean> {
-  if (!apiKey.trim()) return false
-  if (
-    typeof window.api.tokenPlanCredentialSave !== 'function' ||
-    typeof window.api.tokenPlanUsageQuery !== 'function'
-  ) {
-    actionErrors[providerId] = 'restart'
-    return false
-  }
-
-  saving[providerId] = true
-  actionErrors[providerId] = null
-  try {
-    const status = await window.api.tokenPlanCredentialSave({ providerId, apiKey })
-    upsertCredential(status)
-    await refreshProvider(providerId)
-    return true
-  } catch {
-    actionErrors[providerId] = 'save'
-    return false
-  } finally {
-    saving[providerId] = false
-  }
-}
-
-async function removeCredential(providerId: TokenPlanProviderId): Promise<boolean> {
-  removing[providerId] = true
-  actionErrors[providerId] = null
-  try {
-    const removed = await window.api.tokenPlanCredentialRemove(providerId)
-    if (!removed) throw new Error('remove-failed')
-    upsertCredential({
-      providerId,
-      configured: false,
-      updatedAt: null,
-    })
-    snapshots[providerId] = null
-    return true
-  } catch {
-    actionErrors[providerId] = 'remove'
-    return false
-  } finally {
-    removing[providerId] = false
-  }
-}
-
-async function initialize(): Promise<void> {
-  if (initialized || initializing.value) return
-  initializing.value = true
-  loadFailed.value = false
-  try {
-    credentials.value = await window.api.tokenPlanCredentialsList()
-    initialized = true
-    await refreshAllProviders()
+    apply(await request)
   } catch {
     loadFailed.value = true
-  } finally {
-    initializing.value = false
   }
 }
 
-const configuredCount = computed(
-  () => credentials.value.filter((credential) => credential.configured).length,
-)
+export async function refreshTokenPlanUsage(id?: string): Promise<boolean> {
+  await receive(window.api.tokenPlanMonitorRefresh(id))
+  lastRefreshAt.value = Date.now()
+  return !loadFailed.value
+}
+function setRefreshInterval(value: number): Promise<void> {
+  return receive(window.api.tokenPlanMonitorSetInterval(value))
+}
+function visibility(): void {
+  void window.api.tokenPlanMonitorSetActive(activeConsumers > 0 && !document.hidden).catch(() => {
+    loadFailed.value = true
+  })
+}
 
 export function useTokenPlanUsage() {
+  let active = false
+  function start(): void {
+    if (active) return
+    active = true
+    activeConsumers++
+    visibility()
+    void receive(window.api.tokenPlanMonitorRead())
+  }
+  function stop(): void {
+    if (!active) return
+    active = false
+    activeConsumers--
+    visibility()
+  }
+  onMounted(() => {
+    if (++consumers === 1) {
+      unsubscribe = window.api.onTokenPlanMonitorChanged(apply)
+      document.addEventListener('visibilitychange', visibility)
+    }
+    start()
+  })
+  onActivated(start)
+  onDeactivated(stop)
+  onUnmounted(() => {
+    stop()
+    if (--consumers === 0) {
+      unsubscribe?.()
+      unsubscribe = undefined
+      document.removeEventListener('visibilitychange', visibility)
+    }
+  })
   return {
-    credentials,
+    inventory,
     snapshots,
     refreshing,
-    saving,
-    removing,
-    actionErrors,
     initializing,
-    refreshingAll,
     loadFailed,
-    configuredCount,
-    credentialFor,
-    initialize,
-    refreshProvider,
-    refreshAllProviders,
-    saveCredential,
-    removeCredential,
+    lastRefreshAt,
+    refreshAll: () => refreshTokenPlanUsage(),
+    refreshConnection: refreshTokenPlanUsage,
+    refreshInterval,
+    setRefreshInterval,
+    busy: computed(() => initializing.value || refreshing.value.size > 0),
   }
 }

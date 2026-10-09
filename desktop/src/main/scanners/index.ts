@@ -19,6 +19,7 @@ import { GrokScanner } from './grok.scanner'
 import { ZedScanner } from './zed.scanner'
 import { GooseScanner } from './goose.scanner'
 import { HermesScanner } from './hermes.scanner'
+import { DeepSeekHarnessScanner } from './deepseek-harness.scanner'
 
 export { ClaudeCodeScanner } from './claude-code.scanner'
 export { CodexScanner } from './codex.scanner'
@@ -35,6 +36,7 @@ export { GrokScanner } from './grok.scanner'
 export { ZedScanner } from './zed.scanner'
 export { GooseScanner } from './goose.scanner'
 export { HermesScanner } from './hermes.scanner'
+export { DeepSeekHarnessScanner } from './deepseek-harness.scanner'
 export type { AgentScanner, TokenUsageRecord } from './types'
 
 /** 全部 Scanner 实例（单例），ScanService 遍历此数组执行扫描 */
@@ -54,4 +56,5 @@ export const allScanners: AgentScanner[] = [
   new ZedScanner(),
   new GooseScanner(),
   new HermesScanner(),
+  new DeepSeekHarnessScanner(),
 ]

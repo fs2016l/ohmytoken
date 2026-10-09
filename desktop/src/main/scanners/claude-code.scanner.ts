@@ -29,12 +29,22 @@ import {
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { extractProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
+import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { ClaudeResponseEstimator } from './claude-generation-timing'
+import { latestGeneration } from '../../shared/generation-timing'
+import type { LatestGeneration } from '../../shared/models'
 
 export class ClaudeCodeScanner implements AgentScanner {
   readonly agentName = 'claude-code'
+  private readonly projectsDir?: string
+
+  constructor(projectsDir?: string) {
+    this.projectsDir = projectsDir
+  }
 
   isAvailable(): boolean {
-    const dir = getClaudeProjectsDir()
+    const dir = this.projectsDir ?? getClaudeProjectsDir()
     try {
       if (!statSync(dir).isDirectory()) return false
     } catch {
@@ -52,7 +62,7 @@ export class ClaudeCodeScanner implements AgentScanner {
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
-    const projectsDir = getClaudeProjectsDir()
+    const projectsDir = this.projectsDir ?? getClaudeProjectsDir()
 
     let isDir = false
     try {
@@ -68,8 +78,12 @@ export class ClaudeCodeScanner implements AgentScanner {
 
     const seenIds = new Map<string, TokenUsageApiCall>()
     const titleBySessionId = new Map<string, string>()
+    const generationBySessionId = new Map<string, LatestGeneration>()
 
     for (const file of jsonlFiles) {
+      const estimator = new ClaudeResponseEstimator()
+      const fileApiCalls = new Set<TokenUsageApiCall>()
+      let turn: ConversationTurn | undefined
       let fileScopedTitle = ''
       let fileScopedTitleFromSummary = false
       let explicitSessionId = ''
@@ -90,6 +104,7 @@ export class ClaudeCodeScanner implements AgentScanner {
           fileScopedProjectPath = fileScopedProjectPath || extractProjectPath(obj) || ''
 
           const sessionId = sessionIdFromObject(obj, file, projectsDir)
+          estimator.observe(sessionId, obj)
           if (hasExplicitSessionId(obj) && !explicitSessionId) explicitSessionId = sessionId
           const title = extractClaudeTitle(obj)
           if (title) {
@@ -101,6 +116,17 @@ export class ClaudeCodeScanner implements AgentScanner {
             }
           }
 
+          if (
+            obj.type === 'user' &&
+            isObject(obj.message) &&
+            isUserPrompt(obj.message.content) &&
+            obj.isMeta !== true &&
+            obj.isCompactSummary !== true
+          )
+            turn = conversationTurn(
+              typeof obj.uuid === 'string' ? obj.uuid : `user:${lineIndex}`,
+              obj.isSidechain !== true,
+            )
           if (obj.type !== 'assistant') continue
 
           const msg = obj.message
@@ -133,6 +159,7 @@ export class ClaudeCodeScanner implements AgentScanner {
           const apiCallId = msgId || `${sessionId}:${lineIndex}`
 
           const apiCall: TokenUsageApiCall = {
+            turn,
             agent: this.agentName,
             apiCallId,
             sessionId,
@@ -143,6 +170,14 @@ export class ClaudeCodeScanner implements AgentScanner {
             hour: hourFromTimestamp(timestamp),
             model,
             // Anthropic API 的四个字段是互斥分桶。
+            evidence: usageEvidence({
+              cache5m: isObject(usage.cache_creation)
+                ? usage.cache_creation.ephemeral_5m_input_tokens
+                : undefined,
+              cache1h: isObject(usage.cache_creation)
+                ? usage.cache_creation.ephemeral_1h_input_tokens
+                : undefined,
+            }),
             ...buckets,
           }
           // 大型活跃 JSONL 仍需从头流式读取以提取标题与稳定行号，但窗口外明细
@@ -155,15 +190,31 @@ export class ClaudeCodeScanner implements AgentScanner {
             const existing = seenIds.get(msgId)
             if (existing) {
               mergeClaudeDuplicate(existing, apiCall)
+              fileApiCalls.add(existing)
               continue
             }
             seenIds.set(msgId, apiCall)
           }
           apiCalls.push(apiCall)
+          fileApiCalls.add(apiCall)
         }
       } catch (e) {
         throw new Error(`Claude Code 会话文件不可读 (${file}): ${(e as Error).message}`)
       }
+      // 计时独立于用量窗口；晚写完的消息可补样本而不重播旧 API。
+      for (const call of fileApiCalls) {
+        const timing = estimator.timingFor(call.sessionId, call.apiCallId)
+        if (
+          timing &&
+          (!call.generationTiming || timing.completedAtMs >= call.generationTiming.completedAtMs)
+        )
+          call.generationTiming = timing
+      }
+      for (const sample of estimator.latest())
+        generationBySessionId.set(
+          sample.sessionId,
+          latestGeneration(generationBySessionId.get(sample.sessionId), sample)!,
+        )
       if (fileScopedTitle) {
         const fallbackSessionId = relative(projectsDir, file).split(sep).join('/')
         setSessionTitle(
@@ -177,14 +228,17 @@ export class ClaudeCodeScanner implements AgentScanner {
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(sessions, titleBySessionId)
+    for (const session of sessions)
+      session.latestGeneration = generationBySessionId.get(session.sessionId)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
 
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestGenerations: [...generationBySessionId.values()] }
   }
 }
 
 /** Claude 流式写入会为同一 message.id 保存多个逐步增长的 usage 快照。 */
 function mergeClaudeDuplicate(kept: TokenUsageApiCall, incoming: TokenUsageApiCall): void {
+  kept.turn ??= incoming.turn
   const keptTotal = kept.totalTokens
   const incomingTotal = incoming.totalTokens
   kept.inputTokens = Math.max(kept.inputTokens, incoming.inputTokens)
@@ -207,6 +261,7 @@ function mergeClaudeDuplicate(kept: TokenUsageApiCall, incoming: TokenUsageApiCa
     kept.timestamp = incoming.timestamp
     kept.hour = incoming.hour
     kept.model = incoming.model
+    kept.evidence = incoming.evidence
     kept.projectPath = incoming.projectPath || kept.projectPath
   }
 }

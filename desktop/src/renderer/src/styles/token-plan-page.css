@@ -310,7 +310,7 @@
   font-weight: 600;
 }
 .provider-toolbar__filters button.active {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   border-color: var(--primary-border);
 }

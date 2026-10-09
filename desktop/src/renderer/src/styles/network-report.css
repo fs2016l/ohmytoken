@@ -1,0 +1,356 @@
+.network-report {
+  container-type: inline-size;
+}
+.network-report .page-surface-content {
+  padding-inline: 24px;
+}
+.network-report-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.network-report-heading h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 40px;
+}
+.network-report-heading p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-soft);
+}
+.network-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.network-report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.network-report-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 928fr) minmax(300px, 392fr);
+  gap: 16px;
+  min-height: calc(100dvh - var(--header-height) - 128px);
+}
+.network-report-main,
+.network-report-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.network-report-panel {
+  background: var(--surface-low);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  min-width: 0;
+  padding: 20px;
+}
+.network-report-side {
+  gap: 12px;
+}
+.network-report-panel h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+}
+.network-report-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 268px;
+  padding: 14px 24px;
+  overflow: hidden;
+}
+.network-hero-copy {
+  min-width: 0;
+  flex: 1;
+}
+.network-hero-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+.network-hero-eyebrow span {
+  color: var(--text-soft);
+}
+.network-hero-copy h2 {
+  font-size: 40px;
+  line-height: 52px;
+  font-weight: 700;
+}
+.network-hero-outcome {
+  font-size: 28px;
+  line-height: 40px;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+.network-hero-outcome.attention {
+  color: var(--warning);
+}
+.network-hero-progress {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+.network-hero-metrics {
+  display: flex;
+  gap: 56px;
+}
+.network-hero-metrics > div {
+  display: flex;
+  flex-direction: column;
+}
+.network-hero-metrics .animated-number {
+  font-size: 40px;
+  line-height: 48px;
+  font-weight: 600;
+}
+.network-hero-metrics > div > span:last-child {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 20px;
+}
+.network-hero-art {
+  width: 280px;
+  flex: 0 1 280px;
+  align-self: stretch;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.network-hero-art img {
+  width: 100%;
+  max-width: 300px;
+  height: 200px;
+  object-fit: contain;
+}
+.network-hero-location {
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--primary-border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  max-width: 240px;
+}
+.network-hero-location span:last-child {
+  color: var(--text-soft);
+}
+.network-services {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.network-services > header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+.network-service-grid {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+.network-report-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 20px;
+  margin: 12px 0 0;
+}
+.network-report-note .design-icon {
+  margin-top: 2px;
+}
+.network-exit-location {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+}
+.network-exit-location > .design-icon {
+  color: var(--accent);
+}
+.network-exit-location > div {
+  min-width: 0;
+  flex: 1;
+}
+.network-exit-location strong {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.network-exit-location .network-ip {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.network-exit-location .network-ip-value {
+  justify-content: space-between;
+}
+.network-exit-type,
+.network-exit-ipv6 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 20px;
+}
+.network-exit-type strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 14px;
+}
+.network-exit-type + .network-report-note {
+  margin: 6px 0 12px;
+}
+.network-exit-ipv6 .network-ip {
+  font-size: 12px;
+}
+.network-risk-card h2 {
+  margin-bottom: 4px;
+  line-height: 24px;
+}
+.network-exit-card {
+  padding-block: 16px;
+}
+.network-risk-card {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+.network-risk-card .network-risk-gauge {
+  min-height: 128px;
+}
+.network-risk-card .network-risk-gauge p {
+  margin-top: 8px;
+}
+.network-risk-card .network-risk-value > span:last-child {
+  line-height: 18px;
+}
+.network-report .network-ip-toggle {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+}
+.network-dns-card {
+  min-height: 216px;
+}
+.network-secondary-risk {
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding-top: 8px;
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  line-height: 18px;
+}
+.network-report .network-detail-link {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 20px;
+  margin-top: 8px;
+  font-size: 12px;
+  min-height: 22px;
+  line-height: 18px;
+}
+.network-risk-card .network-detail-link {
+  margin-top: 4px;
+}
+.network-dns-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.network-dns-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.network-dns-top .animated-number {
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 600;
+}
+.network-dns-top small {
+  font-size: 11px;
+  color: var(--text-soft);
+}
+.network-report-footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--text-soft);
+  margin-top: auto;
+}
+.network-report-footer > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.network-report-footer .workspace-link {
+  color: var(--text-soft);
+  font-size: inherit;
+  min-height: 20px;
+  white-space: nowrap;
+}
+@container (max-width: 1180px) {
+  .network-hero-art {
+    flex-basis: 200px;
+    width: 200px;
+  }
+  .network-hero-copy h2 {
+    font-size: 32px;
+    line-height: 44px;
+  }
+  .network-hero-outcome {
+    font-size: 22px;
+    line-height: 32px;
+  }
+  .network-report-panel,
+  .network-report-hero {
+    padding: 16px;
+  }
+  .network-service-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,17 +1,20 @@
 import { createApp } from 'vue'
 import type { DiagnosticErrorPayload } from '../../shared/diagnostics'
+import { setupPreferences } from './utils/setup-preferences'
+import { announcementUidFromWorkspacePath } from '../../shared/floating-window'
 import './styles/fonts.css'
 import './style.css'
 import './composables/useTypography'
-import App from './App.vue'
-import router from './router'
 import './styles/ui-layout.css'
 import './styles/ui-agent.css'
 import './styles/ui-token-plan.css'
-import './styles/ui-insight-settings.css'
+import './styles/ui-settings.css'
 import './styles/ui-font-settings.css'
 import './styles/ui-spacing.css'
 import './styles/ui-typography.css'
+import './styles/design-system.css'
+import './styles/window-material.css'
+import './composables/useTheme'
 
 const userAgent = navigator.userAgent.toLowerCase()
 document.documentElement.dataset.platform = userAgent.includes('macintosh')
@@ -72,8 +75,30 @@ async function bootstrap(): Promise<void> {
   // 新项目不读取 renderer localStorage 中的历史明文 API Key。
   localStorage.removeItem('token-vendor-keys')
 
-  const app = createApp(App)
-  app.use(router)
+  const floating = document.documentElement.dataset.windowKind === 'floating'
+  await setupPreferences(floating)
+  if (!floating) {
+    const { initializeBrowsingState } = await import('./composables/usePageState')
+    await initializeBrowsingState()
+  }
+  const root = floating ? await import('./views/FloatingWindow.vue') : await import('./App.vue')
+  const app = createApp(root.default)
+  if (!floating) {
+    const { default: router } = await import('./router')
+    app.use(router)
+    const navigate = async (): Promise<void> => {
+      const path = await window.api.takeWorkspaceNavigation()
+      if (!path) return
+      const announcementUid = announcementUidFromWorkspacePath(path)
+      if (announcementUid) {
+        const { openMessageDetailsInMain } = await import('./composables/useMessageDetails')
+        await openMessageDetailsInMain(announcementUid)
+      } else await router.push(path)
+    }
+    window.api.onWorkspaceNavigationPending(() => void navigate())
+    await router.isReady()
+    await navigate()
+  }
   app.config.errorHandler = (error, _instance, info) => {
     reportRendererFailure(error, 'vue-error-handler', { info })
   }

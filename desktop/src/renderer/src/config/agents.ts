@@ -14,6 +14,7 @@ export const agentOrder = [
   'zed',
   'goose',
   'hermes',
+  'deepseek-harness',
 ] as const
 
 export type KnownAgent = (typeof agentOrder)[number]
@@ -34,6 +35,7 @@ export const agentColors: Record<string, string> = {
   zed: '#eab308',
   goose: '#14b8a6',
   hermes: '#ef4444',
+  'deepseek-harness': '#4d6bfe',
 }
 
 export const modelPalette = [
@@ -64,6 +66,7 @@ export const agentNames: Record<string, string> = {
   zed: 'Zed Agent',
   goose: 'Goose',
   hermes: 'Hermes',
+  'deepseek-harness': 'DeepSeek Harness',
 }
 
 export function getAgentName(agent: string): string {

@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { useLocalFavorites } from './useLocalFavorites'
 import type { TokenUsageUserSession } from '@shared/models'
 
 const STORAGE_KEY = 'floating-session-preferences'
@@ -8,6 +9,10 @@ const MAX_LATEST_COUNT = 10
 const AUTO_REFRESH_MS = 30_000
 
 export interface FloatingSessionItem {
+  latestGeneration?: TokenUsageUserSession['latestGeneration']
+  latestTurnFirstToken?: TokenUsageUserSession['latestTurnFirstToken']
+  turns?: TokenUsageUserSession['turns']
+  costSummary?: TokenUsageUserSession['costSummary']
   key: string
   agent: string
   rootSessionId: string
@@ -15,6 +20,7 @@ export interface FloatingSessionItem {
   startedAt: string
   endedAt: string
   models: string[]
+  modelTotals?: Record<string, number>
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -22,6 +28,7 @@ export interface FloatingSessionItem {
   totalTokens: number
   reasoningTokens: number
   apiCallCount: number
+  apiCallCountComplete?: boolean
   childCount: number
 }
 
@@ -29,7 +36,7 @@ interface PinnedSessionRecord {
   key: string
   agent: string
   rootSessionId: string
-  snapshot: FloatingSessionItem
+  snapshot: FloatingSessionItem | null
 }
 
 interface StoredPreferences {
@@ -54,6 +61,8 @@ export function floatingSessionKey(agent: string, rootSessionId: string): string
 
 function fromUserSession(session: TokenUsageUserSession): FloatingSessionItem {
   return {
+    latestGeneration: session.latestGeneration,
+    latestTurnFirstToken: session.latestTurnFirstToken,
     key: floatingSessionKey(session.agent, session.rootSessionId),
     agent: session.agent,
     rootSessionId: session.rootSessionId,
@@ -61,6 +70,7 @@ function fromUserSession(session: TokenUsageUserSession): FloatingSessionItem {
     startedAt: session.startedAt,
     endedAt: session.endedAt,
     models: [...session.models],
+    modelTotals: session.modelTotals ? { ...session.modelTotals } : undefined,
     inputTokens: session.inputTokens,
     outputTokens: session.outputTokens,
     cacheReadTokens: session.cacheReadTokens,
@@ -68,6 +78,9 @@ function fromUserSession(session: TokenUsageUserSession): FloatingSessionItem {
     totalTokens: session.totalTokens,
     reasoningTokens: session.reasoningTokens,
     apiCallCount: session.apiCallCount,
+    apiCallCountComplete: session.apiCallCountComplete,
+    costSummary: session.costSummary,
+    turns: session.turns,
     childCount: session.children.length,
   }
 }
@@ -112,6 +125,7 @@ function loadPreferences(): StoredPreferences {
 }
 
 export function useFloatingSessions() {
+  const favorites = useLocalFavorites()
   const stored = loadPreferences()
   const latestCount = ref(stored.latestCount)
   const pinnedRecords = ref<PinnedSessionRecord[]>(stored.pinned)
@@ -120,6 +134,7 @@ export function useFloatingSessions() {
   const tokenDeltas = ref(new Map<string, number>())
   const isRefreshing = ref(false)
   const loadFailed = ref(false)
+  const unavailableKeys = ref(new Set<string>())
 
   const previousTotals = new Map<string, number>()
   let refreshTimer: ReturnType<typeof setTimeout> | null = null
@@ -141,7 +156,10 @@ export function useFloatingSessions() {
   const pinnedKeys = computed(() => new Set(pinnedRecords.value.map((record) => record.key)))
 
   const pinnedSessions = computed(() =>
-    pinnedRecords.value.map((record) => liveSessions.value.get(record.key) ?? record.snapshot),
+    pinnedRecords.value.flatMap((record) => {
+      const session = liveSessions.value.get(record.key) ?? record.snapshot
+      return session ? [session] : []
+    }),
   )
 
   const latestSessions = computed(() =>
@@ -158,18 +176,32 @@ export function useFloatingSessions() {
     return pinnedKeys.value.has(key)
   }
 
-  function togglePin(session: FloatingSessionItem): void {
-    const index = pinnedRecords.value.findIndex((record) => record.key === session.key)
-    if (index >= 0) {
-      pinnedRecords.value.splice(index, 1)
-    } else {
-      pinnedRecords.value.push({
-        key: session.key,
-        agent: session.agent,
-        rootSessionId: session.rootSessionId,
-        snapshot: { ...session, models: [...session.models] },
+  function applyFavoriteRecords(): void {
+    if (!favorites.ready.value) return
+    const previous = new Map(pinnedRecords.value.map((record) => [record.key, record]))
+    pinnedRecords.value = favorites.items.value
+      .filter((item) => item.type === 'session')
+      .map((item) => {
+        const key = floatingSessionKey(item.agent, item.id)
+        const cached = liveSessions.value.get(key) ?? previous.get(key)?.snapshot
+        const snapshot =
+          cached ??
+          (item.snapshot ? { ...item.snapshot, models: [...item.snapshot.models], key } : null)
+        return { key, agent: item.agent, rootSessionId: item.id, snapshot }
       })
-    }
+  }
+  watch([favorites.items, favorites.ready], applyFavoriteRecords, { flush: 'sync' })
+
+  async function togglePin(session: FloatingSessionItem): Promise<void> {
+    const target = { type: 'session' as const, agent: session.agent, id: session.rootSessionId }
+    await favorites.set(target, !favorites.contains(target))
+    persistPreferences()
+  }
+
+  async function removeMissing(key: string): Promise<void> {
+    const record = pinnedRecords.value.find((item) => item.key === key)
+    if (!record) return
+    await favorites.set({ type: 'session', agent: record.agent, id: record.rootSessionId }, false)
     persistPreferences()
   }
 
@@ -190,7 +222,16 @@ export function useFloatingSessions() {
     pinnedRecords.value = next
   }
 
-  function persistPinnedOrder(): void {
+  async function persistPinnedOrder(): Promise<void> {
+    const saved = await favorites.reorder(
+      'session',
+      pinnedRecords.value.map((record) => ({
+        type: 'session' as const,
+        agent: record.agent,
+        id: record.rootSessionId,
+      })),
+    )
+    if (!saved) applyFavoriteRecords()
     persistPreferences()
   }
 
@@ -217,7 +258,10 @@ export function useFloatingSessions() {
     let totalPages = 1
 
     do {
-      const page = await window.api.getUserUsageSessions({ page: pageNumber, pageSize: 100 })
+      const page = await window.api.getUserUsageSessions({
+        page: pageNumber,
+        pageSize: Math.min(100, latestCount.value + pinnedRecords.value.length),
+      })
       totalPages = page.totalPages
       for (const item of page.items) {
         const session = fromUserSession(item)
@@ -240,6 +284,8 @@ export function useFloatingSessions() {
     loadFailed.value = false
 
     try {
+      await favorites.initialize()
+      applyFavoriteRecords()
       if (runScan) {
         try {
           await window.api.scanPerform({ mode: 'incremental' })
@@ -274,6 +320,9 @@ export function useFloatingSessions() {
 
       latestPool.value = latest
       liveSessions.value = freshMap
+      unavailableKeys.value = new Set(
+        pinnedRecords.value.filter((item) => !freshMap.has(item.key)).map((item) => item.key),
+      )
       tokenDeltas.value = nextDeltas
       pinnedRecords.value = pinnedRecords.value.map((record) => {
         const fresh = freshMap.get(record.key)
@@ -307,6 +356,13 @@ export function useFloatingSessions() {
 
   return {
     latestCount,
+    favoriteError: favorites.error,
+    missingPinnedCount: computed(() => pinnedRecords.value.length - pinnedSessions.value.length),
+    missingPinned: computed(() =>
+      pinnedRecords.value.filter((item) => !liveSessions.value.has(item.key) && !item.snapshot),
+    ),
+    unavailableKeys,
+    removeMissing,
     pinnedSessions,
     latestSessions,
     tokenDeltas,

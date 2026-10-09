@@ -1,0 +1,226 @@
+.floating-window--collapsed {
+  height: auto;
+}
+.floating-window--collapsed .floating-content {
+  --floating-summary-tabs-width: 116px;
+  flex: 0 0 auto;
+}
+.floating-window--collapsed .floating-tabs {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 12px;
+  width: var(--floating-summary-tabs-width);
+  padding: 0;
+}
+.floating-edge-hitarea {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+.floating-window--collapsed .floating-pane {
+  flex: 0 0 auto;
+  overflow-y: auto;
+}
+.floating-summary {
+  display: flex;
+  flex-direction: column;
+  height: 184px;
+  flex: none;
+  padding: 4px 12px 0;
+}
+.floating-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+  flex: none;
+  padding-inline-end: calc(var(--floating-summary-tabs-width) + 8px);
+}
+.floating-summary-heading > strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+}
+.floating-summary-accounts {
+  display: grid;
+  flex: 1;
+  align-content: center;
+  grid-template-columns: repeat(var(--summary-columns), minmax(0, 1fr));
+  padding: 8px 0;
+}
+.floating-summary-account {
+  --summary-ring: var(--success, #159a87);
+  min-width: 0;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--text);
+}
+.floating-summary-account + .floating-summary-account {
+  border-left: 1px solid var(--border);
+}
+.floating-summary-account.is-low {
+  --summary-ring: var(--warning);
+}
+.floating-summary-account.is-unavailable {
+  --summary-ring: var(--text-muted);
+}
+.floating-summary-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+}
+.floating-summary-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: var(--summary-ring);
+  stroke-width: 5;
+}
+.ring-track {
+  opacity: 0.16;
+}
+.ring-value {
+  transform: rotate(-90deg);
+  transform-origin: center;
+  stroke-linecap: round;
+}
+.floating-summary-ring strong {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.floating-summary-account b,
+.floating-summary-account small {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.floating-summary-account b {
+  font-size: 11px;
+  font-weight: 500;
+}
+.floating-summary-account small {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.floating-summary-account small.is-failed {
+  color: var(--error);
+}
+.floating-summary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  flex: none;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.floating-summary-footer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.floating-summary-footer .is-stale {
+  color: var(--warning);
+}
+.floating-summary-footer .floating-link {
+  font-size: 11px;
+  flex: none;
+}
+.floating-summary-empty {
+  flex: 1;
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  margin: 0;
+}
+.floating-summary-total {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: none;
+  width: 100%;
+  height: 80px;
+  padding: 0;
+  color: var(--text);
+  text-align: left;
+}
+.floating-summary-total > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: none;
+  height: 30px;
+}
+.floating-summary-total .animated-number {
+  font-size: 28px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.6px;
+}
+.floating-summary-total small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.floating-summary-total svg {
+  display: block;
+  height: 50px;
+  width: 100%;
+  flex: none;
+  color: var(--accent);
+}
+.floating-summary-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  height: 38px;
+  flex: none;
+  padding: 2px 0 4px;
+}
+.floating-summary-breakdown > div {
+  display: flex;
+  flex-direction: column;
+  padding-inline: 10px;
+}
+.floating-summary-breakdown > div:first-child {
+  padding-left: 0;
+}
+.floating-summary-breakdown > div + div {
+  border-left: 1px solid var(--border);
+}
+.floating-summary-breakdown > div > span:first-child {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-muted);
+}
+.floating-summary-breakdown .animated-number {
+  font-size: 14px;
+  line-height: 18px;
+  font-weight: 500;
+}

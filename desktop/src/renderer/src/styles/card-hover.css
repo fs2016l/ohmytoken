@@ -1,0 +1,33 @@
+:root {
+  --card-hover-shadow:
+    0 2px 5px light-dark(rgb(46 64 108 / 3%), rgb(0 0 0 / 10%)),
+    0 7px 18px -7px light-dark(rgb(46 64 108 / 12%), rgb(0 0 0 / 25%));
+  --card-hover-ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.subtle-card-hover {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  transition:
+    translate var(--motion-page) var(--card-hover-ease),
+    box-shadow var(--motion-page) var(--card-hover-ease);
+}
+
+@media (hover: hover) {
+  .subtle-card-hover:hover {
+    box-shadow: var(--card-hover-shadow);
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .subtle-card-hover:hover {
+    /* Keep hover independent of entrance and reorder transforms. */
+    translate: 0 -1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtle-card-hover {
+    transition: none;
+  }
+}

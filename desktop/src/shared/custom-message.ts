@@ -17,7 +17,6 @@ export interface CustomMessageData {
   contentEn?: string
   level: 'info' | 'success' | 'warning' | 'important'
   displayScope: 'main' | 'floating' | 'both'
-  showInNotificationCenter: boolean
   images: CustomMessageImageData[]
   priority: number
   displayDurationSeconds: number

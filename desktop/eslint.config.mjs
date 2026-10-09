@@ -1,4 +1,4 @@
-// ESLint 9 flat config —— ohmyagent/desktop
+// ESLint 9 flat config
 // 最小防护网：max-lines + 进程边界 + 防止 pages/ 回潮
 // 设计原则：warn 先暴露历史问题不阻塞，error 只对真实架构违规
 import js from '@eslint/js'
@@ -16,6 +16,8 @@ export default [
       'dist/**',
       'release/**',
       'node_modules/**',
+      '**/*.local/**',
+      'tests/browser/capture-site-previews*.mjs',
       '.eslintrc.*',
       'src/renderer/src/env.d.ts', // 含全局 Window 接口扩展，避免被规则误报
       '*.config.{js,ts,mjs,cjs}',
@@ -41,14 +43,31 @@ export default [
     },
   },
 
-  // === Node CJS 测试脚本 ===
+  // === Node 构建与测试脚本 ===
   {
-    files: ['tests/node/**/*.cjs'],
+    files: ['scripts/**/*.{mjs,cjs}', 'tests/**/*.{ts,mjs,cjs}'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        process: 'readonly',
+        console: 'readonly',
+        setImmediate: 'readonly',
+        clearImmediate: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true }],
+    },
+  },
+  {
+    files: ['scripts/**/*.cjs', 'tests/**/*.cjs'],
     languageOptions: {
       globals: {
         require: 'readonly',
-        process: 'readonly',
-        console: 'readonly',
+        module: 'readonly',
+        exports: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
       },
     },
     rules: {

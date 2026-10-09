@@ -1,0 +1,6 @@
+extends: ./electron-builder.yml
+forceCodeSigning: true
+afterPack: scripts/licenses-mac-after-pack.cjs
+mac:
+  sign: scripts/network-monitor-mac-sign.cjs
+  minimumSystemVersion: '13.0'

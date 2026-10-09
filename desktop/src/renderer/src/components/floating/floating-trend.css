@@ -1,0 +1,123 @@
+.trend-visual {
+  min-width: 0;
+}
+.floating-trend-plot {
+  position: relative;
+  height: 112px;
+}
+.floating-trend-plot--controls {
+  height: 136px;
+}
+.floating-trend-canvas {
+  width: 100%;
+  height: 100%;
+}
+.chart-state {
+  position: absolute;
+  inset: 8px 12px 24px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  font-size: 12px;
+  pointer-events: none;
+}
+.trend-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+  min-height: 22px;
+}
+.trend-legend {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 94px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.legend-chip.muted {
+  opacity: 0.4;
+}
+.legend-chip > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.legend-chip > .legend-logo {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+.legend-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trend-controls-toggle {
+  width: 18px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  display: grid;
+  place-items: center;
+}
+.trend-controls-toggle > span {
+  font-size: 15px;
+}
+.zoom-footer {
+  margin-top: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  background: var(--surface-low);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.zoom-copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.zoom-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.zoom-actions button {
+  min-width: 26px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.zoom-actions button:hover,
+.zoom-actions button[aria-pressed='true'] {
+  color: var(--primary-soft-text);
+  background: var(--primary-soft);
+}
+.zoom-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.floating-chart-colors {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}

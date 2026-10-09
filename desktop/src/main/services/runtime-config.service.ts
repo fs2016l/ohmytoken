@@ -1,5 +1,11 @@
-import type { DesktopRuntimeConfig } from '../../shared/runtime-config'
+import type {
+  DesktopRuntimeConfig,
+  DesktopApiKey,
+  DesktopApiParameters,
+} from '../../shared/runtime-config'
 import { getOhmytokenApiBase, isTrustedDevelopmentHttp } from './server-config.service'
+
+import { desktopApiUrl, validateDesktopApiPaths } from './runtime-api-paths'
 
 interface ResponseResult<T> {
   code?: number
@@ -54,6 +60,7 @@ function parseRuntimeConfig(value: unknown): DesktopRuntimeConfig {
   return Object.freeze({
     configVersion,
     cacheTtlSeconds,
+    apiPaths: validateDesktopApiPaths(candidate.apiPaths),
     websiteUrl: validateUrl(candidate.websiteUrl, '官网地址'),
     desktopLoginUrl: validateUrl(candidate.desktopLoginUrl, '桌面登录地址'),
     accountPageUrl: validateUrl(candidate.accountPageUrl, '账号中心地址'),
@@ -94,4 +101,13 @@ export function getDesktopRuntimeConfig(forceRefresh = false): Promise<DesktopRu
     loading = null
   })
   return loading
+}
+
+/** Resolve only the server-supplied path; there are no client-side endpoint defaults. */
+export async function resolveDesktopApiUrl(
+  key: DesktopApiKey,
+  parameters?: DesktopApiParameters,
+): Promise<string> {
+  const config = await getDesktopRuntimeConfig()
+  return desktopApiUrl(getOhmytokenApiBase(), config.apiPaths, key, parameters)
 }

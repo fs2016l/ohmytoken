@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from '../../utils/charts'
+import { chartMotion } from '../../config/motion'
 import { useI18n } from '../../i18n/useI18n'
 import { useLegendSelection } from '../../composables/useLegendSelection'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
@@ -127,8 +128,7 @@ function renderChart(): void {
     return
   }
   if (chartRef.value.clientWidth === 0) return
-  if (chart) chart.dispose()
-  chart = echarts.init(chartRef.value)
+  chart ??= echarts.init(chartRef.value)
   if (legendItems.value.length > 0 && legendVisibilityState.value === 'none') {
     chart.dispose()
     chart = null
@@ -153,33 +153,37 @@ function renderChart(): void {
         ),
       )
 
-    chart.setOption({
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-        backgroundColor: cc.tooltipBg,
-        borderColor: cc.tooltipBorder,
-        textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
-        padding: [10, 12],
-        formatter: (params: unknown) =>
-          makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
+    chart.setOption(
+      {
+        ...chartMotion(reduced.value),
+        backgroundColor: 'transparent',
+        tooltip: {
+          trigger: 'axis',
+          backgroundColor: cc.tooltipBg,
+          borderColor: cc.tooltipBorder,
+          textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
+          padding: [10, 12],
+          formatter: (params: unknown) =>
+            makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
+        },
+        legend: { show: false },
+        grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
+        xAxis: {
+          type: 'category',
+          boundaryGap: false,
+          data: hourlyStats.map((d) => d.label),
+          axisLabel: { ...chartText, fontSize: 12 },
+          axisLine,
+        },
+        yAxis: {
+          type: 'value',
+          axisLabel: { ...chartText, formatter: (v: number) => formatTokens(v), fontSize: 12 },
+          splitLine,
+        },
+        series,
       },
-      legend: { show: false },
-      grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
-      xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        data: hourlyStats.map((d) => d.label),
-        axisLabel: { ...chartText, fontSize: 12 },
-        axisLine,
-      },
-      yAxis: {
-        type: 'value',
-        axisLabel: { ...chartText, formatter: (v: number) => formatTokens(v), fontSize: 12 },
-        splitLine,
-      },
-      series,
-    })
+      { replaceMerge: ['series'] },
+    )
     return
   }
 
@@ -205,37 +209,42 @@ function renderChart(): void {
       ),
     )
 
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: cc.tooltipBg,
-      borderColor: cc.tooltipBorder,
-      textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
-      padding: [10, 12],
-      formatter: (params: unknown) =>
-        makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
+  chart.setOption(
+    {
+      ...chartMotion(reduced.value),
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: cc.tooltipBg,
+        borderColor: cc.tooltipBorder,
+        textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
+        padding: [10, 12],
+        formatter: (params: unknown) =>
+          makeTooltipFormatter(getAxisValue(params), params, { totalSeriesId: TOTAL_SERIES_KEY }),
+      },
+      legend: { show: false },
+      grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: dates,
+        axisLabel: { ...chartText, fontSize: 12 },
+        axisLine,
+      },
+      yAxis: {
+        type: 'value',
+        axisLabel: { ...chartText, formatter: (v: number) => formatTokens(v), fontSize: 12 },
+        splitLine,
+      },
+      series,
     },
-    legend: { show: false },
-    grid: { top: 24, bottom: 34, left: 58, right: 40, containLabel: true },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: dates,
-      axisLabel: { ...chartText, fontSize: 12 },
-      axisLine,
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: { ...chartText, formatter: (v: number) => formatTokens(v), fontSize: 12 },
-      splitLine,
-    },
-    series,
-  })
+    { replaceMerge: ['series'] },
+  )
 }
 
-const { requestRender } = useChartRenderLifecycle(chartRef, {
+const { requestRender, reduced } = useChartRenderLifecycle(chartRef, {
   render: renderChart,
+  chart: () => chart,
   resize: () => chart?.resize(),
   dispose: () => {
     chart?.dispose()

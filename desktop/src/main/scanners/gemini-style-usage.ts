@@ -3,6 +3,7 @@ import { tokenBuckets, tokenCount } from './token-usage'
 /** 将 usageMetadata 形态的计数转换为应用内部的五类 token 记录。 */
 
 export interface ExclusiveTokenUsage {
+  bucketQuality?: 'verified' | 'uncertain'
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
@@ -47,6 +48,13 @@ export function normalizeGeminiStyleUsage(
   const cacheReadTokens = cacheIsIncluded ? Math.min(input, rawCache) : rawCache
   const inputTokens = cacheIsIncluded ? grossInput - cacheReadTokens : grossInput
   const accountedInput = inputTokens + cacheReadTokens
+  // 工具内循环计数缺少独立计费边界时，只保留统计结果，不参与成本预估。
+  let uncertain =
+    tool > 0 ||
+    (cacheIsIncluded && rawCache > input) ||
+    (parts.outputIncludesThoughts === true &&
+      rawThoughts > rawOutput &&
+      reportedTotal !== accountedInput + rawOutput + rawThoughts)
 
   let reasoningTokens = parts.outputIncludesThoughts
     ? Math.min(rawThoughts, rawOutput)
@@ -64,6 +72,7 @@ export function normalizeGeminiStyleUsage(
       outputTokens = rawOutput - rawThoughts
       reasoningTokens = rawThoughts
     } else {
+      uncertain = true
       // 字段组合不完整或供应商口径发生变化时，以官方 total 为锚点，优先保留
       // 明确给出的 thoughts，其余归入普通输出，避免总量重复或丢失。
       reasoningTokens = Math.min(rawThoughts, outputPool)
@@ -77,5 +86,8 @@ export function normalizeGeminiStyleUsage(
     cacheReadTokens,
     reasoningTokens,
   })
-  return usage.totalTokens > 0 ? usage : null
+  if (reportedTotal > 0 && reportedTotal !== usage.totalTokens) uncertain = true
+  return usage.totalTokens > 0
+    ? { ...usage, bucketQuality: uncertain ? 'uncertain' : 'verified' }
+    : null
 }

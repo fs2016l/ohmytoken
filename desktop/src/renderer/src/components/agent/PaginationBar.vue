@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import SelectControl from '../base/SelectControl.vue'
 import { useI18n } from '../../i18n/useI18n'
 
 interface Props {
@@ -35,8 +36,7 @@ function goToPage(page: number): void {
   if (next !== props.page) emit('changePage', next)
 }
 
-function changePageSize(event: Event): void {
-  const value = Number((event.target as HTMLSelectElement).value)
+function changePageSize(value: number): void {
   if (Number.isFinite(value) && value > 0) emit('changePageSize', value)
 }
 </script>
@@ -98,11 +98,17 @@ function changePageSize(event: Event): void {
     </div>
     <label class="page-size-control">
       <span>{{ label('Per page', '每页') }}</span>
-      <select :value="pageSize" :disabled="disabled" @change="changePageSize">
-        <option v-for="option in pageSizeOptions" :key="option" :value="option">
-          {{ option }}
-        </option>
-      </select>
+      <SelectControl
+        :model-value="pageSize"
+        :disabled="disabled"
+        :label="label('Per page', '每页条数')"
+        :options="
+          pageSizeOptions.map((value) => ({ value, label: label(`${value}`, `${value} 条`) }))
+        "
+        compact
+        placement="top"
+        @update:model-value="changePageSize"
+      />
     </label>
   </div>
 </template>
@@ -152,15 +158,6 @@ function changePageSize(event: Event): void {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.page-size-control select {
-  height: 30px;
-  padding: 0 24px 0 8px;
-  color: var(--text-muted);
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: 6px;
 }
 
 @media (max-width: 640px) {

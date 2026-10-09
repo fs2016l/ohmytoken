@@ -1,0 +1,116 @@
+.settings-destination .page-surface-content {
+  max-width: 1088px;
+  padding-top: 64px;
+  padding-bottom: var(--page-bottom-space);
+}
+.settings-destination .workspace-heading {
+  margin-bottom: 40px;
+}
+.settings-destination .workspace-heading p {
+  font-size: 12px;
+  line-height: 20px;
+  margin-top: 4px;
+}
+.preference-section {
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.preference-section + .preference-section {
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+  padding-top: 32px;
+}
+.preference-section h2 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.preference-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 0;
+  min-width: 0;
+}
+.preference-row > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.preference-row h3 {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  margin: 0;
+}
+.preference-row p,
+.preference-description {
+  font-size: 14px;
+  line-height: 22px;
+  margin: 2px 0 0;
+  color: var(--text-muted);
+}
+.preference-description {
+  margin-top: 12px;
+  font-size: 13px;
+}
+.preference-select {
+  width: 344px;
+  max-width: 45%;
+}
+.preference-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  background: var(--surface-container);
+}
+.preference-card .preference-row {
+  padding: 0;
+}
+.preference-card .preference-description {
+  margin-top: 24px;
+}
+.settings-destination .workspace-button {
+  min-width: 120px;
+  height: 44px;
+  font-size: 13px;
+}
+.preference-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 24px;
+  background: var(--surface-container);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 22px;
+}
+.preference-notice h3 {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 8px;
+}
+.preference-notice p {
+  margin: 0;
+}
+.preference-status {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 22px;
+  margin: 20px 0 0;
+}
+.preference-status.success {
+  color: var(--success);
+}
+.preference-status.error {
+  color: var(--error);
+}
+@media (max-width: 1350px) {
+  .settings-destination .page-surface-content {
+    padding-top: 48px;
+  }
+}

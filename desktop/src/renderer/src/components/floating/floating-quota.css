@@ -1,0 +1,173 @@
+.floating-quota-heading {
+  margin-bottom: 10px;
+}
+.floating-quota-heading strong {
+  font-weight: 500;
+}
+.floating-quota-heading > span {
+  color: var(--text-muted);
+}
+.floating-quota-account {
+  position: relative;
+  z-index: 1;
+  cursor: grab;
+  touch-action: pan-y;
+  font-size: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--surface-low);
+}
+.floating-quota-account--dragging {
+  z-index: 0;
+  background: var(--primary-soft);
+  box-shadow: none;
+  translate: none;
+  /* Keep the vacant slot at its destination while neighboring cards move. */
+  transform: none !important;
+  transition: none;
+}
+.floating-quota-account--dragging > * {
+  visibility: hidden;
+}
+.floating-quota-reorder-move {
+  transition: transform var(--quota-reorder-duration) var(--motion-ease);
+}
+.floating-quota-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4000;
+  margin: 0;
+  background: var(--surface);
+  box-shadow: var(--floating-card-shadow-hover);
+  outline: 1px solid var(--border);
+  translate: none;
+  transition: none;
+  transform-origin: top left;
+  pointer-events: none;
+}
+.floating-quota-drag-preview * {
+  pointer-events: none !important;
+}
+.floating-quota-drag-preview button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+}
+@media (prefers-reduced-motion: reduce) {
+  .floating-quota-reorder-move {
+    transition: none;
+  }
+}
+.floating-quota-account > header {
+  margin-bottom: 14px;
+  min-height: 24px;
+}
+.floating-quota-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+  flex: 1;
+  gap: 2px 8px;
+}
+.floating-quota-identity strong {
+  font-size: 16px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.floating-quota-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.floating-quota-tier {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.floating-quota-updated {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.floating-quota-footer {
+  flex-wrap: wrap;
+}
+.floating-quota-footer > span {
+  flex-shrink: 0;
+  overflow: visible;
+}
+.floating-quota-footer > .floating-row {
+  margin-left: auto;
+}
+.floating-quota-risk {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--quota-warningText);
+}
+.floating-quota-risk.critical {
+  color: var(--quota-criticalText);
+}
+.floating-quota-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.floating-quota-error {
+  margin-top: 8px;
+  color: var(--warning);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.floating-quota-error button {
+  flex: 0 0 auto;
+}
+.floating-quota-manage {
+  padding: 0 0 8px;
+}
+.floating-all-quota {
+  color: var(--primary);
+}
+.floating-follow-hint {
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+.floating-follow-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.floating-follow-list > .floating-follow-choice {
+  position: relative;
+  z-index: 1;
+  cursor: grab;
+  touch-action: pan-y;
+}
+.floating-follow-list > .floating-quota-account--dragging {
+  z-index: 0;
+}
+.floating-follow-choice > span {
+  min-width: 0;
+  flex: 1;
+}
+.floating-follow-choice small {
+  display: block;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floating-follow-choice input {
+  accent-color: var(--primary);
+  cursor: pointer;
+}

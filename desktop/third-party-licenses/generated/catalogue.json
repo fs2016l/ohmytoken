@@ -1,0 +1,2806 @@
+{
+  "schemaVersion": 1,
+  "applicationVersion": "1.6.1",
+  "lockfileSha256": "844da7c4692cb6f53fb32f0c27615179883b817c41516ac25f06128123a4b190",
+  "fontAssets": {
+    "material-symbols-outlined.woff2": "ccc0bf9cc6263ea82935c9519bde26e2f39da1642bf0db7df246b0053ac06aa0",
+    "ui/ibm-plex-mono/IBMPlexMono-Medium.woff2": "33faf307fa6031fb4062276d7320a6d632de890cbb347576fd80cfa01077bc25",
+    "ui/ibm-plex-mono/IBMPlexMono-Regular.woff2": "ba204497f16b6d334cee9d1e963a831b73e3a56e1d6300a8489d18df7214b350",
+    "ui/ibm-plex-mono/IBMPlexMono-SemiBold.woff2": "6a825b4824c01cbb401e829e5a066a1818411bcb3538b5a5792c5ca9b82343c3",
+    "ui/ibm-plex-sans/IBMPlexSans-Italic.woff2": "13284fab1821ba6e3652c1580fcf2bbfd8c9309520c69b3d1224dab40b37c597",
+    "ui/ibm-plex-sans/IBMPlexSans-Medium.woff2": "5660f8a658f8bb50dbc005232f885eadffd2bc1c235c4f6fbb63469d1f9cde6d",
+    "ui/ibm-plex-sans/IBMPlexSans-MediumItalic.woff2": "16f11ab3543e3d1e2704407378aafa4ddb570ad11f6a476eeaa4ec6e67fc30e8",
+    "ui/ibm-plex-sans/IBMPlexSans-Regular.woff2": "ba711a3085ff9f27440b6b9c4550cfc47c97bf36591d5da958b975bb3add8c1a",
+    "ui/ibm-plex-sans/IBMPlexSans-SemiBold.woff2": "f78048030eab62e860efa39a0df79e2e5581bf122eb95b9bc42c0b8a4988d205",
+    "ui/ibm-plex-sans/IBMPlexSans-SemiBoldItalic.woff2": "d875a0705b4596532250beeb66d9a2b8866a25f78b5b249b3d3293b5f922e50e",
+    "ui/inter/InterVariable-Italic.woff2": "e564f652916db6c139570fefb9524a77c4d48f30c92928de9db19b6b5c7a262a",
+    "ui/inter/InterVariable.woff2": "693b77d4f32ee9b8bfc995589b5fad5e99adf2832738661f5402f9978429a8e3",
+    "ui/jetbrains-mono/JetBrainsMono-Medium.woff2": "086c48dfbea9ddaff1320f7e09399b8e2924e88ce67453721255db3bdbb5a353",
+    "ui/jetbrains-mono/JetBrainsMono-Regular.woff2": "a9cb1cd82332b23a47e3a1239d25d13c86d16c4220695e34b243effa999f45f2",
+    "ui/jetbrains-mono/JetBrainsMono-SemiBold.woff2": "918edad542a1da608fd2ba8daebaff9ac802309103fe760eed465b8b4e47faf1",
+    "ui/noto-sans-sc/noto-sans-sc-000.woff2": "9fafd93ac77b81ffdeeb30c31e7d5911eb5b6a0a976b54c6e418eec8701a97e2",
+    "ui/noto-sans-sc/noto-sans-sc-001.woff2": "e64f57937e3ae4feb9dd073d6a5257a74fda82575060718a162c95c8c09ef2ae",
+    "ui/noto-sans-sc/noto-sans-sc-002.woff2": "17e15c4f0a5bfd92e65a65d285833633f2cc8d4a51a8ba6a2080663989123d7e",
+    "ui/noto-sans-sc/noto-sans-sc-003.woff2": "c1409c43e55ecff21bd7eee9327e71a6f4c66449842861b368dcdfe14445aab3",
+    "ui/noto-sans-sc/noto-sans-sc-004.woff2": "77037ed42ff4e7b0e5cc296cabe4f0580d1d518239a4a067c00ff8097f60819f",
+    "ui/noto-sans-sc/noto-sans-sc-005.woff2": "38d0df21ac374e938a5c885f50a80b7be2dbab9a34803462a4f2c6c6fa777128",
+    "ui/noto-sans-sc/noto-sans-sc-006.woff2": "8fa21e7e457acf3e8ca2e0561d5df4dd26cf0824a27a721c2b831b202e88e195",
+    "ui/noto-sans-sc/noto-sans-sc-007.woff2": "f760b7a3871d214d421b378faa2e27a763bc632000f983964a837f2323665f1d",
+    "ui/noto-sans-sc/noto-sans-sc-008.woff2": "be8386e7bd7facfe78886db838ece2fac15056ef9ea6c48d631054460cd37c6f",
+    "ui/noto-sans-sc/noto-sans-sc-009.woff2": "4895abcaddbd162e48a212dd75c270d3ba1706519f527dff5fd7ec47dfa64dfd",
+    "ui/noto-sans-sc/noto-sans-sc-010.woff2": "82540b6201a9b9ade19206b3e6e9ba65038e6ab5d8b61952352d87b92978f967",
+    "ui/noto-sans-sc/noto-sans-sc-011.woff2": "ff21d8fcc60ce39145c09da40c66f190dbb52b4b5ae6de1861dcaf15f87ef497",
+    "ui/noto-sans-sc/noto-sans-sc-012.woff2": "1f76f6ffded00b9ead063038ebfd5019ad334ffeb7035dda3aa33f4dd1bb7adc",
+    "ui/noto-sans-sc/noto-sans-sc-013.woff2": "e6c25be1bb08a63a0f4cd0cea425fc90b65df538be8505e3cf4010bec2853b64",
+    "ui/noto-sans-sc/noto-sans-sc-014.woff2": "0cda750d7d04a4e12e4b2ea1d78c0a3ec430b5c07e02b87064e809ff75d76998",
+    "ui/noto-sans-sc/noto-sans-sc-015.woff2": "b9732b5606bd87c51942e5f56270d26495f2bc22a157493725417af2c70c265e",
+    "ui/noto-sans-sc/noto-sans-sc-016.woff2": "38aa326b4c84902a342b4225a452a7ca3ac32ebf40792663d7db2013c22bee9d",
+    "ui/noto-sans-sc/noto-sans-sc-017.woff2": "bd98226c8e0aa80876366386a23e909087df5d6b570f48b2366a8849a3ca137b",
+    "ui/noto-sans-sc/noto-sans-sc-018.woff2": "0db1ca695a491d372060eba39ae66b1816457e8992698fbaacd35cc0f7786658",
+    "ui/noto-sans-sc/noto-sans-sc-019.woff2": "8df409a4e0a237c21db73608de96e2ae49c53de50826098d050a0e2cca867836",
+    "ui/noto-sans-sc/noto-sans-sc-020.woff2": "672d2d994994a3c39072fbbc4a40f0e25424ab2ff36ec63f3b55849d1ab8a650",
+    "ui/noto-sans-sc/noto-sans-sc-021.woff2": "272d6d0e153f56e8ab7d9412ca1e8581c06ce371641cf863859a0ab01751c1ea",
+    "ui/noto-sans-sc/noto-sans-sc-022.woff2": "5b9ef1ed48420aa7b9da1fbc18c4a4dfd3d4edf1c6b8aab89cf12b40913335a3",
+    "ui/noto-sans-sc/noto-sans-sc-023.woff2": "30aee47f660fd88a68fee63052ce8f3746e78e606813de686b710692d7610529",
+    "ui/noto-sans-sc/noto-sans-sc-024.woff2": "ec0014830db682b682120085e07476df857d016fa7bb1b4bb3dfe82113819a10",
+    "ui/noto-sans-sc/noto-sans-sc-025.woff2": "43df2b5dad9bb8353549d68023297605443f251f1f846a9cb2e5363b84aacd0b",
+    "ui/noto-sans-sc/noto-sans-sc-026.woff2": "acaa6195041b1a928d35c7e80365a4e653ffc5cba556c0a1443ee3a561228eb8",
+    "ui/noto-sans-sc/noto-sans-sc-027.woff2": "8cdb9903f770db21bd3d17eab6a1dd7d302b47f7eab059b2ff814d9593ce2526",
+    "ui/noto-sans-sc/noto-sans-sc-028.woff2": "6590d0a6fe94571cfb84a6d9536e0f58b6a6164643ffa339d3c1788835c96147",
+    "ui/noto-sans-sc/noto-sans-sc-029.woff2": "b05afdd32b3bf722adac4b2c936a3c3390fb4b6b8adc20a132a0b42cb9c23e83",
+    "ui/noto-sans-sc/noto-sans-sc-030.woff2": "c9585f7d070700be0435c1014761af37cd512faa68ffc33341d1e4634abed682",
+    "ui/noto-sans-sc/noto-sans-sc-031.woff2": "4943895a4dfa5dcf427429a13e1c56bb3fd344c1dd7b1ad927b9d6743e358ac0",
+    "ui/noto-sans-sc/noto-sans-sc-032.woff2": "13e51063d7743cfe2d533620860719890426ef12f6fe036d50b3c1a8f41508e7",
+    "ui/noto-sans-sc/noto-sans-sc-033.woff2": "fd4df1f02c2cb4d7db99d2d35225561f9695483f5f829e0f6667adac4bbe7ff6",
+    "ui/noto-sans-sc/noto-sans-sc-034.woff2": "06999a39c4c3a7ea279822ec42aeaf7e2f99d4047e4f8b7c48254158b7e293fa",
+    "ui/noto-sans-sc/noto-sans-sc-035.woff2": "767b7b9864658d91d81787ebeac555cb9d67ec920002845061516dd87fa1b95f",
+    "ui/noto-sans-sc/noto-sans-sc-036.woff2": "4cd00537a46f6f1acaf2762a59176e059062d7259217a8a85a589df775531ea6",
+    "ui/noto-sans-sc/noto-sans-sc-037.woff2": "0118ec5d8c30b1971a59ec5982f3eeee3e687a40ef5b79108e99e5d82fa67aa9",
+    "ui/noto-sans-sc/noto-sans-sc-038.woff2": "a3e4a78929826930956ef1e3b3c1c329815d75c88f67296c4ffeac203e2cb544",
+    "ui/noto-sans-sc/noto-sans-sc-039.woff2": "7623501009e4a6db7c2d5a635f57099da3e78de33fa85cccdf8d3c1596064ccb",
+    "ui/noto-sans-sc/noto-sans-sc-040.woff2": "56ae1a59a32e4a258336c6d100d5288f3d1ece6f9e4f2bb3ec0548c289ede761",
+    "ui/noto-sans-sc/noto-sans-sc-041.woff2": "7a377a40e99fd9bc3b1eb38517f08c4ac09520437bed24c3d3a39e2b64ff0ee9",
+    "ui/noto-sans-sc/noto-sans-sc-042.woff2": "3657f66babdf6aff2d2ca3cbadf7bcdce820bda6be7c765d909afee8e74dad5c",
+    "ui/noto-sans-sc/noto-sans-sc-043.woff2": "23919a2eb11d25dd3a78c020ecc337c9c72b8ca760412f5b4cd567cc43b776ba",
+    "ui/noto-sans-sc/noto-sans-sc-044.woff2": "a901edf25bc1cfae0fc4c474fce9f8783e93a46b9e88a1cb1cb1301feb1cbdb2",
+    "ui/noto-sans-sc/noto-sans-sc-045.woff2": "92f56f713cc0b62f1cbbbc3533b957cff5d2db2abdb4b45a173564011d217ddc",
+    "ui/noto-sans-sc/noto-sans-sc-046.woff2": "4929c9f39a5a4bd941050c7358e1556e57cef901b8c75503453e62c23ede281c",
+    "ui/noto-sans-sc/noto-sans-sc-047.woff2": "8daa61282fb62a111c17f896b12429a43a3d60bd5f2eceb8c5a4f7d57a26d83c",
+    "ui/noto-sans-sc/noto-sans-sc-048.woff2": "6479166925eb462be1a74ad446099719e8021949abf5c3eafefd9ad290836b9c",
+    "ui/noto-sans-sc/noto-sans-sc-049.woff2": "a6b0e11c4c761ffda2e693d037f1384af67b6a338f81a8c0fcd7aa4eea9a177c",
+    "ui/noto-sans-sc/noto-sans-sc-050.woff2": "65b77f1fe9d68dae692578370f64b50ace8469fcf737b34d8b4cdfabed344f23",
+    "ui/noto-sans-sc/noto-sans-sc-051.woff2": "b34f765cbbf4d02e71cc0d3ea9d488ad4a9da2bcea08f4c84a74e6ec82877f06",
+    "ui/noto-sans-sc/noto-sans-sc-052.woff2": "a99d55c00e4f95b79ccc545fcd5464428edb7127670eaed421003473fd4ede7f",
+    "ui/noto-sans-sc/noto-sans-sc-053.woff2": "3298bed30dc8d23323c0ba9cab32aa4088d39f5316d126b5cbdabd56884a5f01",
+    "ui/noto-sans-sc/noto-sans-sc-054.woff2": "6597209ca97077267b65fc072819325eb5a6d3787791d193cc481b3a71fb1b76",
+    "ui/noto-sans-sc/noto-sans-sc-055.woff2": "e7ac1d4930eabd781b541d961576a89b49580cdf336ca2413e0eb7709b41e72a",
+    "ui/noto-sans-sc/noto-sans-sc-056.woff2": "1f0287be83a28e7ac104beb7f1b12ea6c0f327dd2dcd50033fb11c4aba123734",
+    "ui/noto-sans-sc/noto-sans-sc-057.woff2": "d9a4bb7bcc2be578e52835906301f04f6caf285ffcd299065521830529532fd6",
+    "ui/noto-sans-sc/noto-sans-sc-058.woff2": "5a019946bcadcec6e510d2786b1a490a8ca4442c849e3fbf6251bdc06a7e1f47",
+    "ui/noto-sans-sc/noto-sans-sc-059.woff2": "7c445e85d04f5319eda4b07329a71f5e468fb7906547d34150b819916d2f6d31",
+    "ui/noto-sans-sc/noto-sans-sc-060.woff2": "7d4afb70f641781cfe859e18b81b5b641fb76872fb44760e9314e76fa6b42e3f",
+    "ui/noto-sans-sc/noto-sans-sc-061.woff2": "5798753a721bb4eccbf7d9ca923d2496524009a6c27c4bfc36e2b27f0251ee59",
+    "ui/noto-sans-sc/noto-sans-sc-062.woff2": "db887159ca6e46f3f2787f7a1037940805bb7db727fd3a7ee2bdf9fb47f74469",
+    "ui/noto-sans-sc/noto-sans-sc-063.woff2": "71e5743bbd225b3d80426f1b9e1d45c61fa7265aa453e2d22181944ec52569ff",
+    "ui/noto-sans-sc/noto-sans-sc-064.woff2": "8c5094c3785fd04f84142ebc0362d835cce48e56b13e90d9900ddce5f9fe060f",
+    "ui/noto-sans-sc/noto-sans-sc-065.woff2": "4a60a1ccba9052841d6f22a1d8d84a553184689b1de4c3dc6bcaa654c2c91ef6",
+    "ui/noto-sans-sc/noto-sans-sc-066.woff2": "3ed54e59ef4758e3cf1f81d9dd5ac9197ba8a7071ec8c0d69e2d52b2a2826be6",
+    "ui/noto-sans-sc/noto-sans-sc-067.woff2": "e87e0a1342e1778c69040e768b5ad1d615068cec94579ba0176a875cb4170bde",
+    "ui/noto-sans-sc/noto-sans-sc-068.woff2": "6d3ac3e20959dbcb9c0f4fbe786a2fc4040f565577b35a13275959eec27a9ae0",
+    "ui/noto-sans-sc/noto-sans-sc-069.woff2": "0eeffd5daad5c17bba306e06e89e93ac563a497c806c0fa1d4c3a53a8ffa4225",
+    "ui/noto-sans-sc/noto-sans-sc-070.woff2": "b1d9582dfa2684636af41b19f0e2b397f8200337e0302dcaac3638ad431b7000",
+    "ui/noto-sans-sc/noto-sans-sc-071.woff2": "8b437aeb9e9fcb5aa31bd8565986f92cb7c43dbf1ac3763531b8b384fcda7290",
+    "ui/noto-sans-sc/noto-sans-sc-072.woff2": "83b0a59e0a5e045a44b1819d98795bee83684f746844f6fc4ebf448db3d53d39",
+    "ui/noto-sans-sc/noto-sans-sc-073.woff2": "382f72b98d4bb9d7006109efa128aedf846904490b52a5d4f1db151a73718faf",
+    "ui/noto-sans-sc/noto-sans-sc-074.woff2": "5e52856457c5cdaba991d72419e6f419f6627a5231b674275b8152f691328a33",
+    "ui/noto-sans-sc/noto-sans-sc-075.woff2": "ffded4e7fd560d935f847ddd084187a049bbaca55d1deea9d2e6daf153cdea5b",
+    "ui/noto-sans-sc/noto-sans-sc-076.woff2": "54e302c23f11a8fd518f0948183800ac954315067f0990eed41b9c91e55761ef",
+    "ui/noto-sans-sc/noto-sans-sc-077.woff2": "ad5f29028d5699a59688d807fda531f23cb2c1ecd7815495853bbae8e75b8646",
+    "ui/noto-sans-sc/noto-sans-sc-078.woff2": "e189b81fc22ca6afcf03a1fcbf8fad93e8272a502d4b23241900113d9ddbe51a",
+    "ui/noto-sans-sc/noto-sans-sc-079.woff2": "941c0c2971fc1d6d1e36c3d40d74e6a133ad02f58f0bc3a9cb265d8a60f3eb31",
+    "ui/noto-sans-sc/noto-sans-sc-080.woff2": "bafbd591af6493fface8ee91ca8701cd227f18b1636c5a380c1dbd84cd79b92d",
+    "ui/noto-sans-sc/noto-sans-sc-081.woff2": "b0bf80ced89dd61bc3c1427c23203b44413dfef6aafb50da905ab28a7937a923",
+    "ui/noto-sans-sc/noto-sans-sc-082.woff2": "8d8b4e6f4a00621d2be4279e9ba4b07cded89ab6d4018d9b87d2116867ead335",
+    "ui/noto-sans-sc/noto-sans-sc-083.woff2": "bae74acc629d2e7484c66fd9bb0614df5bf3e98c39811d9e7e9222845a1c4b62",
+    "ui/noto-sans-sc/noto-sans-sc-084.woff2": "a42eff5010de7b0d6922a14734dd06c9b495655ac6e4397506f44c8e3eaee10c",
+    "ui/noto-sans-sc/noto-sans-sc-085.woff2": "91882203459867be07157e9c8d433372b65cd4ce484fda26b97b05ed2cf6290d",
+    "ui/noto-sans-sc/noto-sans-sc-086.woff2": "a91f8b038e5ce10805a173a293484c8c49552c275cf901cdf21324d6dca3ed17",
+    "ui/noto-sans-sc/noto-sans-sc-087.woff2": "bbca9081655c45233a25c4cca030c47ebcf2e156eeedd48110836658adb31fa0",
+    "ui/noto-sans-sc/noto-sans-sc-088.woff2": "372be010ac0e87cb12065a861da39821104a43d68345a62ca95d3d3e2fb2c269",
+    "ui/noto-sans-sc/noto-sans-sc-089.woff2": "34a4580239eae8dc54b726a1e1e9fec266e74225b112063ed93b412d54b97ccd",
+    "ui/noto-sans-sc/noto-sans-sc-090.woff2": "614ab8f616352583f92cc2130fe8812c5aaaa8560b3828de45eefb318be7b503",
+    "ui/noto-sans-sc/noto-sans-sc-091.woff2": "cf7b8344807a316e8db054500a2b44ad9346ffa00763fec203ab5aa1c99ff602",
+    "ui/noto-sans-sc/noto-sans-sc-092.woff2": "fb29957c7adccb9a89e34fb28d3d1c7d12bd7401f80c0dba6e1c9e5259cb3262",
+    "ui/noto-sans-sc/noto-sans-sc-093.woff2": "a98dc5a726f82141f74a827c443e120709a12fe737fabacf2530927a275fce0d",
+    "ui/noto-sans-sc/noto-sans-sc-094.woff2": "d94b5af0c14838af99bf9855f91e851878726558531ddef5bd2100b70dfbe90c",
+    "ui/noto-sans-sc/noto-sans-sc-095.woff2": "76c9ddb85ae4578cccd35ae4f6e6bbffaa2c8c2aec0fea17d3c17c84a3c6f7d1",
+    "ui/noto-sans-sc/noto-sans-sc-096.woff2": "b3b2374881f4cd93f239820dfd91f0fde8d52f8f92ba2888f7ab9cba21e4d7eb",
+    "ui/noto-sans-sc/noto-sans-sc-097.woff2": "5932d441e7126669016ce303fb19247ff258622291f13069124eb9b91304bbf9",
+    "ui/noto-sans-sc/noto-sans-sc-098.woff2": "cba3d00c8db989f0f0c3c7c48b1672468d9cb3c8c06514fc5cf1bb82ddccae7e",
+    "ui/noto-sans-sc/noto-sans-sc-099.woff2": "e316201f3fc493d191136a3ea728d184227b9651aea2bb38e279c45ef58646a7",
+    "ui/noto-sans-sc/noto-sans-sc-100.woff2": "c1d919c8701a86ed7f33a8044f7c4e5675db2fce8b754091e97b2c0792f9782c",
+    "ui/source/source-code-pro-upright.woff2": "32a6d848b6ab7ed47ccdcfb84ab182faa333ce44afed8a470b59e1eda846895c",
+    "ui/source/source-han-sans-cn.woff2": "f971e3bff46f76b49e1d5510556c2297c618ec4b491a295a4e741cdd38257799",
+    "ui/source/source-han-serif-cn.woff2": "556749ba783b148fa1f48644e8883e5b9351f01abd0d1faad0ba24a21185e76a",
+    "ui/source/source-sans-3-italic.woff2": "2cac627e742dec5b6fa73a0ad243a97e189c362ea11ae85c22b2e52b214d00a3",
+    "ui/source/source-sans-3-upright.woff2": "f9e4eac0e8f8ffdae91cf6eff3962b96e81417cba5c728bc1c89efe9510e7653",
+    "ui/source/source-serif-4-roman.woff2": "f146ee102dddcc5bc7a2cf4af5bcf129832195941b92bd0a512626f390688c1e"
+  },
+  "entries": [
+    {
+      "id": "@babel/helper-string-parser@7.29.7",
+      "name": "@babel/helper-string-parser",
+      "version": "7.29.7",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://babel.dev/docs/en/next/babel-helper-string-parser",
+      "source": "https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.29.7.tgz",
+      "packagePath": "node_modules/@babel/helper-string-parser",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76.txt",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76",
+          "source": "https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.29.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@babel/helper-validator-identifier@7.29.7",
+      "name": "@babel/helper-validator-identifier",
+      "version": "7.29.7",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/babel/babel",
+      "source": "https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.29.7.tgz",
+      "packagePath": "node_modules/@babel/helper-validator-identifier",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76.txt",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76",
+          "source": "https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.29.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@babel/parser@7.29.7",
+      "name": "@babel/parser",
+      "version": "7.29.7",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://babel.dev/docs/en/next/babel-parser",
+      "source": "https://registry.npmjs.org/@babel/parser/-/parser-7.29.7.tgz",
+      "packagePath": "node_modules/@babel/parser",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/2e97627cb278aa7556fb9e8817368302301a595b6c7582512b8d74c57b773652.txt",
+          "sha256": "2e97627cb278aa7556fb9e8817368302301a595b6c7582512b8d74c57b773652",
+          "source": "https://registry.npmjs.org/@babel/parser/-/parser-7.29.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@babel/types@7.29.7",
+      "name": "@babel/types",
+      "version": "7.29.7",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://babel.dev/docs/en/next/babel-types",
+      "source": "https://registry.npmjs.org/@babel/types/-/types-7.29.7.tgz",
+      "packagePath": "node_modules/@babel/types",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76.txt",
+          "sha256": "117da2af0d4ce0fe1c8e19b5cff9dcd806adf973d328d27b11d4448c4ff24f76",
+          "source": "https://registry.npmjs.org/@babel/types/-/types-7.29.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@date-fns/tz@1.5.0",
+      "name": "@date-fns/tz",
+      "version": "1.5.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/date-fns/date-fns#readme",
+      "source": "https://registry.npmjs.org/@date-fns/tz/-/tz-1.5.0.tgz",
+      "packagePath": "node_modules/@date-fns/tz",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/cc7267726f809c066c35c81a17d7525bccf588ecc826b15ca65a15d34106c804.txt",
+          "sha256": "cc7267726f809c066c35c81a17d7525bccf588ecc826b15ca65a15d34106c804",
+          "source": "https://registry.npmjs.org/@date-fns/tz/-/tz-1.5.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@electron-toolkit/preload@3.0.2",
+      "name": "@electron-toolkit/preload",
+      "version": "3.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/alex8088/electron-toolkit/tree/master/packages/preload#readme",
+      "source": "https://registry.npmjs.org/@electron-toolkit/preload/-/preload-3.0.2.tgz",
+      "packagePath": "node_modules/@electron-toolkit/preload",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/14e3f2932ddf62cc5ee8f65f24a74b223a31f164709ca19a731b39ce60874d32.txt",
+          "sha256": "14e3f2932ddf62cc5ee8f65f24a74b223a31f164709ca19a731b39ce60874d32",
+          "source": "https://registry.npmjs.org/@electron-toolkit/preload/-/preload-3.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@electron-toolkit/utils@4.0.0",
+      "name": "@electron-toolkit/utils",
+      "version": "4.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/alex8088/electron-toolkit/tree/master/packages/utils#readme",
+      "source": "https://registry.npmjs.org/@electron-toolkit/utils/-/utils-4.0.0.tgz",
+      "packagePath": "node_modules/@electron-toolkit/utils",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/14e3f2932ddf62cc5ee8f65f24a74b223a31f164709ca19a731b39ce60874d32.txt",
+          "sha256": "14e3f2932ddf62cc5ee8f65f24a74b223a31f164709ca19a731b39ce60874d32",
+          "source": "https://registry.npmjs.org/@electron-toolkit/utils/-/utils-4.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@floating-ui/core@1.7.5",
+      "name": "@floating-ui/core",
+      "version": "1.7.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://floating-ui.com",
+      "source": "https://registry.npmjs.org/@floating-ui/core/-/core-1.7.5.tgz",
+      "packagePath": "node_modules/@floating-ui/core",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce.txt",
+          "sha256": "0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce",
+          "source": "https://registry.npmjs.org/@floating-ui/core/-/core-1.7.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@floating-ui/dom@1.7.6",
+      "name": "@floating-ui/dom",
+      "version": "1.7.6",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://floating-ui.com",
+      "source": "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.7.6.tgz",
+      "packagePath": "node_modules/@floating-ui/dom",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce.txt",
+          "sha256": "0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce",
+          "source": "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.7.6.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@floating-ui/utils@0.2.11",
+      "name": "@floating-ui/utils",
+      "version": "0.2.11",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://floating-ui.com",
+      "source": "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.11.tgz",
+      "packagePath": "node_modules/@floating-ui/utils",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce.txt",
+          "sha256": "0e4c9a9b6c71019cbbea3bdc20b01223110a9035700f9c960c8fcbf78c2325ce",
+          "source": "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.11.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@floating-ui/vue@1.1.11",
+      "name": "@floating-ui/vue",
+      "version": "1.1.11",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://floating-ui.com/docs/vue",
+      "source": "https://registry.npmjs.org/@floating-ui/vue/-/vue-1.1.11.tgz",
+      "packagePath": "node_modules/@floating-ui/vue",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/46c97b198a78dc0befc1a823ba7bcdf993726a887d0215edcce575a61b947115.txt",
+          "sha256": "46c97b198a78dc0befc1a823ba7bcdf993726a887d0215edcce575a61b947115",
+          "source": "https://registry.npmjs.org/@floating-ui/vue/-/vue-1.1.11.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@jridgewell/sourcemap-codec@1.5.5",
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.5.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/jridgewell/sourcemaps/tree/main/packages/sourcemap-codec",
+      "source": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz",
+      "packagePath": "node_modules/@jridgewell/sourcemap-codec",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c.txt",
+          "sha256": "769d154fbde32a915af110b1123650bc79f4cbe675acc66e005265bf069c6c6c",
+          "source": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@types/dom-mediacapture-transform@0.1.12",
+      "name": "@types/dom-mediacapture-transform",
+      "version": "0.1.12",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/dom-mediacapture-transform",
+      "source": "https://registry.npmjs.org/@types/dom-mediacapture-transform/-/dom-mediacapture-transform-0.1.12.tgz",
+      "packagePath": "node_modules/@types/dom-mediacapture-transform",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "source": "https://registry.npmjs.org/@types/dom-mediacapture-transform/-/dom-mediacapture-transform-0.1.12.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@types/dom-webcodecs@0.1.13",
+      "name": "@types/dom-webcodecs",
+      "version": "0.1.13",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/dom-webcodecs",
+      "source": "https://registry.npmjs.org/@types/dom-webcodecs/-/dom-webcodecs-0.1.13.tgz",
+      "packagePath": "node_modules/@types/dom-webcodecs",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "source": "https://registry.npmjs.org/@types/dom-webcodecs/-/dom-webcodecs-0.1.13.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@types/trusted-types@2.0.7",
+      "name": "@types/trusted-types",
+      "version": "2.0.7",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/trusted-types",
+      "source": "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz",
+      "packagePath": "node_modules/@types/trusted-types",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "source": "https://registry.npmjs.org/@types/trusted-types/-/trusted-types-2.0.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@types/web-bluetooth@0.0.21",
+      "name": "@types/web-bluetooth",
+      "version": "0.0.21",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/web-bluetooth",
+      "source": "https://registry.npmjs.org/@types/web-bluetooth/-/web-bluetooth-0.0.21.tgz",
+      "packagePath": "node_modules/@types/web-bluetooth",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383.txt",
+          "sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+          "source": "https://registry.npmjs.org/@types/web-bluetooth/-/web-bluetooth-0.0.21.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/compiler-core@3.5.39",
+      "name": "@vue/compiler-core",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/compiler-core#readme",
+      "source": "https://registry.npmjs.org/@vue/compiler-core/-/compiler-core-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/compiler-core",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/compiler-core/-/compiler-core-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/compiler-dom@3.5.39",
+      "name": "@vue/compiler-dom",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/compiler-dom#readme",
+      "source": "https://registry.npmjs.org/@vue/compiler-dom/-/compiler-dom-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/compiler-dom",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/compiler-dom/-/compiler-dom-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/compiler-sfc@3.5.39",
+      "name": "@vue/compiler-sfc",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/compiler-sfc#readme",
+      "source": "https://registry.npmjs.org/@vue/compiler-sfc/-/compiler-sfc-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/compiler-sfc",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/compiler-sfc/-/compiler-sfc-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/compiler-ssr@3.5.39",
+      "name": "@vue/compiler-ssr",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/compiler-ssr#readme",
+      "source": "https://registry.npmjs.org/@vue/compiler-ssr/-/compiler-ssr-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/compiler-ssr",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/compiler-ssr/-/compiler-ssr-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/devtools-api@6.6.4",
+      "name": "@vue/devtools-api",
+      "version": "6.6.4",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/vue-devtools",
+      "source": "https://registry.npmjs.org/@vue/devtools-api/-/devtools-api-6.6.4.tgz",
+      "packagePath": "node_modules/@vue/devtools-api",
+      "documents": [
+        {
+          "name": "vue-devtools-api-6.6.4-LICENSE.txt",
+          "file": "documents/050bbca6960784db52ff387271bf2ecc5cbed7cf8581b415d528a6ecb6585015.txt",
+          "sha256": "050bbca6960784db52ff387271bf2ecc5cbed7cf8581b415d528a6ecb6585015",
+          "source": "https://raw.githubusercontent.com/vuejs/vue-devtools/df6ab6bb7791a7a525a97990de73b3ea5e9a1941/LICENSE"
+        }
+      ]
+    },
+    {
+      "id": "@vue/reactivity@3.5.39",
+      "name": "@vue/reactivity",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/reactivity#readme",
+      "source": "https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/reactivity",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/reactivity/-/reactivity-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/runtime-core@3.5.39",
+      "name": "@vue/runtime-core",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/runtime-core#readme",
+      "source": "https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/runtime-core",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/runtime-core/-/runtime-core-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/runtime-dom@3.5.39",
+      "name": "@vue/runtime-dom",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/runtime-dom#readme",
+      "source": "https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/runtime-dom",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/runtime-dom/-/runtime-dom-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/server-renderer@3.5.39",
+      "name": "@vue/server-renderer",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/server-renderer#readme",
+      "source": "https://registry.npmjs.org/@vue/server-renderer/-/server-renderer-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/server-renderer",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/server-renderer/-/server-renderer-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vue/shared@3.5.39",
+      "name": "@vue/shared",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vuejs/core/tree/main/packages/shared#readme",
+      "source": "https://registry.npmjs.org/@vue/shared/-/shared-3.5.39.tgz",
+      "packagePath": "node_modules/@vue/shared",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/@vue/shared/-/shared-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vuepic/vue-datepicker@14.0.0",
+      "name": "@vuepic/vue-datepicker",
+      "version": "14.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://vue3datepicker.com",
+      "source": "https://registry.npmjs.org/@vuepic/vue-datepicker/-/vue-datepicker-14.0.0.tgz",
+      "packagePath": "node_modules/@vuepic/vue-datepicker",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c9623c077a19ed60baaadc3c560b49756db0ad29582dc8e734312ffd46a51e7c.txt",
+          "sha256": "c9623c077a19ed60baaadc3c560b49756db0ad29582dc8e734312ffd46a51e7c",
+          "source": "https://registry.npmjs.org/@vuepic/vue-datepicker/-/vue-datepicker-14.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vueuse/core@14.3.0",
+      "name": "@vueuse/core",
+      "version": "14.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vueuse/vueuse#readme",
+      "source": "https://registry.npmjs.org/@vueuse/core/-/core-14.3.0.tgz",
+      "packagePath": "node_modules/@vueuse/core",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b.txt",
+          "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+          "source": "https://registry.npmjs.org/@vueuse/core/-/core-14.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vueuse/metadata@14.3.0",
+      "name": "@vueuse/metadata",
+      "version": "14.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vueuse/vueuse/tree/main/packages/metadata#readme",
+      "source": "https://registry.npmjs.org/@vueuse/metadata/-/metadata-14.3.0.tgz",
+      "packagePath": "node_modules/@vueuse/metadata",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b.txt",
+          "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+          "source": "https://registry.npmjs.org/@vueuse/metadata/-/metadata-14.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "@vueuse/shared@14.3.0",
+      "name": "@vueuse/shared",
+      "version": "14.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vueuse/vueuse/tree/main/packages/shared#readme",
+      "source": "https://registry.npmjs.org/@vueuse/shared/-/shared-14.3.0.tgz",
+      "packagePath": "node_modules/@vueuse/shared",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b.txt",
+          "sha256": "0f844b1160603552a01662ac2999c14e5fb4df487e65619b9ed4406e43eb3c0b",
+          "source": "https://registry.npmjs.org/@vueuse/shared/-/shared-14.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "agent-base@6.0.2",
+      "name": "agent-base",
+      "version": "6.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/TooTallNate/node-agent-base",
+      "source": "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz",
+      "packagePath": "node_modules/https-proxy-agent/node_modules/agent-base",
+      "documents": [
+        {
+          "name": "README.md — License",
+          "file": "documents/29eca88410c0247f56ae0a1d82a06fbc154c2e290f2f68e52a3599e6fded3c08.txt",
+          "sha256": "29eca88410c0247f56ae0a1d82a06fbc154c2e290f2f68e52a3599e6fded3c08",
+          "source": "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "argparse@2.0.1",
+      "name": "argparse",
+      "version": "2.0.1",
+      "license": "Python-2.0",
+      "category": "package",
+      "project": "https://github.com/nodeca/argparse",
+      "source": "https://registry.npmjs.org/argparse/-/argparse-2.0.1.tgz",
+      "packagePath": "node_modules/argparse",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/de4d1f2d2ad5ad0cfd1657a106476b31cb5db5ef9d1ff842b237c0c81f0c8a23.txt",
+          "sha256": "de4d1f2d2ad5ad0cfd1657a106476b31cb5db5ef9d1ff842b237c0c81f0c8a23",
+          "source": "https://registry.npmjs.org/argparse/-/argparse-2.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "asynckit@0.4.0",
+      "name": "asynckit",
+      "version": "0.4.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/alexindigo/asynckit#readme",
+      "source": "https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz",
+      "packagePath": "node_modules/asynckit",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1953150d5d4b10c7542cee6f6e0c613b2682545233f069d75cfff1936386ce10.txt",
+          "sha256": "1953150d5d4b10c7542cee6f6e0c613b2682545233f069d75cfff1936386ce10",
+          "source": "https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "axios@1.18.1",
+      "name": "axios",
+      "version": "1.18.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://axios-http.com",
+      "source": "https://registry.npmjs.org/axios/-/axios-1.18.1.tgz",
+      "packagePath": "node_modules/axios",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/82761059eaedacb3356803aea8a170d8298609f91b14fc32ee1bfb40d690183c.txt",
+          "sha256": "82761059eaedacb3356803aea8a170d8298609f91b14fc32ee1bfb40d690183c",
+          "source": "https://registry.npmjs.org/axios/-/axios-1.18.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "base64-js@1.5.1",
+      "name": "base64-js",
+      "version": "1.5.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/beatgammit/base64-js",
+      "source": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+      "packagePath": "node_modules/base64-js",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1.txt",
+          "sha256": "5b37224c080cdcc97c871ada971c224e9926370fe74f11b539aa1cf9f3b1aca1",
+          "source": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "better-sqlite3@12.11.1",
+      "name": "better-sqlite3",
+      "version": "12.11.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "http://github.com/WiseLibs/better-sqlite3",
+      "source": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-12.11.1.tgz",
+      "packagePath": "node_modules/better-sqlite3",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/09856b52897c91ab67e7456ef43067019f31dfd3b87fda72e655736b1ebdee55.txt",
+          "sha256": "09856b52897c91ab67e7456ef43067019f31dfd3b87fda72e655736b1ebdee55",
+          "source": "https://registry.npmjs.org/better-sqlite3/-/better-sqlite3-12.11.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "bindings@1.5.0",
+      "name": "bindings",
+      "version": "1.5.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/TooTallNate/node-bindings",
+      "source": "https://registry.npmjs.org/bindings/-/bindings-1.5.0.tgz",
+      "packagePath": "node_modules/bindings",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/85fde19744c84cfacb04aed732c0392ba221231b26090d3271d2ed865bfc0792.txt",
+          "sha256": "85fde19744c84cfacb04aed732c0392ba221231b26090d3271d2ed865bfc0792",
+          "source": "https://registry.npmjs.org/bindings/-/bindings-1.5.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "bl@4.1.0",
+      "name": "bl",
+      "version": "4.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/rvagg/bl",
+      "source": "https://registry.npmjs.org/bl/-/bl-4.1.0.tgz",
+      "packagePath": "node_modules/bl",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/9377db95383c8befacf05c6e465d969d756edf178487ca1344fdf3ba147c596f.txt",
+          "sha256": "9377db95383c8befacf05c6e465d969d756edf178487ca1344fdf3ba147c596f",
+          "source": "https://registry.npmjs.org/bl/-/bl-4.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "buffer@5.7.1",
+      "name": "buffer",
+      "version": "5.7.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/feross/buffer",
+      "source": "https://registry.npmjs.org/buffer/-/buffer-5.7.1.tgz",
+      "packagePath": "node_modules/buffer",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6.txt",
+          "sha256": "06bafa45fdad2579ba0e43b0c9b2c6290287c99c4203c300254a462b38a307f6",
+          "source": "https://registry.npmjs.org/buffer/-/buffer-5.7.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "builder-util-runtime@9.7.0",
+      "name": "builder-util-runtime",
+      "version": "9.7.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/electron-userland/electron-builder",
+      "source": "https://registry.npmjs.org/builder-util-runtime/-/builder-util-runtime-9.7.0.tgz",
+      "packagePath": "node_modules/builder-util-runtime",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce.txt",
+          "sha256": "bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce",
+          "source": "https://registry.npmjs.org/builder-util-runtime/-/builder-util-runtime-9.7.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "call-bind-apply-helpers@1.0.2",
+      "name": "call-bind-apply-helpers",
+      "version": "1.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/call-bind-apply-helpers#readme",
+      "source": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+      "packagePath": "node_modules/call-bind-apply-helpers",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292.txt",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292",
+          "source": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "chownr@1.1.4",
+      "name": "chownr",
+      "version": "1.1.4",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/isaacs/chownr",
+      "source": "https://registry.npmjs.org/chownr/-/chownr-1.1.4.tgz",
+      "packagePath": "node_modules/tar-fs/node_modules/chownr",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/chownr/-/chownr-1.1.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "chromium",
+      "name": "Chromium / Node.js and runtime components",
+      "version": "Electron 42.5.2",
+      "license": "Multiple licenses",
+      "category": "runtime",
+      "project": "https://www.electronjs.org",
+      "source": "https://github.com/electron/electron/releases/tag/v42.5.2",
+      "documents": [],
+      "external": "chromium"
+    },
+    {
+      "id": "combined-stream@1.0.8",
+      "name": "combined-stream",
+      "version": "1.0.8",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/felixge/node-combined-stream",
+      "source": "https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz",
+      "packagePath": "node_modules/combined-stream",
+      "documents": [
+        {
+          "name": "License",
+          "file": "documents/47eb8ca82c798246774946d1be0f9aa08f025fa8325ced0947aeeb4c05fe5547.txt",
+          "sha256": "47eb8ca82c798246774946d1be0f9aa08f025fa8325ced0947aeeb4c05fe5547",
+          "source": "https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz"
+        }
+      ]
+    },
+    {
+      "id": "csstype@3.2.3",
+      "name": "csstype",
+      "version": "3.2.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/frenic/csstype",
+      "source": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
+      "packagePath": "node_modules/csstype",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/11d55bd4541c75ee7879547ac49089c489163dae49551389713c3d026cab383e.txt",
+          "sha256": "11d55bd4541c75ee7879547ac49089c489163dae49551389713c3d026cab383e",
+          "source": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "date-fns@4.4.0",
+      "name": "date-fns",
+      "version": "4.4.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/date-fns/date-fns",
+      "source": "https://registry.npmjs.org/date-fns/-/date-fns-4.4.0.tgz",
+      "packagePath": "node_modules/date-fns",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/8d3951c38967b964b1fe259bfd200c2647cc04c858b55a4414e3122a60f1ef4b.txt",
+          "sha256": "8d3951c38967b964b1fe259bfd200c2647cc04c858b55a4414e3122a60f1ef4b",
+          "source": "https://registry.npmjs.org/date-fns/-/date-fns-4.4.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "debug@4.4.3",
+      "name": "debug",
+      "version": "4.4.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/debug-js/debug",
+      "source": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+      "packagePath": "node_modules/debug",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3a61c6c96caf5c1d9b623fb9b04c822b783dfcb78aa7e49c76a3f643e6ed7f95.txt",
+          "sha256": "3a61c6c96caf5c1d9b623fb9b04c822b783dfcb78aa7e49c76a3f643e6ed7f95",
+          "source": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "decompress-response@6.0.0",
+      "name": "decompress-response",
+      "version": "6.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/sindresorhus/decompress-response",
+      "source": "https://registry.npmjs.org/decompress-response/-/decompress-response-6.0.0.tgz",
+      "packagePath": "node_modules/decompress-response",
+      "documents": [
+        {
+          "name": "license",
+          "file": "documents/5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3.txt",
+          "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+          "source": "https://registry.npmjs.org/decompress-response/-/decompress-response-6.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "deep-extend@0.6.0",
+      "name": "deep-extend",
+      "version": "0.6.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/unclechu/node-deep-extend",
+      "source": "https://registry.npmjs.org/deep-extend/-/deep-extend-0.6.0.tgz",
+      "packagePath": "node_modules/deep-extend",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/e17120ad3deff741c2ca5cbe511971ca33971a1ba6e49694c6498309bb2680b9.txt",
+          "sha256": "e17120ad3deff741c2ca5cbe511971ca33971a1ba6e49694c6498309bb2680b9",
+          "source": "https://registry.npmjs.org/deep-extend/-/deep-extend-0.6.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "delayed-stream@1.0.0",
+      "name": "delayed-stream",
+      "version": "1.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/felixge/node-delayed-stream",
+      "source": "https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz",
+      "packagePath": "node_modules/delayed-stream",
+      "documents": [
+        {
+          "name": "License",
+          "file": "documents/47eb8ca82c798246774946d1be0f9aa08f025fa8325ced0947aeeb4c05fe5547.txt",
+          "sha256": "47eb8ca82c798246774946d1be0f9aa08f025fa8325ced0947aeeb4c05fe5547",
+          "source": "https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "detect-libc@2.1.2",
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "license": "Apache-2.0",
+      "category": "package",
+      "project": "https://github.com/lovell/detect-libc",
+      "source": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
+      "packagePath": "node_modules/detect-libc",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1.txt",
+          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+          "source": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "dompurify@3.4.12",
+      "name": "dompurify",
+      "version": "3.4.12",
+      "license": "(MPL-2.0 OR Apache-2.0)",
+      "category": "package",
+      "project": "https://github.com/cure53/DOMPurify",
+      "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.12.tgz",
+      "packagePath": "node_modules/dompurify",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.12.tgz"
+        },
+        {
+          "name": "LICENSE-MPL",
+          "file": "documents/fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85.txt",
+          "sha256": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+          "source": "https://registry.npmjs.org/dompurify/-/dompurify-3.4.12.tgz"
+        }
+      ]
+    },
+    {
+      "id": "dunder-proto@1.0.1",
+      "name": "dunder-proto",
+      "version": "1.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/es-shims/dunder-proto#readme",
+      "source": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
+      "packagePath": "node_modules/dunder-proto",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1.txt",
+          "sha256": "2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1",
+          "source": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "echarts@6.1.0",
+      "name": "echarts",
+      "version": "6.1.0",
+      "license": "Apache-2.0",
+      "category": "package",
+      "project": "https://echarts.apache.org",
+      "source": "https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz",
+      "packagePath": "node_modules/echarts",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a.txt",
+          "sha256": "634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+          "source": "https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz"
+        },
+        {
+          "name": "NOTICE",
+          "file": "documents/d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016.txt",
+          "sha256": "d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016",
+          "source": "https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz"
+        },
+        {
+          "name": "licenses/LICENSE-d3",
+          "file": "documents/e1211892da0b0e0585b7aebe8f98c1274fba15bafe47fa1f4ee8a7a502c06304.txt",
+          "sha256": "e1211892da0b0e0585b7aebe8f98c1274fba15bafe47fa1f4ee8a7a502c06304",
+          "source": "https://registry.npmjs.org/echarts/-/echarts-6.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "electron@42.5.2",
+      "name": "Electron",
+      "version": "42.5.2",
+      "license": "MIT",
+      "category": "runtime",
+      "project": "https://www.electronjs.org",
+      "source": "https://github.com/electron/electron/tree/v42.5.2",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d.txt",
+          "sha256": "5154e165bd6c2cc0cfbcd8916498c7abab0497923bafcd5cb07673fe8480087d",
+          "source": ""
+        }
+      ]
+    },
+    {
+      "id": "electron-updater@6.8.9",
+      "name": "electron-updater",
+      "version": "6.8.9",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/electron-userland/electron-builder",
+      "source": "https://registry.npmjs.org/electron-updater/-/electron-updater-6.8.9.tgz",
+      "packagePath": "node_modules/electron-updater",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce.txt",
+          "sha256": "bed8d0ab3e6031817f775a641ff37313b0f5591bc8ba0ed79b978dafbd4231ce",
+          "source": "https://registry.npmjs.org/electron-updater/-/electron-updater-6.8.9.tgz"
+        }
+      ]
+    },
+    {
+      "id": "end-of-stream@1.4.5",
+      "name": "end-of-stream",
+      "version": "1.4.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/end-of-stream",
+      "source": "https://registry.npmjs.org/end-of-stream/-/end-of-stream-1.4.5.tgz",
+      "packagePath": "node_modules/end-of-stream",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6.txt",
+          "sha256": "3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6",
+          "source": "https://registry.npmjs.org/end-of-stream/-/end-of-stream-1.4.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "entities@7.0.1",
+      "name": "entities",
+      "version": "7.0.1",
+      "license": "BSD-2-Clause",
+      "category": "package",
+      "project": "https://github.com/fb55/entities",
+      "source": "https://registry.npmjs.org/entities/-/entities-7.0.1.tgz",
+      "packagePath": "node_modules/entities",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164.txt",
+          "sha256": "cb992345949ccd6e8394b2cd6c465f7b897c864f845937dbf64e8997f389e164",
+          "source": "https://registry.npmjs.org/entities/-/entities-7.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "es-define-property@1.0.1",
+      "name": "es-define-property",
+      "version": "1.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/es-define-property#readme",
+      "source": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
+      "packagePath": "node_modules/es-define-property",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292.txt",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292",
+          "source": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "es-errors@1.3.0",
+      "name": "es-errors",
+      "version": "1.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/es-errors#readme",
+      "source": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+      "packagePath": "node_modules/es-errors",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292.txt",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292",
+          "source": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "es-object-atoms@1.1.2",
+      "name": "es-object-atoms",
+      "version": "1.1.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/es-object-atoms#readme",
+      "source": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz",
+      "packagePath": "node_modules/es-object-atoms",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292.txt",
+          "sha256": "5e325595b4ea8cfec3802f545b1def5d7b73e4a5b8e9ba63e32a320f67732292",
+          "source": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "es-set-tostringtag@2.1.0",
+      "name": "es-set-tostringtag",
+      "version": "2.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/es-shims/es-set-tostringtag#readme",
+      "source": "https://registry.npmjs.org/es-set-tostringtag/-/es-set-tostringtag-2.1.0.tgz",
+      "packagePath": "node_modules/es-set-tostringtag",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1a3aeb1f1398bd697d57c3c585faadf59d825aca6e3162cd7eeb72ff76eb2466.txt",
+          "sha256": "1a3aeb1f1398bd697d57c3c585faadf59d825aca6e3162cd7eeb72ff76eb2466",
+          "source": "https://registry.npmjs.org/es-set-tostringtag/-/es-set-tostringtag-2.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "estree-walker@2.0.2",
+      "name": "estree-walker",
+      "version": "2.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/Rich-Harris/estree-walker",
+      "source": "https://registry.npmjs.org/estree-walker/-/estree-walker-2.0.2.tgz",
+      "packagePath": "node_modules/estree-walker",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/8a6dcbabe7179f9c8489c08a7d874d0f1e093ae7449e03756ccf87cb9d0e296e.txt",
+          "sha256": "8a6dcbabe7179f9c8489c08a7d874d0f1e093ae7449e03756ccf87cb9d0e296e",
+          "source": "https://registry.npmjs.org/estree-walker/-/estree-walker-2.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "expand-template@2.0.3",
+      "name": "expand-template",
+      "version": "2.0.3",
+      "license": "(MIT OR WTFPL)",
+      "category": "package",
+      "project": "https://github.com/ralphtheninja/expand-template",
+      "source": "https://registry.npmjs.org/expand-template/-/expand-template-2.0.3.tgz",
+      "packagePath": "node_modules/expand-template",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0967624813244bf47da346449804af853437433cbdeb8c977f1e0d4bd14e0a3b.txt",
+          "sha256": "0967624813244bf47da346449804af853437433cbdeb8c977f1e0d4bd14e0a3b",
+          "source": "https://registry.npmjs.org/expand-template/-/expand-template-2.0.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "file-uri-to-path@1.0.0",
+      "name": "file-uri-to-path",
+      "version": "1.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/TooTallNate/file-uri-to-path",
+      "source": "https://registry.npmjs.org/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz",
+      "packagePath": "node_modules/file-uri-to-path",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/75070206e4ee2a749be52444cecc05101ca8d314c9d6d335ff914046cbf086a0.txt",
+          "sha256": "75070206e4ee2a749be52444cecc05101ca8d314c9d6d335ff914046cbf086a0",
+          "source": "https://registry.npmjs.org/file-uri-to-path/-/file-uri-to-path-1.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "follow-redirects@1.16.0",
+      "name": "follow-redirects",
+      "version": "1.16.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/follow-redirects/follow-redirects",
+      "source": "https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz",
+      "packagePath": "node_modules/follow-redirects",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/bfa8a54bb952ccda79f0f1889721d108f5b605babbb2b8a3705ffb52f4132eb7.txt",
+          "sha256": "bfa8a54bb952ccda79f0f1889721d108f5b605babbb2b8a3705ffb52f4132eb7",
+          "source": "https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "form-data@4.0.6",
+      "name": "form-data",
+      "version": "4.0.6",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/form-data/form-data",
+      "source": "https://registry.npmjs.org/form-data/-/form-data-4.0.6.tgz",
+      "packagePath": "node_modules/form-data",
+      "documents": [
+        {
+          "name": "License",
+          "file": "documents/e5b780d4f38d1d3328e3e53186c4e62d3fa149ea6f2bacd5de5ad0c30ac85343.txt",
+          "sha256": "e5b780d4f38d1d3328e3e53186c4e62d3fa149ea6f2bacd5de5ad0c30ac85343",
+          "source": "https://registry.npmjs.org/form-data/-/form-data-4.0.6.tgz"
+        }
+      ]
+    },
+    {
+      "id": "fs-constants@1.0.0",
+      "name": "fs-constants",
+      "version": "1.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/fs-constants",
+      "source": "https://registry.npmjs.org/fs-constants/-/fs-constants-1.0.0.tgz",
+      "packagePath": "node_modules/fs-constants",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/2281f2db407bdbb54f069eec38128b2dee2c0c952f52b786ef1faecb81767b3c.txt",
+          "sha256": "2281f2db407bdbb54f069eec38128b2dee2c0c952f52b786ef1faecb81767b3c",
+          "source": "https://registry.npmjs.org/fs-constants/-/fs-constants-1.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "fs-extra@10.1.0",
+      "name": "fs-extra",
+      "version": "10.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/jprichardson/node-fs-extra",
+      "source": "https://registry.npmjs.org/fs-extra/-/fs-extra-10.1.0.tgz",
+      "packagePath": "node_modules/fs-extra",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1e76029602ae9b21cc4e612db2496d92febed882ba13ba745f8b3309e85f9d39.txt",
+          "sha256": "1e76029602ae9b21cc4e612db2496d92febed882ba13ba745f8b3309e85f9d39",
+          "source": "https://registry.npmjs.org/fs-extra/-/fs-extra-10.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "function-bind@1.1.2",
+      "name": "function-bind",
+      "version": "1.1.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/Raynos/function-bind",
+      "source": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+      "packagePath": "node_modules/function-bind",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/773e131a7684726005a7e4688a80b4620033bc08499bc1404dd1a1eb3bca725e.txt",
+          "sha256": "773e131a7684726005a7e4688a80b4620033bc08499bc1404dd1a1eb3bca725e",
+          "source": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "get-intrinsic@1.3.0",
+      "name": "get-intrinsic",
+      "version": "1.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/get-intrinsic#readme",
+      "source": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
+      "packagePath": "node_modules/get-intrinsic",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/39c5ec504cf6bd5cd782a7c695828e09189df79f5d94840e4f08feb97b9fd416.txt",
+          "sha256": "39c5ec504cf6bd5cd782a7c695828e09189df79f5d94840e4f08feb97b9fd416",
+          "source": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "get-proto@1.0.1",
+      "name": "get-proto",
+      "version": "1.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/get-proto#readme",
+      "source": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
+      "packagePath": "node_modules/get-proto",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/be46ce1e3b0479af9ce82d22b465a6d7d2ff084fca0aaf3d54172da2b5eb5781.txt",
+          "sha256": "be46ce1e3b0479af9ce82d22b465a6d7d2ff084fca0aaf3d54172da2b5eb5781",
+          "source": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "gifenc@1.0.3",
+      "name": "gifenc",
+      "version": "1.0.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mattdesl/gifenc",
+      "source": "https://registry.npmjs.org/gifenc/-/gifenc-1.0.3.tgz",
+      "packagePath": "node_modules/gifenc",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/47bc590c39d8ccccfc544875a9faebf44bafa828ef20315b396b5d0629f0cfd6.txt",
+          "sha256": "47bc590c39d8ccccfc544875a9faebf44bafa828ef20315b396b5d0629f0cfd6",
+          "source": "https://registry.npmjs.org/gifenc/-/gifenc-1.0.3.tgz"
+        },
+        {
+          "name": "gifenc-NOTICE.txt",
+          "file": "documents/95218a7c9e5bc41b07686f573b8c3d2bf524270b12e3e810b5e3ff1e559a65e9.txt",
+          "sha256": "95218a7c9e5bc41b07686f573b8c3d2bf524270b12e3e810b5e3ff1e559a65e9",
+          "source": "https://registry.npmjs.org/gifenc/-/gifenc-1.0.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "github-from-package@0.0.0",
+      "name": "github-from-package",
+      "version": "0.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/substack/github-from-package",
+      "source": "https://registry.npmjs.org/github-from-package/-/github-from-package-0.0.0.tgz",
+      "packagePath": "node_modules/github-from-package",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b.txt",
+          "sha256": "435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b",
+          "source": "https://registry.npmjs.org/github-from-package/-/github-from-package-0.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "gopd@1.2.0",
+      "name": "gopd",
+      "version": "1.2.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/gopd#readme",
+      "source": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+      "packagePath": "node_modules/gopd",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/d90bf0a089da4cf43d644ed240a0b3825dcdb705e64e38371d56995a4cc9e4c5.txt",
+          "sha256": "d90bf0a089da4cf43d644ed240a0b3825dcdb705e64e38371d56995a4cc9e4c5",
+          "source": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "graceful-fs@4.2.11",
+      "name": "graceful-fs",
+      "version": "4.2.11",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/isaacs/node-graceful-fs",
+      "source": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
+      "packagePath": "node_modules/graceful-fs",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/f65c5d9f22a317b2a10803bd1868461ce6499c2ed7217bc80c0cc772a748789c.txt",
+          "sha256": "f65c5d9f22a317b2a10803bd1868461ce6499c2ed7217bc80c0cc772a748789c",
+          "source": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz"
+        }
+      ]
+    },
+    {
+      "id": "has-symbols@1.1.0",
+      "name": "has-symbols",
+      "version": "1.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ljharb/has-symbols#readme",
+      "source": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
+      "packagePath": "node_modules/has-symbols",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/206c1adcf206dc0031b11232f5b054ec5f1662407ab1ca415247921cab2068ab.txt",
+          "sha256": "206c1adcf206dc0031b11232f5b054ec5f1662407ab1ca415247921cab2068ab",
+          "source": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "has-tostringtag@1.0.2",
+      "name": "has-tostringtag",
+      "version": "1.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/inspect-js/has-tostringtag#readme",
+      "source": "https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz",
+      "packagePath": "node_modules/has-tostringtag",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/e2560e002e13281578c75c850061d9255c33d16d732939e8c2db64c2506642fa.txt",
+          "sha256": "e2560e002e13281578c75c850061d9255c33d16d732939e8c2db64c2506642fa",
+          "source": "https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "hasown@2.0.4",
+      "name": "hasown",
+      "version": "2.0.4",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/inspect-js/hasOwn#readme",
+      "source": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz",
+      "packagePath": "node_modules/hasown",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/bf9b0d665be2a689851eea667ca9f42066ea1d903b38349c51e6a44b2577680a.txt",
+          "sha256": "bf9b0d665be2a689851eea667ca9f42066ea1d903b38349c51e6a44b2577680a",
+          "source": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "https-proxy-agent@5.0.1",
+      "name": "https-proxy-agent",
+      "version": "5.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/TooTallNate/node-https-proxy-agent",
+      "source": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz",
+      "packagePath": "node_modules/https-proxy-agent",
+      "documents": [
+        {
+          "name": "README.md — License",
+          "file": "documents/008e874a2c93aa78c4b68fcf5579e42658d7eb6c1b41bf1b63b82502f68819b7.txt",
+          "sha256": "008e874a2c93aa78c4b68fcf5579e42658d7eb6c1b41bf1b63b82502f68819b7",
+          "source": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "font:IBM Plex",
+      "name": "IBM Plex",
+      "version": "2f9ba1b25957d958db71a849e85d72e3ecfb845a",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/IBM/plex",
+      "source": "https://github.com/IBM/plex",
+      "documents": [
+        {
+          "name": "ibm-plex-OFL.txt",
+          "file": "documents/3ff4395aeb203050b3d4e775861cf0b93b598e0a6d2b16f0eb41df3350b15695.txt",
+          "sha256": "3ff4395aeb203050b3d4e775861cf0b93b598e0a6d2b16f0eb41df3350b15695",
+          "source": "https://github.com/IBM/plex"
+        }
+      ]
+    },
+    {
+      "id": "ieee754@1.2.1",
+      "name": "ieee754",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "category": "package",
+      "project": "https://github.com/feross/ieee754",
+      "source": "https://registry.npmjs.org/ieee754/-/ieee754-1.2.1.tgz",
+      "packagePath": "node_modules/ieee754",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/18d45466ba3253deae04667e267a91ea8de8548f18c1125264d1c9db28194cc1.txt",
+          "sha256": "18d45466ba3253deae04667e267a91ea8de8548f18c1125264d1c9db28194cc1",
+          "source": "https://registry.npmjs.org/ieee754/-/ieee754-1.2.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "inherits@2.0.4",
+      "name": "inherits",
+      "version": "2.0.4",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/isaacs/inherits",
+      "source": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz",
+      "packagePath": "node_modules/inherits",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5ffe28e7ade7d8f10d85d5337a73fd793dac5c462fb9a28fbf8c5046c7fbca3b.txt",
+          "sha256": "5ffe28e7ade7d8f10d85d5337a73fd793dac5c462fb9a28fbf8c5046c7fbca3b",
+          "source": "https://registry.npmjs.org/inherits/-/inherits-2.0.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "ini@1.3.8",
+      "name": "ini",
+      "version": "1.3.8",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/isaacs/ini",
+      "source": "https://registry.npmjs.org/ini/-/ini-1.3.8.tgz",
+      "packagePath": "node_modules/ini",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/ini/-/ini-1.3.8.tgz"
+        }
+      ]
+    },
+    {
+      "id": "font:Inter",
+      "name": "Inter",
+      "version": "4.1",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/rsms/inter",
+      "source": "https://github.com/rsms/inter",
+      "documents": [
+        {
+          "name": "inter-OFL.txt",
+          "file": "documents/262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a.txt",
+          "sha256": "262481e844521b326f5ecd053e59b98c8b2da78c8ee1bdbb6e8174305e54935a",
+          "source": "https://github.com/rsms/inter"
+        }
+      ]
+    },
+    {
+      "id": "font:JetBrains Mono",
+      "name": "JetBrains Mono",
+      "version": "2.304",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/JetBrains/JetBrainsMono",
+      "source": "https://github.com/JetBrains/JetBrainsMono",
+      "documents": [
+        {
+          "name": "jetbrains-mono-OFL.txt",
+          "file": "documents/60d55f23c6ce05a81099a762cb67ca2c9b6ea251c7912720998b4c89ebfd4faa.txt",
+          "sha256": "60d55f23c6ce05a81099a762cb67ca2c9b6ea251c7912720998b4c89ebfd4faa",
+          "source": "https://github.com/JetBrains/JetBrainsMono"
+        }
+      ]
+    },
+    {
+      "id": "js-yaml@4.3.0",
+      "name": "js-yaml",
+      "version": "4.3.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/nodeca/js-yaml",
+      "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.0.tgz",
+      "packagePath": "node_modules/js-yaml",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550.txt",
+          "sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550",
+          "source": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "jsonfile@6.2.1",
+      "name": "jsonfile",
+      "version": "6.2.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "",
+      "source": "https://registry.npmjs.org/jsonfile/-/jsonfile-6.2.1.tgz",
+      "packagePath": "node_modules/jsonfile",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/a9801fb52ba22ef808682a094da8a7a480584b7ed0dfd0d888ab543616335031.txt",
+          "sha256": "a9801fb52ba22ef808682a094da8a7a480584b7ed0dfd0d888ab543616335031",
+          "source": "https://registry.npmjs.org/jsonfile/-/jsonfile-6.2.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "lazy-val@1.0.5",
+      "name": "lazy-val",
+      "version": "1.0.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/develar/lazy-val",
+      "source": "https://registry.npmjs.org/lazy-val/-/lazy-val-1.0.5.tgz",
+      "packagePath": "node_modules/lazy-val",
+      "documents": [
+        {
+          "name": "lazy-val-1.0.5-NOTICE.txt",
+          "file": "documents/557ecf4d4de6ba9e864d2cf075fe8bbc30f6e9a9f43eb79372e496750bc87572.txt",
+          "sha256": "557ecf4d4de6ba9e864d2cf075fe8bbc30f6e9a9f43eb79372e496750bc87572",
+          "source": "https://registry.npmjs.org/lazy-val/1.0.5"
+        }
+      ]
+    },
+    {
+      "id": "lodash.escaperegexp@4.1.2",
+      "name": "lodash.escaperegexp",
+      "version": "4.1.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://lodash.com/",
+      "source": "https://registry.npmjs.org/lodash.escaperegexp/-/lodash.escaperegexp-4.1.2.tgz",
+      "packagePath": "node_modules/lodash.escaperegexp",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272.txt",
+          "sha256": "ffd8b33b354585f4ce119f19c53728281e48a97b074491eb6bf6d5c5ff305272",
+          "source": "https://registry.npmjs.org/lodash.escaperegexp/-/lodash.escaperegexp-4.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "lodash.isequal@4.5.0",
+      "name": "lodash.isequal",
+      "version": "4.5.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://lodash.com/",
+      "source": "https://registry.npmjs.org/lodash.isequal/-/lodash.isequal-4.5.0.tgz",
+      "packagePath": "node_modules/lodash.isequal",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/e159c6d48c989185448658f276375bfb2300362ec6d4ae5525a2d49c4bcb947d.txt",
+          "sha256": "e159c6d48c989185448658f276375bfb2300362ec6d4ae5525a2d49c4bcb947d",
+          "source": "https://registry.npmjs.org/lodash.isequal/-/lodash.isequal-4.5.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "magic-string@0.30.21",
+      "name": "magic-string",
+      "version": "0.30.21",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/Rich-Harris/magic-string",
+      "source": "https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz",
+      "packagePath": "node_modules/magic-string",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1cbe51b907662f6cb1492b16c359384a595180bf0e4d101603ed525e75c4e484.txt",
+          "sha256": "1cbe51b907662f6cb1492b16c359384a595180bf0e4d101603ed525e75c4e484",
+          "source": "https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz"
+        }
+      ]
+    },
+    {
+      "id": "marked@18.0.5",
+      "name": "marked",
+      "version": "18.0.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://marked.js.org",
+      "source": "https://registry.npmjs.org/marked/-/marked-18.0.5.tgz",
+      "packagePath": "node_modules/marked",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c.txt",
+          "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c",
+          "source": "https://registry.npmjs.org/marked/-/marked-18.0.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "font:Material Symbols",
+      "name": "Material Symbols",
+      "version": "bundled font",
+      "license": "Apache-2.0",
+      "category": "font",
+      "project": "https://github.com/google/material-design-icons",
+      "source": "https://github.com/google/material-design-icons",
+      "documents": [
+        {
+          "name": "material-symbols-Apache-2.0.txt",
+          "file": "documents/58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd.txt",
+          "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+          "source": "https://github.com/google/material-design-icons"
+        }
+      ]
+    },
+    {
+      "id": "math-intrinsics@1.1.0",
+      "name": "math-intrinsics",
+      "version": "1.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/es-shims/math-intrinsics#readme",
+      "source": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+      "packagePath": "node_modules/math-intrinsics",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1.txt",
+          "sha256": "2b770a704c15de238c3f622b01b0044ddd60b49ee30608ea6991ebf19db7a7a1",
+          "source": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "mediabunny@1.58.0",
+      "name": "mediabunny",
+      "version": "1.58.0",
+      "license": "MPL-2.0",
+      "category": "package",
+      "project": "https://mediabunny.dev/",
+      "source": "https://registry.npmjs.org/mediabunny/-/mediabunny-1.58.0.tgz",
+      "packagePath": "node_modules/mediabunny",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04.txt",
+          "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+          "source": "https://registry.npmjs.org/mediabunny/-/mediabunny-1.58.0.tgz"
+        },
+        {
+          "name": "mediabunny-NOTICE.txt",
+          "file": "documents/384188b9bf8e146a48bf86d59b1b0a66229a23812dfad64f8a668c4003530b1e.txt",
+          "sha256": "384188b9bf8e146a48bf86d59b1b0a66229a23812dfad64f8a668c4003530b1e",
+          "source": "https://registry.npmjs.org/mediabunny/-/mediabunny-1.58.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "mime-db@1.52.0",
+      "name": "mime-db",
+      "version": "1.52.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/jshttp/mime-db",
+      "source": "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz",
+      "packagePath": "node_modules/mime-db",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/cc1dfd4dafa27271e8212cd3b274eeb3f262e40a6fdab36ddc3f9696f706f58b.txt",
+          "sha256": "cc1dfd4dafa27271e8212cd3b274eeb3f262e40a6fdab36ddc3f9696f706f58b",
+          "source": "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "mime-types@2.1.35",
+      "name": "mime-types",
+      "version": "2.1.35",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/jshttp/mime-types",
+      "source": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz",
+      "packagePath": "node_modules/mime-types",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/71f83c4c0621102a56d9853812777b85751bce7e9726f686f5b056c1f8a4b0e6.txt",
+          "sha256": "71f83c4c0621102a56d9853812777b85751bce7e9726f686f5b056c1f8a4b0e6",
+          "source": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz"
+        }
+      ]
+    },
+    {
+      "id": "mimic-response@3.1.0",
+      "name": "mimic-response",
+      "version": "3.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/sindresorhus/mimic-response",
+      "source": "https://registry.npmjs.org/mimic-response/-/mimic-response-3.1.0.tgz",
+      "packagePath": "node_modules/decompress-response/node_modules/mimic-response",
+      "documents": [
+        {
+          "name": "license",
+          "file": "documents/5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3.txt",
+          "sha256": "5c932d88256b4ab958f64a856fa48e8bd1f55bc1d96b8149c65689e0c61789d3",
+          "source": "https://registry.npmjs.org/mimic-response/-/mimic-response-3.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "minimist@1.2.8",
+      "name": "minimist",
+      "version": "1.2.8",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/minimistjs/minimist",
+      "source": "https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz",
+      "packagePath": "node_modules/minimist",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b.txt",
+          "sha256": "435a6722c786b0a56fbe7387028f1d9d3f3a2d0fb615bb8fee118727c3f59b7b",
+          "source": "https://registry.npmjs.org/minimist/-/minimist-1.2.8.tgz"
+        }
+      ]
+    },
+    {
+      "id": "mkdirp-classic@0.5.3",
+      "name": "mkdirp-classic",
+      "version": "0.5.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/mkdirp-classic",
+      "source": "https://registry.npmjs.org/mkdirp-classic/-/mkdirp-classic-0.5.3.tgz",
+      "packagePath": "node_modules/mkdirp-classic",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/a255b85c1a510ecfe660c4d442ecdbc1e9d07f4b4d3d7f90443f7e5570591e0a.txt",
+          "sha256": "a255b85c1a510ecfe660c4d442ecdbc1e9d07f4b4d3d7f90443f7e5570591e0a",
+          "source": "https://registry.npmjs.org/mkdirp-classic/-/mkdirp-classic-0.5.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "ms@2.1.3",
+      "name": "ms",
+      "version": "2.1.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/vercel/ms",
+      "source": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "packagePath": "node_modules/ms",
+      "documents": [
+        {
+          "name": "license.md",
+          "file": "documents/1662fae9b5314d11cf51284e2dcd1f006a354f7343f08712a730fcff9a359801.txt",
+          "sha256": "1662fae9b5314d11cf51284e2dcd1f006a354f7343f08712a730fcff9a359801",
+          "source": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "nanoid@3.3.15",
+      "name": "nanoid",
+      "version": "3.3.15",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ai/nanoid",
+      "source": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.15.tgz",
+      "packagePath": "node_modules/nanoid",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/da4db1480d9beea3483a2eda5c53b22238d0827d57da162b48f122e04d2d9987.txt",
+          "sha256": "da4db1480d9beea3483a2eda5c53b22238d0827d57da162b48f122e04d2d9987",
+          "source": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.15.tgz"
+        }
+      ]
+    },
+    {
+      "id": "napi-build-utils@2.0.0",
+      "name": "napi-build-utils",
+      "version": "2.0.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/inspiredware/napi-build-utils#readme",
+      "source": "https://registry.npmjs.org/napi-build-utils/-/napi-build-utils-2.0.0.tgz",
+      "packagePath": "node_modules/napi-build-utils",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/9c6a91d2847bd9bfd493c1ca87b9c3f96302cfd069667e6dd4a6278e69a33a31.txt",
+          "sha256": "9c6a91d2847bd9bfd493c1ca87b9c3f96302cfd069667e6dd4a6278e69a33a31",
+          "source": "https://registry.npmjs.org/napi-build-utils/-/napi-build-utils-2.0.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "node-abi@3.94.0",
+      "name": "node-abi",
+      "version": "3.94.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/electron/node-abi#readme",
+      "source": "https://registry.npmjs.org/node-abi/-/node-abi-3.94.0.tgz",
+      "packagePath": "node_modules/prebuild-install/node_modules/node-abi",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/9a508cd4122f2dc1cc39f8ab0b6950efbc49fb087a581c7177a4b8c9d5d0d6a1.txt",
+          "sha256": "9a508cd4122f2dc1cc39f8ab0b6950efbc49fb087a581c7177a4b8c9d5d0d6a1",
+          "source": "https://registry.npmjs.org/node-abi/-/node-abi-3.94.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "font:Noto Sans SC",
+      "name": "Noto Sans SC",
+      "version": "bundled subset",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/google/fonts/tree/main/ofl/notosanssc",
+      "source": "https://github.com/google/fonts/tree/main/ofl/notosanssc",
+      "documents": [
+        {
+          "name": "noto-sans-sc-OFL.txt",
+          "file": "documents/babcfe66c8a098b2fa279bc724a3a342f8124f77ce18941fbcc1bbb39823cded.txt",
+          "sha256": "babcfe66c8a098b2fa279bc724a3a342f8124f77ce18941fbcc1bbb39823cded",
+          "source": "https://github.com/google/fonts/tree/main/ofl/notosanssc"
+        }
+      ]
+    },
+    {
+      "id": "once@1.4.0",
+      "name": "once",
+      "version": "1.4.0",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/isaacs/once",
+      "source": "https://registry.npmjs.org/once/-/once-1.4.0.tgz",
+      "packagePath": "node_modules/once",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/once/-/once-1.4.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "picocolors@1.1.1",
+      "name": "picocolors",
+      "version": "1.1.1",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/alexeyraspopov/picocolors",
+      "source": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
+      "packagePath": "node_modules/picocolors",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/6582629e2979466878f6014313dcc2f3756c9616148682227ce3063dde310750.txt",
+          "sha256": "6582629e2979466878f6014313dcc2f3756c9616148682227ce3063dde310750",
+          "source": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "postcss@8.5.16",
+      "name": "postcss",
+      "version": "8.5.16",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://postcss.org/",
+      "source": "https://registry.npmjs.org/postcss/-/postcss-8.5.16.tgz",
+      "packagePath": "node_modules/postcss",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5be1f3465bba68a626777f984878814aaf35e7ef8e9fd314d469bcf887050fb8.txt",
+          "sha256": "5be1f3465bba68a626777f984878814aaf35e7ef8e9fd314d469bcf887050fb8",
+          "source": "https://registry.npmjs.org/postcss/-/postcss-8.5.16.tgz"
+        }
+      ]
+    },
+    {
+      "id": "prebuild-install@7.1.3",
+      "name": "prebuild-install",
+      "version": "7.1.3",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/prebuild/prebuild-install",
+      "source": "https://registry.npmjs.org/prebuild-install/-/prebuild-install-7.1.3.tgz",
+      "packagePath": "node_modules/prebuild-install",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0aa9add6a9158efad3e6649e3affd607c7e2629f6677af19f9988c8fbb0757b0.txt",
+          "sha256": "0aa9add6a9158efad3e6649e3affd607c7e2629f6677af19f9988c8fbb0757b0",
+          "source": "https://registry.npmjs.org/prebuild-install/-/prebuild-install-7.1.3.tgz"
+        }
+      ]
+    },
+    {
+      "id": "proper-lockfile@4.1.2",
+      "name": "proper-lockfile",
+      "version": "4.1.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/moxystudio/node-proper-lockfile",
+      "source": "https://registry.npmjs.org/proper-lockfile/-/proper-lockfile-4.1.2.tgz",
+      "packagePath": "node_modules/proper-lockfile",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/aaa78451b6fecd1b9c4594c796c133c0e90cad100372ff8bc6de615e9ef9adf1.txt",
+          "sha256": "aaa78451b6fecd1b9c4594c796c133c0e90cad100372ff8bc6de615e9ef9adf1",
+          "source": "https://registry.npmjs.org/proper-lockfile/-/proper-lockfile-4.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "proxy-from-env@2.1.0",
+      "name": "proxy-from-env",
+      "version": "2.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/Rob--W/proxy-from-env#readme",
+      "source": "https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz",
+      "packagePath": "node_modules/proxy-from-env",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/f55828df4b8752c48e765a806465b76a103e3cb363379c569b15a1df2ba2d79e.txt",
+          "sha256": "f55828df4b8752c48e765a806465b76a103e3cb363379c569b15a1df2ba2d79e",
+          "source": "https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "pump@3.0.4",
+      "name": "pump",
+      "version": "3.0.4",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/pump",
+      "source": "https://registry.npmjs.org/pump/-/pump-3.0.4.tgz",
+      "packagePath": "node_modules/pump",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6.txt",
+          "sha256": "3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6",
+          "source": "https://registry.npmjs.org/pump/-/pump-3.0.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "rc@1.2.8",
+      "name": "rc",
+      "version": "1.2.8",
+      "license": "(BSD-2-Clause OR MIT OR Apache-2.0)",
+      "category": "package",
+      "project": "https://github.com/dominictarr/rc",
+      "source": "https://registry.npmjs.org/rc/-/rc-1.2.8.tgz",
+      "packagePath": "node_modules/rc",
+      "documents": [
+        {
+          "name": "LICENSE.APACHE2",
+          "file": "documents/e8734448285a2dd773d40136ed5d5e8163a70701dd540cdc796cfca232f67d55.txt",
+          "sha256": "e8734448285a2dd773d40136ed5d5e8163a70701dd540cdc796cfca232f67d55",
+          "source": "https://registry.npmjs.org/rc/-/rc-1.2.8.tgz"
+        },
+        {
+          "name": "LICENSE.BSD",
+          "file": "documents/65e7e4d223688c601f42959defde380f8c4aa677fa4706da3b4a53f129bd78a3.txt",
+          "sha256": "65e7e4d223688c601f42959defde380f8c4aa677fa4706da3b4a53f129bd78a3",
+          "source": "https://registry.npmjs.org/rc/-/rc-1.2.8.tgz"
+        },
+        {
+          "name": "LICENSE.MIT",
+          "file": "documents/d72dea1a8cdf3f4dfa2f594253d0c5b37baefc76e806f5ecb0e426393edcd505.txt",
+          "sha256": "d72dea1a8cdf3f4dfa2f594253d0c5b37baefc76e806f5ecb0e426393edcd505",
+          "source": "https://registry.npmjs.org/rc/-/rc-1.2.8.tgz"
+        }
+      ]
+    },
+    {
+      "id": "re2js@2.8.6",
+      "name": "re2js",
+      "version": "2.8.6",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/le0pard/re2js#readme",
+      "source": "https://registry.npmjs.org/re2js/-/re2js-2.8.6.tgz",
+      "packagePath": "node_modules/re2js",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/b80a94f2c3c0b8bd6af849511cef624ad9feecbc0151d08bacad86ebab4cb46e.txt",
+          "sha256": "b80a94f2c3c0b8bd6af849511cef624ad9feecbc0151d08bacad86ebab4cb46e",
+          "source": "https://registry.npmjs.org/re2js/-/re2js-2.8.6.tgz"
+        }
+      ]
+    },
+    {
+      "id": "readable-stream@3.6.2",
+      "name": "readable-stream",
+      "version": "3.6.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/nodejs/readable-stream",
+      "source": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz",
+      "packagePath": "node_modules/bl/node_modules/readable-stream",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/ec62dc96da0099b87f4511736c87309335527fb7031639493e06c95728dc8c54.txt",
+          "sha256": "ec62dc96da0099b87f4511736c87309335527fb7031639493e06c95728dc8c54",
+          "source": "https://registry.npmjs.org/readable-stream/-/readable-stream-3.6.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "retry@0.12.0",
+      "name": "retry",
+      "version": "0.12.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/tim-kos/node-retry",
+      "source": "https://registry.npmjs.org/retry/-/retry-0.12.0.tgz",
+      "packagePath": "node_modules/retry",
+      "documents": [
+        {
+          "name": "License",
+          "file": "documents/01ad164273e8e095abc9dbd1c21e194594a671af7d528cb43ee7b4c903ba7da3.txt",
+          "sha256": "01ad164273e8e095abc9dbd1c21e194594a671af7d528cb43ee7b4c903ba7da3",
+          "source": "https://registry.npmjs.org/retry/-/retry-0.12.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "safe-buffer@5.1.2",
+      "name": "safe-buffer",
+      "version": "5.1.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/feross/safe-buffer",
+      "source": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.1.2.tgz",
+      "packagePath": "node_modules/safe-buffer",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac.txt",
+          "sha256": "c7cc929b57080f4b9d0c6cf57669f0463fc5b39906344dfc8d3bc43426b30eac",
+          "source": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.1.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "sax@1.6.0",
+      "name": "sax",
+      "version": "1.6.0",
+      "license": "BlueOak-1.0.0",
+      "category": "package",
+      "project": "",
+      "source": "https://registry.npmjs.org/sax/-/sax-1.6.0.tgz",
+      "packagePath": "node_modules/sax",
+      "documents": [
+        {
+          "name": "LICENSE.md",
+          "file": "documents/8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004.txt",
+          "sha256": "8a1af140fdfbf5afd3df27f7e662f989c5b963a300020dfafce42033cae9e004",
+          "source": "https://registry.npmjs.org/sax/-/sax-1.6.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "semver@7.7.4",
+      "name": "semver",
+      "version": "7.7.4",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/npm/node-semver",
+      "source": "https://registry.npmjs.org/semver/-/semver-7.7.4.tgz",
+      "packagePath": "node_modules/electron-updater/node_modules/semver",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/semver/-/semver-7.7.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "semver@7.8.5",
+      "name": "semver",
+      "version": "7.8.5",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/npm/node-semver",
+      "source": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz",
+      "packagePath": "node_modules/semver",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/semver/-/semver-7.8.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "signal-exit@3.0.7",
+      "name": "signal-exit",
+      "version": "3.0.7",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/tapjs/signal-exit",
+      "source": "https://registry.npmjs.org/signal-exit/-/signal-exit-3.0.7.tgz",
+      "packagePath": "node_modules/signal-exit",
+      "documents": [
+        {
+          "name": "LICENSE.txt",
+          "file": "documents/e05b1eaf5b5f99b7ad75cd1f38858ff9a311780b97715ead67936d60bf96aa7e.txt",
+          "sha256": "e05b1eaf5b5f99b7ad75cd1f38858ff9a311780b97715ead67936d60bf96aa7e",
+          "source": "https://registry.npmjs.org/signal-exit/-/signal-exit-3.0.7.tgz"
+        }
+      ]
+    },
+    {
+      "id": "simple-concat@1.0.1",
+      "name": "simple-concat",
+      "version": "1.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/feross/simple-concat",
+      "source": "https://registry.npmjs.org/simple-concat/-/simple-concat-1.0.1.tgz",
+      "packagePath": "node_modules/simple-concat",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b.txt",
+          "sha256": "d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b",
+          "source": "https://registry.npmjs.org/simple-concat/-/simple-concat-1.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "simple-get@4.0.1",
+      "name": "simple-get",
+      "version": "4.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/feross/simple-get",
+      "source": "https://registry.npmjs.org/simple-get/-/simple-get-4.0.1.tgz",
+      "packagePath": "node_modules/simple-get",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b.txt",
+          "sha256": "d4c2065e2b936e62a4eb400efb4576edec9ca1388a9f78aa288e147275e7bc8b",
+          "source": "https://registry.npmjs.org/simple-get/-/simple-get-4.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "smol-toml@1.9.0",
+      "name": "smol-toml",
+      "version": "1.9.0",
+      "license": "BSD-3-Clause",
+      "category": "package",
+      "project": "",
+      "source": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz",
+      "packagePath": "node_modules/smol-toml",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/fa5659948374d4f555594f47f6da073b40dc503e921aeeece30df4362b3051a5.txt",
+          "sha256": "fa5659948374d4f555594f47f6da073b40dc503e921aeeece30df4362b3051a5",
+          "source": "https://registry.npmjs.org/smol-toml/-/smol-toml-1.9.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "font:Source Code Pro",
+      "name": "Source Code Pro",
+      "version": "803b7e23ec97ae58b6232ea76519a76d428ba268",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/adobe-fonts/source-code-pro",
+      "source": "https://github.com/adobe-fonts/source-code-pro",
+      "documents": [
+        {
+          "name": "source-code-pro-OFL.md",
+          "file": "documents/7c940e28a5388e9bba866cf0e408edda45fe0899ba98665b8f6ab31dc5e4b8ff.txt",
+          "sha256": "7c940e28a5388e9bba866cf0e408edda45fe0899ba98665b8f6ab31dc5e4b8ff",
+          "source": "https://github.com/adobe-fonts/source-code-pro"
+        }
+      ]
+    },
+    {
+      "id": "font:Source Han Sans",
+      "name": "Source Han Sans",
+      "version": "2.005R",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/adobe-fonts/source-han-sans",
+      "source": "https://github.com/adobe-fonts/source-han-sans",
+      "documents": [
+        {
+          "name": "source-han-sans-OFL.txt",
+          "file": "documents/fcac737e761ec63dbfbdce11030a1780161920d80315edba9c8beff1c2bac5a2.txt",
+          "sha256": "fcac737e761ec63dbfbdce11030a1780161920d80315edba9c8beff1c2bac5a2",
+          "source": "https://github.com/adobe-fonts/source-han-sans"
+        }
+      ]
+    },
+    {
+      "id": "font:Source Han Serif",
+      "name": "Source Han Serif",
+      "version": "2.003R",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/adobe-fonts/source-han-serif",
+      "source": "https://github.com/adobe-fonts/source-han-serif",
+      "documents": [
+        {
+          "name": "source-han-serif-OFL.txt",
+          "file": "documents/9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903.txt",
+          "sha256": "9ff5bb567e1b92c801fc1069e5fbf992ff8efccacb9db94e5959a5b3ba9bb903",
+          "source": "https://github.com/adobe-fonts/source-han-serif"
+        }
+      ]
+    },
+    {
+      "id": "font:Source Sans 3",
+      "name": "Source Sans 3",
+      "version": "3.052R",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/adobe-fonts/source-sans",
+      "source": "https://github.com/adobe-fonts/source-sans",
+      "documents": [
+        {
+          "name": "source-sans-3-OFL.md",
+          "file": "documents/f1ffbe26b3ca5fecd8a48003664fd3103607dc3bb98a767a56d2fba522d81787.txt",
+          "sha256": "f1ffbe26b3ca5fecd8a48003664fd3103607dc3bb98a767a56d2fba522d81787",
+          "source": "https://github.com/adobe-fonts/source-sans"
+        }
+      ]
+    },
+    {
+      "id": "font:Source Serif 4",
+      "name": "Source Serif 4",
+      "version": "4.005R",
+      "license": "OFL-1.1",
+      "category": "font",
+      "project": "https://github.com/adobe-fonts/source-serif",
+      "source": "https://github.com/adobe-fonts/source-serif",
+      "documents": [
+        {
+          "name": "source-serif-4-OFL.md",
+          "file": "documents/c21d7293d87b6d7ab1d0229a2f55b77f33a7613a6a4e66f6693d68d7d8d09464.txt",
+          "sha256": "c21d7293d87b6d7ab1d0229a2f55b77f33a7613a6a4e66f6693d68d7d8d09464",
+          "source": "https://github.com/adobe-fonts/source-serif"
+        }
+      ]
+    },
+    {
+      "id": "source-map-js@1.2.1",
+      "name": "source-map-js",
+      "version": "1.2.1",
+      "license": "BSD-3-Clause",
+      "category": "package",
+      "project": "https://github.com/7rulnik/source-map-js",
+      "source": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",
+      "packagePath": "node_modules/source-map-js",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/6cb0631f71c7749763fd3dd1d5bee52dd1070ec17f2edc1710079ad070bd2fbd.txt",
+          "sha256": "6cb0631f71c7749763fd3dd1d5bee52dd1070ec17f2edc1710079ad070bd2fbd",
+          "source": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "sqlite@3.53.2",
+      "name": "SQLite",
+      "version": "3.53.2",
+      "license": "Public domain",
+      "category": "runtime",
+      "project": "https://sqlite.org",
+      "source": "https://sqlite.org/copyright.html",
+      "documents": [
+        {
+          "name": "SQLite source header",
+          "file": "documents/39fc4986b224f2f5575dec58ae66c7c9ee2d5d3884ba4971c932f1fd5b40b033.txt",
+          "sha256": "39fc4986b224f2f5575dec58ae66c7c9ee2d5d3884ba4971c932f1fd5b40b033",
+          "source": ""
+        }
+      ]
+    },
+    {
+      "id": "string_decoder@1.1.1",
+      "name": "string_decoder",
+      "version": "1.1.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/nodejs/string_decoder",
+      "source": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.1.1.tgz",
+      "packagePath": "node_modules/string_decoder",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/11f2aafb37d06b3ee5bdaf06e9811141d0da05263c316f3d627f45c20d43261b.txt",
+          "sha256": "11f2aafb37d06b3ee5bdaf06e9811141d0da05263c316f3d627f45c20d43261b",
+          "source": "https://registry.npmjs.org/string_decoder/-/string_decoder-1.1.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "strip-json-comments@2.0.1",
+      "name": "strip-json-comments",
+      "version": "2.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/sindresorhus/strip-json-comments",
+      "source": "https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-2.0.1.tgz",
+      "packagePath": "node_modules/rc/node_modules/strip-json-comments",
+      "documents": [
+        {
+          "name": "license",
+          "file": "documents/6fb9754611c20f6649f68805e8c990e83261f29316e29de9e6cedae607b8634c.txt",
+          "sha256": "6fb9754611c20f6649f68805e8c990e83261f29316e29de9e6cedae607b8634c",
+          "source": "https://registry.npmjs.org/strip-json-comments/-/strip-json-comments-2.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "tar-fs@2.1.5",
+      "name": "tar-fs",
+      "version": "2.1.5",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/tar-fs",
+      "source": "https://registry.npmjs.org/tar-fs/-/tar-fs-2.1.5.tgz",
+      "packagePath": "node_modules/tar-fs",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6.txt",
+          "sha256": "3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6",
+          "source": "https://registry.npmjs.org/tar-fs/-/tar-fs-2.1.5.tgz"
+        }
+      ]
+    },
+    {
+      "id": "tar-stream@2.2.0",
+      "name": "tar-stream",
+      "version": "2.2.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/mafintosh/tar-stream",
+      "source": "https://registry.npmjs.org/tar-stream/-/tar-stream-2.2.0.tgz",
+      "packagePath": "node_modules/tar-stream",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6.txt",
+          "sha256": "3fe8d55a98dbf260eace67c00cf9bc53edb46234e840098a0b93df3096b97fb6",
+          "source": "https://registry.npmjs.org/tar-stream/-/tar-stream-2.2.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "tiny-typed-emitter@2.1.0",
+      "name": "tiny-typed-emitter",
+      "version": "2.1.0",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/binier/tiny-typed-emitter",
+      "source": "https://registry.npmjs.org/tiny-typed-emitter/-/tiny-typed-emitter-2.1.0.tgz",
+      "packagePath": "node_modules/tiny-typed-emitter",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4b3faf884ee71eec3df920b66c98fc6618af28e824cf3a32ef3d8774048cc76d.txt",
+          "sha256": "4b3faf884ee71eec3df920b66c98fc6618af28e824cf3a32ef3d8774048cc76d",
+          "source": "https://registry.npmjs.org/tiny-typed-emitter/-/tiny-typed-emitter-2.1.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "tslib@2.3.0",
+      "name": "tslib",
+      "version": "2.3.0",
+      "license": "0BSD",
+      "category": "package",
+      "project": "https://www.typescriptlang.org/",
+      "source": "https://registry.npmjs.org/tslib/-/tslib-2.3.0.tgz",
+      "packagePath": "node_modules/tslib",
+      "documents": [
+        {
+          "name": "CopyrightNotice.txt",
+          "file": "documents/dd835e67a9a297da32f9467d7677a5d02c8e50e10f15da43b810147c79c04b9b.txt",
+          "sha256": "dd835e67a9a297da32f9467d7677a5d02c8e50e10f15da43b810147c79c04b9b",
+          "source": "https://registry.npmjs.org/tslib/-/tslib-2.3.0.tgz"
+        },
+        {
+          "name": "LICENSE.txt",
+          "file": "documents/210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751.txt",
+          "sha256": "210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751",
+          "source": "https://registry.npmjs.org/tslib/-/tslib-2.3.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "tunnel-agent@0.6.0",
+      "name": "tunnel-agent",
+      "version": "0.6.0",
+      "license": "Apache-2.0",
+      "category": "package",
+      "project": "https://github.com/mikeal/tunnel-agent",
+      "source": "https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz",
+      "packagePath": "node_modules/tunnel-agent",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/d446a8c73d7bbe4872d6524b15ae206f9a2d7eb53f8c9cb6e6c893a43acc5276.txt",
+          "sha256": "d446a8c73d7bbe4872d6524b15ae206f9a2d7eb53f8c9cb6e6c893a43acc5276",
+          "source": "https://registry.npmjs.org/tunnel-agent/-/tunnel-agent-0.6.0.tgz"
+        }
+      ]
+    },
+    {
+      "id": "universalify@2.0.1",
+      "name": "universalify",
+      "version": "2.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/RyanZim/universalify#readme",
+      "source": "https://registry.npmjs.org/universalify/-/universalify-2.0.1.tgz",
+      "packagePath": "node_modules/universalify",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/3fda5977c0904e226190b4e21d64340c1731e2142d6fe5f3dee0090a216b8b63.txt",
+          "sha256": "3fda5977c0904e226190b4e21d64340c1731e2142d6fe5f3dee0090a216b8b63",
+          "source": "https://registry.npmjs.org/universalify/-/universalify-2.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "util-deprecate@1.0.2",
+      "name": "util-deprecate",
+      "version": "1.0.2",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/TooTallNate/util-deprecate",
+      "source": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz",
+      "packagePath": "node_modules/util-deprecate",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/0154425673db15cdfa80ecba2c9b1f1a867f7197a006764712849bfc3a93cbb7.txt",
+          "sha256": "0154425673db15cdfa80ecba2c9b1f1a867f7197a006764712849bfc3a93cbb7",
+          "source": "https://registry.npmjs.org/util-deprecate/-/util-deprecate-1.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "vue@3.5.39",
+      "name": "vue",
+      "version": "3.5.39",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://vuejs.org/",
+      "source": "https://registry.npmjs.org/vue/-/vue-3.5.39.tgz",
+      "packagePath": "node_modules/vue",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175.txt",
+          "sha256": "1bb85cc9b13b81ef41c81c51866172fc345e0503c86726a6755b796590b70175",
+          "source": "https://registry.npmjs.org/vue/-/vue-3.5.39.tgz"
+        }
+      ]
+    },
+    {
+      "id": "vue-demi@0.14.10",
+      "name": "vue-demi",
+      "version": "0.14.10",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/antfu/vue-demi",
+      "source": "https://registry.npmjs.org/vue-demi/-/vue-demi-0.14.10.tgz",
+      "packagePath": "node_modules/@floating-ui/vue/node_modules/vue-demi",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/25b0ff5a880f9304341ba3ea38842972351256f5fe1dded3395ba1b464a8ca4e.txt",
+          "sha256": "25b0ff5a880f9304341ba3ea38842972351256f5fe1dded3395ba1b464a8ca4e",
+          "source": "https://registry.npmjs.org/vue-demi/-/vue-demi-0.14.10.tgz"
+        }
+      ]
+    },
+    {
+      "id": "vue-echarts@8.0.1",
+      "name": "vue-echarts",
+      "version": "8.0.1",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://github.com/ecomfe/vue-echarts",
+      "source": "https://registry.npmjs.org/vue-echarts/-/vue-echarts-8.0.1.tgz",
+      "packagePath": "node_modules/vue-echarts",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/6f7fc0224dab3e18a5291d781f748d96de55b99565e6d3bb9fb4933d6dbc7a3d.txt",
+          "sha256": "6f7fc0224dab3e18a5291d781f748d96de55b99565e6d3bb9fb4933d6dbc7a3d",
+          "source": "https://registry.npmjs.org/vue-echarts/-/vue-echarts-8.0.1.tgz"
+        }
+      ]
+    },
+    {
+      "id": "vue-router@4.6.4",
+      "name": "vue-router",
+      "version": "4.6.4",
+      "license": "MIT",
+      "category": "package",
+      "project": "https://router.vuejs.org",
+      "source": "https://registry.npmjs.org/vue-router/-/vue-router-4.6.4.tgz",
+      "packagePath": "node_modules/vue-router",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/91a2845c4db44e7497b514b98634a674c737986ad0db81599307cf733bf850b2.txt",
+          "sha256": "91a2845c4db44e7497b514b98634a674c737986ad0db81599307cf733bf850b2",
+          "source": "https://registry.npmjs.org/vue-router/-/vue-router-4.6.4.tgz"
+        }
+      ]
+    },
+    {
+      "id": "wrappy@1.0.2",
+      "name": "wrappy",
+      "version": "1.0.2",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://github.com/npm/wrappy",
+      "source": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz",
+      "packagePath": "node_modules/wrappy",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
+          "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+          "source": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "zrender@6.1.0",
+      "name": "zrender",
+      "version": "6.1.0",
+      "license": "BSD-3-Clause",
+      "category": "package",
+      "project": "https://github.com/ecomfe/zrender",
+      "source": "https://registry.npmjs.org/zrender/-/zrender-6.1.0.tgz",
+      "packagePath": "node_modules/zrender",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/a681e9d183c72b4af4856935893805eb48c08f0f5a3f260203db7444c20fb98a.txt",
+          "sha256": "a681e9d183c72b4af4856935893805eb48c08f0f5a3f260203db7444c20fb98a",
+          "source": "https://registry.npmjs.org/zrender/-/zrender-6.1.0.tgz"
+        }
+      ]
+    }
+  ]
+}

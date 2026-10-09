@@ -6,6 +6,9 @@ import { agentColors, agentNames } from '../../config/agents'
 import { formatTokens, formatTokensOrDash } from '../../utils/format'
 import ChildSessionList from './ChildSessionList.vue'
 import PaginationBar from './PaginationBar.vue'
+import ApiCallCost from './ApiCallCost.vue'
+import SessionCost from './SessionCost.vue'
+import SessionTurns from './SessionTurns.vue'
 import type {
   DetailLevel,
   ModalMode,
@@ -33,6 +36,7 @@ interface Props {
   projectDetailDimension: ProjectDetailDimension
   projectDetailData: ProjectUsageDetail
   loading: boolean
+  scanPending?: boolean
   detailLevel: DetailLevel
   sessionRows: TokenUsageUserSession[]
   apiCallRows: TokenUsageApiCall[]
@@ -62,7 +66,7 @@ const emit = defineEmits<{
   updateSessionSearch: [value: string]
 }>()
 
-const { tr } = useI18n()
+const { tr, label } = useI18n()
 const summaryPage = ref(1)
 const summaryPageSize = ref(10)
 const activeProjectSummary = computed(() =>
@@ -181,8 +185,8 @@ function hasSessionTitle(item: TokenUsageSession): boolean {
 function sessionAriaLabel(item: TokenUsageSession): string {
   const sessionId = compactId(item.sessionId)
   if (hasSessionTitle(item))
-    return `${tr('apiCallDetails')}: ${sessionTitle(item)}, ${tr('sessionId')} ${sessionId}`
-  return `${tr('apiCallDetails')}: ${sessionId}`
+    return `${tr('allUserSessions')}: ${sessionTitle(item)}, ${tr('sessionId')} ${sessionId}`
+  return `${tr('allUserSessions')}: ${sessionId}`
 }
 
 function apiCallRole(item: TokenUsageApiCall): string {
@@ -282,17 +286,6 @@ function onSearchInput(event: Event): void {
               <span class="material-symbols-outlined">account_tree</span>
               <span>{{ tr('allUserSessions') }}</span>
             </button>
-            <button
-              class="modal-action-btn"
-              type="button"
-              :title="tr('viewAllApiRecords')"
-              :aria-label="tr('viewAllApiRecords')"
-              :disabled="loading"
-              @click="emit('showFilteredApiRecords')"
-            >
-              <span class="material-symbols-outlined">dataset</span>
-              <span>{{ tr('allApiRecords') }}</span>
-            </button>
           </div>
           <button class="icon-btn" type="button" :aria-label="tr('close')" @click="emit('close')">
             <span class="material-symbols-outlined">close</span>
@@ -334,7 +327,15 @@ function onSearchInput(event: Event): void {
         </label>
         <span class="search-hint">{{ tr('searchMultipleHint') }}</span>
       </div>
-      <div v-if="loading" class="modal-state">{{ tr('loading') }}</div>
+      <div v-if="scanPending" class="modal-state" role="status">
+        {{
+          label(
+            'Session usage is being prepared. This view will load automatically when the scan finishes.',
+            '正在汇总会话用量，扫描完成后将自动加载当前内容。',
+          )
+        }}
+      </div>
+      <div v-else-if="loading" class="modal-state">{{ tr('loading') }}</div>
       <template v-else-if="detailLevel === 'summary' && mode === 'agent'">
         <div v-if="agentModelData.length === 0" class="modal-state">
           {{ tr('noModelDataForAgent') }}
@@ -345,6 +346,7 @@ function onSearchInput(event: Event): void {
               <tr>
                 <th>{{ tr('model') }}</th>
                 <th class="right">{{ tr('totalTokensCol') }}</th>
+                <th class="right cost-column">{{ label('API equivalent', 'API 参考费用') }}</th>
                 <th class="right">{{ tr('inputTokens') }}</th>
                 <th class="right">{{ tr('outputTokens') }}</th>
                 <th class="right">{{ tr('cacheRead') }}</th>
@@ -373,6 +375,9 @@ function onSearchInput(event: Event): void {
                   <span class="row-action">{{ tr('viewSessions') }}</span>
                 </td>
                 <td class="right token-total">{{ formatTokens(item.totalTokens) }}</td>
+                <td class="right cost-column">
+                  <SessionCost :summary="item.costSummary" variant="table" />
+                </td>
                 <td class="right">{{ formatTokens(item.inputTokens) }}</td>
                 <td class="right">{{ formatTokens(item.outputTokens) }}</td>
                 <td class="right">{{ formatTokensOrDash(item.cacheReadTokens) }}</td>
@@ -401,6 +406,7 @@ function onSearchInput(event: Event): void {
               <tr>
                 <th>{{ tr('agents') }}</th>
                 <th class="right">{{ tr('totalTokensCol') }}</th>
+                <th class="right cost-column">{{ label('API equivalent', 'API 参考费用') }}</th>
                 <th class="right">{{ tr('inputTokens') }}</th>
                 <th class="right">{{ tr('outputTokens') }}</th>
                 <th class="right">{{ tr('cacheRead') }}</th>
@@ -438,6 +444,9 @@ function onSearchInput(event: Event): void {
                   <span class="row-action">{{ tr('viewSessions') }}</span>
                 </td>
                 <td class="right token-total">{{ formatTokens(item.totalTokens) }}</td>
+                <td class="right cost-column">
+                  <SessionCost :summary="item.costSummary" variant="table" />
+                </td>
                 <td class="right">{{ formatTokens(item.inputTokens) }}</td>
                 <td class="right">{{ formatTokens(item.outputTokens) }}</td>
                 <td class="right">{{ formatTokensOrDash(item.cacheReadTokens) }}</td>
@@ -570,12 +579,7 @@ function onSearchInput(event: Event): void {
             :key="`${item.agent}-${item.rootSessionId || item.sessionId}`"
             class="detail-card session-card"
           >
-            <button
-              class="session-card-summary"
-              type="button"
-              :aria-label="sessionAriaLabel(item)"
-              @click="emit('showApiCallsForSession', item)"
-            >
+            <div class="session-card-summary" :aria-label="sessionAriaLabel(item)">
               <span class="detail-card-head">
                 <span class="detail-card-title session-title">
                   <span class="material-symbols-outlined">forum</span>
@@ -593,13 +597,23 @@ function onSearchInput(event: Event): void {
                   </span>
                 </span>
                 <span class="detail-card-meta">
-                  {{ item.date }} · {{ tr('apiCalls') }} {{ item.apiCallCount }}
+                  <SessionTurns :turns="item.turns" />
+                  · {{ item.date }} · {{ tr('apiCalls') }}
+                  {{
+                    item.apiCallCountComplete === false
+                      ? label('Not provided', '未提供')
+                      : formatTokens(item.apiCallCount)
+                  }}
                 </span>
               </span>
               <span class="metric-grid">
                 <span class="metric primary-metric">
                   <span class="metric-label">{{ tr('totalTokensCol') }}</span>
                   <span class="metric-value">{{ formatTokens(item.totalTokens) }}</span>
+                </span>
+                <span class="metric cost-metric">
+                  <span class="metric-label">{{ label('API equivalent', 'API 参考费用') }}</span>
+                  <SessionCost :summary="item.costSummary" variant="metric" />
                 </span>
                 <span class="metric">
                   <span class="metric-label">{{ tr('inputTokens') }}</span>
@@ -625,11 +639,7 @@ function onSearchInput(event: Event): void {
               <span class="session-time">
                 {{ formatMoment(item.startedAt) }} → {{ formatMoment(item.endedAt) }}
               </span>
-              <span class="card-action">
-                <span>{{ tr('apiCallDetails') }}</span>
-                <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
-              </span>
-            </button>
+            </div>
             <ChildSessionList
               v-if="item.children.length > 0"
               :children="item.children"
@@ -712,6 +722,7 @@ function onSearchInput(event: Event): void {
                 <span class="metric-value">{{ formatTokensOrDash(item.reasoningTokens) }}</span>
               </span>
             </div>
+            <ApiCallCost v-if="item.costAssessment" :assessment="item.costAssessment" />
           </article>
         </div>
         <PaginationBar
@@ -1009,19 +1020,7 @@ function onSearchInput(event: Event): void {
   background: transparent;
   border: 0;
   border-radius: 6px;
-  cursor: pointer;
-}
-
-.session-card:has(.session-card-summary:hover),
-.session-card:has(.session-card-summary:focus-visible) {
-  background: var(--surface-container);
-  border-color: var(--border-strong);
-  box-shadow: 0 10px 26px color-mix(in srgb, var(--primary) 6%, transparent);
-}
-
-.session-card-summary:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--primary) 68%, white);
-  outline-offset: 2px;
+  cursor: default;
 }
 
 .detail-card-head {
@@ -1170,6 +1169,14 @@ function onSearchInput(event: Event): void {
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.cost-metric {
+  align-content: start;
+}
+
+.cost-column {
+  min-width: 130px;
 }
 
 .metric-value {

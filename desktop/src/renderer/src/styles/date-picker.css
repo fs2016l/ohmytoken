@@ -1,0 +1,20 @@
+@import '@vuepic/vue-datepicker/dist/main.css';
+
+:is(.workspace-calendar, .base-date-picker) :is(.dp--calendar-header, .dp--calendar-row) {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 4px;
+}
+
+:is(.workspace-calendar, .base-date-picker) .dp--calendar-row {
+  margin-block: 4px;
+}
+
+:is(.workspace-calendar, .base-date-picker) :is(.dp--calendar-header-item, .dp--calendar-item) {
+  min-width: 0;
+  width: auto;
+}
+
+:is(.workspace-calendar, .base-date-picker) .dp--cell-inner {
+  width: 100%;
+}

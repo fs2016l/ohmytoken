@@ -1,6 +1,7 @@
 import type { Ref } from 'vue'
 import { useI18n } from '../i18n/useI18n'
 import { useTheme, type Theme } from './useTheme'
+import { getTheme } from '../config/themes'
 import { useTypography } from './useTypography'
 import { formatTokens } from '../utils/format'
 
@@ -32,20 +33,20 @@ export interface TooltipFormatterOptions {
 }
 
 export function getChartColors(theme: Theme): ChartColors {
-  const isLight = theme === 'light'
+  const palette = getTheme(useTheme().currentAccent.value).colors[theme]
   return {
-    text: isLight ? '#65748b' : '#aab6ca',
-    axisLine: isLight ? '#d8e0eb' : '#2b3b56',
-    splitLine: isLight ? '#e7edf5' : '#1b2940',
-    tooltipBg: isLight ? '#ffffff' : '#152137',
-    tooltipBorder: isLight ? '#c8d3e1' : '#344662',
-    tooltipText: isLight ? '#172033' : '#f4f7fc',
-    tooltipDivider: isLight ? '#d8e0eb' : '#344662',
-    tooltipTotal: isLight ? '#6758d9' : '#8b80f9',
-    pieBorder: isLight ? '#ffffff' : '#0f1828',
-    pieEmphasisShadow: isLight ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.45)',
-    centerValue: isLight ? '#172033' : '#f4f7fc',
-    centerLabel: isLight ? '#607089' : '#8493aa',
+    text: palette['--text-muted'],
+    axisLine: palette['--border-strong'],
+    splitLine: palette['--border'],
+    tooltipBg: palette['--surface'],
+    tooltipBorder: palette['--border-strong'],
+    tooltipText: palette['--text'],
+    tooltipDivider: palette['--border'],
+    tooltipTotal: palette['--primary'],
+    pieBorder: palette['--surface'],
+    pieEmphasisShadow: palette['--omt-overlay-scrim'],
+    centerValue: palette['--text'],
+    centerLabel: palette['--text-muted'],
   }
 }
 

@@ -168,14 +168,59 @@ export function getZCodeDbCandidates(): string[] {
 }
 
 /**
- * MiniMax Code 数据库候选路径
- * 对应 Java MiniMaxCodeScanner.getDatabasePath()
+ * MiniMax Code 数据根目录：官方覆盖变量优先，其次默认目录、已有 profile 和旧目录。
+ * 覆盖目录不排除默认历史数据；只枚举 home 的直接子目录，不递归查找数据库。
  */
-export function getMavisDbCandidates(): string[] {
+export function getMavisDataDirCandidates(): string[] {
   const home = homedir()
-  const runtimeStateDb = join(home, '.minimax', 'v2', 'sqlite', 'runtime-state.sqlite')
-  const legacyCandidates = [join(home, '.mavis', 'sqlite.db'), join(home, '.minimax', 'sqlite.db')]
-  return [runtimeStateDb, ...legacyCandidates]
+  const configured = process.env.MINIMAX_DATA_DIR?.trim() || process.env.MAVIS_DATA_DIR?.trim()
+  const roots = configured ? [resolveUserPath(configured)] : []
+  roots.push(join(home, '.minimax'))
+  try {
+    const profiles = readdirSync(home, { withFileTypes: true })
+      .filter(
+        (entry) =>
+          entry.isDirectory() &&
+          entry.name.startsWith('.minimax-') &&
+          entry.name.length > '.minimax-'.length &&
+          entry.name !== '.minimax-code',
+      )
+      .map((entry) => entry.name)
+      .sort((left, right) => left.localeCompare(right))
+    roots.push(...profiles.map((name) => join(home, name)))
+  } catch {
+    // home 不可枚举时仍保留显式、默认和旧目录候选。
+  }
+  roots.push(join(home, '.minimax-code'), join(home, '.mavis'))
+  return uniquePaths(roots)
+}
+
+/** MiniMax Code 新版 runtime 与早期 SQLite 数据库候选，逐根目录按版本排序。 */
+export function getMavisDbCandidates(): string[] {
+  return uniquePaths(
+    getMavisDataDirCandidates().flatMap((root) => [
+      join(root, 'v2', 'sqlite', 'runtime-state.sqlite'),
+      join(root, 'sqlite.db'),
+    ]),
+  )
+}
+
+/**
+ * 新版 runtime 用量行的 model 常为空，由同一数据根目录的 config.yaml 兜底。
+ * 指定数据库时仅返回该库所属根目录配置，避免读取其他 profile 的 defaultModel。
+ */
+export function getMavisConfigCandidates(dbPath?: string): string[] {
+  if (dbPath) {
+    const database = resolveUserPath(dbPath)
+    const directory = dirname(database)
+    const runtime =
+      basename(database) === 'runtime-state.sqlite' &&
+      basename(directory) === 'sqlite' &&
+      basename(dirname(directory)) === 'v2'
+    const root = runtime ? dirname(dirname(directory)) : directory
+    return [join(root, 'config.yaml')]
+  }
+  return getMavisDataDirCandidates().map((root) => join(root, 'config.yaml'))
 }
 
 /** ~/.workbuddy */
@@ -205,28 +250,74 @@ export interface KimiWorkSessionsSource {
   kind: KimiWorkSessionsKind
 }
 
+/** KimiWork 桌面端配置目录（kimi-desktop），daimon-storage.json 所在处。 */
+function getKimiDesktopConfigDir(): string {
+  const home = homedir()
+  if (isWindows()) return join(getAppData(), 'kimi-desktop')
+  if (isMacos()) return join(home, 'Library', 'Application Support', 'kimi-desktop')
+  return join(home, '.config', 'kimi-desktop')
+}
+
+/** 从 daimon-storage.json 文本提取 shareDir；损坏或字段无效时返回空串。 */
+export function kimiWorkShareDirFromStorageText(text: string): string {
+  let obj: unknown
+  try {
+    obj = JSON.parse(text)
+  } catch {
+    return ''
+  }
+  if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return ''
+  const shareDir = (obj as Record<string, unknown>).shareDir
+  return typeof shareDir === 'string' && shareDir.trim() ? shareDir.trim() : ''
+}
+
+/** 读取 kimi-desktop 的 daimon-storage.json 中重定向的 shareDir；缺失或不可读返回空串。 */
+function readKimiWorkShareDir(): string {
+  try {
+    return kimiWorkShareDirFromStorageText(
+      readFileSync(join(getKimiDesktopConfigDir(), 'daimon-storage.json'), 'utf8'),
+    )
+  } catch {
+    return ''
+  }
+}
+
+/** 由默认 sessions 目录与 daimon-storage.json 的 shareDir 组合候选源；shareDir 无效时只剩默认。 */
+export function kimiWorkSessionsSourcesFrom(
+  defaultDir: string,
+  shareDir: string,
+): KimiWorkSessionsSource[] {
+  const redirected = shareDir
+    ? join(resolveUserPath(shareDir), 'daimon', 'runtime', 'kimi-code', 'home', 'sessions')
+    : ''
+  const sources: KimiWorkSessionsSource[] = redirected
+    ? [
+        { dir: redirected, kind: 'desktop' },
+        { dir: defaultDir, kind: 'desktop' },
+      ]
+    : [{ dir: defaultDir, kind: 'desktop' }]
+  return uniqueSources(sources)
+}
+
 /**
  * KimiWork sessions 目录候选（跨平台）。
  *
  * 只包含 Kimi Work 桌面端目录。Kimi Code CLI 使用独立的
  * getKimiCodeSessionsSources()，避免两个 Agent 串数据。
+ *
+ * 桌面端把 daimon-share 重定向到自定义位置时会写入 kimi-desktop 配置目录的
+ * daimon-storage.json（shareDir 字段）；重定向目录排在默认目录前，
+ * 未重定向、配置损坏或旧目录残留历史数据时默认目录继续兜底。
  */
 export function getKimiWorkSessionsSources(): KimiWorkSessionsSource[] {
   const home = homedir()
   const basePath = 'kimi-desktop/daimon-share/daimon/runtime/kimi-code/home/sessions'
-
-  if (isWindows()) {
-    return [{ dir: join(getAppData(), basePath), kind: 'desktop' }]
-  } else if (isMacos()) {
-    return [
-      {
-        dir: join(home, 'Library', 'Application Support', basePath),
-        kind: 'desktop',
-      },
-    ]
-  } else {
-    return [{ dir: join(home, '.config', basePath), kind: 'desktop' }]
-  }
+  const defaultDir = isWindows()
+    ? join(getAppData(), basePath)
+    : isMacos()
+      ? join(home, 'Library', 'Application Support', basePath)
+      : join(home, '.config', basePath)
+  return kimiWorkSessionsSourcesFrom(defaultDir, readKimiWorkShareDir())
 }
 
 /** 旧调用方的首选目录；新扫描器应遍历 getKimiWorkSessionsSources()。 */
@@ -286,6 +377,13 @@ export function getGrokSessionsDir(): string {
 
 export function getGrokUnifiedLogFile(): string {
   return join(getGrokHomeDir(), 'logs', 'unified.jsonl')
+}
+
+/** DeepSeek Harness CLI 与桌面端共用的会话目录；支持官方 DSH_HOME 覆盖。 */
+export function getDeepSeekHarnessSessionsDir(): string {
+  const configured = process.env.DSH_HOME?.trim()
+  const root = configured ? resolveUserPath(configured) : join(homedir(), '.dsh')
+  return join(root, 'sessions')
 }
 
 /** Zed Agent 线程数据库。 */

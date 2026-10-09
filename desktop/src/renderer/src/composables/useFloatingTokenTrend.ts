@@ -1,16 +1,15 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import type { UsageTrendStats } from '@shared/models'
 
-export type FloatingTrendRange = '1h' | '5h' | '24h' | '7d'
+export type FloatingPresetRange = '1h' | '5h' | '24h' | '7d'
+export type FloatingTrendRange = FloatingPresetRange | 'custom'
 export type FloatingTrendGroup = 'agent' | 'model'
-export type FloatingRefreshInterval = 0 | 30_000 | 60_000 | 300_000 | 900_000
 
 const STORAGE_KEY = 'floating-token-preferences'
-const DEFAULT_RANGE: FloatingTrendRange = '24h'
-const DEFAULT_GROUP: FloatingTrendGroup = 'agent'
-const DEFAULT_REFRESH: FloatingRefreshInterval = 30_000
+const DEFAULT_RANGE: FloatingPresetRange = '5h'
+const DEFAULT_GROUP: FloatingTrendGroup = 'model'
 
-export const floatingRangeMs: Record<FloatingTrendRange, number> = {
+export const floatingRangeMs: Record<FloatingPresetRange, number> = {
   '1h': 60 * 60 * 1000,
   '5h': 5 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
@@ -19,13 +18,17 @@ export const floatingRangeMs: Record<FloatingTrendRange, number> = {
 
 interface StoredTrendPreferences {
   range: FloatingTrendRange
+  baselineAt: number | null
   groupBy: FloatingTrendGroup
-  refreshInterval: FloatingRefreshInterval
   sessionsExpanded: boolean
 }
 
 function isRange(value: unknown): value is FloatingTrendRange {
-  return value === '1h' || value === '5h' || value === '24h' || value === '7d'
+  return value === '1h' || value === '5h' || value === '24h' || value === '7d' || value === 'custom'
+}
+
+function isBaseline(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= Date.now()
 }
 
 function normalizeRange(value: unknown): FloatingTrendRange {
@@ -37,31 +40,25 @@ function isGroup(value: unknown): value is FloatingTrendGroup {
   return value === 'agent' || value === 'model'
 }
 
-function isRefreshInterval(value: unknown): value is FloatingRefreshInterval {
-  return (
-    value === 0 || value === 30_000 || value === 60_000 || value === 300_000 || value === 900_000
-  )
-}
-
 function loadPreferences(): StoredTrendPreferences {
   try {
     const parsed = JSON.parse(
       localStorage.getItem(STORAGE_KEY) || '{}',
     ) as Partial<StoredTrendPreferences>
+    const baselineAt = isBaseline(parsed.baselineAt) ? parsed.baselineAt : null
+    const range = normalizeRange(parsed.range)
     return {
-      range: normalizeRange(parsed.range),
+      range: range === 'custom' && baselineAt === null ? DEFAULT_RANGE : range,
+      baselineAt,
       groupBy: isGroup(parsed.groupBy) ? parsed.groupBy : DEFAULT_GROUP,
-      refreshInterval: isRefreshInterval(parsed.refreshInterval)
-        ? parsed.refreshInterval
-        : DEFAULT_REFRESH,
-      sessionsExpanded: parsed.sessionsExpanded === true,
+      sessionsExpanded: parsed.sessionsExpanded !== false,
     }
   } catch {
     return {
       range: DEFAULT_RANGE,
+      baselineAt: null,
       groupBy: DEFAULT_GROUP,
-      refreshInterval: DEFAULT_REFRESH,
-      sessionsExpanded: false,
+      sessionsExpanded: true,
     }
   }
 }
@@ -87,16 +84,20 @@ function emptyStats(groupBy: FloatingTrendGroup): UsageTrendStats {
 export function useFloatingTokenTrend() {
   const stored = loadPreferences()
   const range = ref<FloatingTrendRange>(stored.range)
+  const baselineAt = ref(stored.baselineAt)
   const groupBy = ref<FloatingTrendGroup>(stored.groupBy)
-  const refreshInterval = ref<FloatingRefreshInterval>(stored.refreshInterval)
   const sessionsExpanded = ref(stored.sessionsExpanded)
-  const stats = ref<UsageTrendStats>(emptyStats(stored.groupBy))
+  const stats = shallowRef<UsageTrendStats>(emptyStats(stored.groupBy))
   const isLoading = ref(false)
   const loadFailed = ref(false)
   const lastUpdatedAt = ref(0)
   let requestSerial = 0
 
-  const selectedRangeMs = computed(() => floatingRangeMs[range.value])
+  const selectedRangeMs = computed(() =>
+    range.value === 'custom'
+      ? Math.max(0, stats.value.to - (baselineAt.value ?? stats.value.to))
+      : floatingRangeMs[range.value],
+  )
   const hasUsage = computed(() => stats.value.totalTokens > 0)
 
   function persistPreferences(): void {
@@ -104,32 +105,37 @@ export function useFloatingTokenTrend() {
       STORAGE_KEY,
       JSON.stringify({
         range: range.value,
+        baselineAt: baselineAt.value,
         groupBy: groupBy.value,
-        refreshInterval: refreshInterval.value,
         sessionsExpanded: sessionsExpanded.value,
       }),
     )
   }
 
-  watch([range, groupBy, refreshInterval, sessionsExpanded], persistPreferences)
+  watch([range, baselineAt, groupBy, sessionsExpanded], persistPreferences)
+
+  function applyBaseline(timestamp: number): void {
+    if (!isBaseline(timestamp)) return
+    baselineAt.value = Math.floor(timestamp / 1000) * 1000
+    range.value = 'custom'
+  }
 
   async function refresh(): Promise<void> {
     const serial = ++requestSerial
     const to = Date.now()
-    const from = to - selectedRangeMs.value
-    const previousSpan = stats.value.to - stats.value.from
-    const selectionChanged =
-      stats.value.groupBy !== groupBy.value ||
-      Math.abs(previousSpan - selectedRangeMs.value) > 60_000
-    if (selectionChanged) {
-      stats.value = { ...emptyStats(groupBy.value), from, to, groupBy: groupBy.value }
-    }
-
+    const baseline = range.value === 'custom' && baselineAt.value !== null
+    const from = baseline ? Math.min(baselineAt.value!, to) : to - selectedRangeMs.value
+    // Commit a complete response atomically; a pending request is never zero usage.
     isLoading.value = true
     loadFailed.value = false
 
     try {
-      const result = await window.api.getUsageTrendStats({ from, to, groupBy: groupBy.value })
+      const result = await window.api.getUsageTrendStats({
+        from,
+        to,
+        groupBy: groupBy.value,
+        ...(baseline ? { baseline: true } : {}),
+      })
       if (serial !== requestSerial) return
       stats.value = result
       lastUpdatedAt.value = Date.now()
@@ -144,8 +150,9 @@ export function useFloatingTokenTrend() {
 
   return {
     range,
+    baselineAt,
+    applyBaseline,
     groupBy,
-    refreshInterval,
     sessionsExpanded,
     stats,
     isLoading,

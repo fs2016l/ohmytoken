@@ -35,6 +35,9 @@ import {
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { extractProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
+import { kimiConversationTurn, type ConversationTurn } from './conversation-turn'
+import { kimiWireGenerationTiming } from './kimi-wire-timing'
 
 interface ParsedKimiSession {
   sessionId: string
@@ -63,10 +66,9 @@ export class KimiWorkScanner implements AgentScanner {
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
-    const apiCalls: TokenUsageApiCall[] = []
-    if (!this.isAvailable()) return { records, sessions: [], apiCalls }
+    if (!this.isAvailable()) return { records, sessions: [], apiCalls: [] }
 
-    const titleBySessionId = new Map<string, string>()
+    const parsedFiles: ParsedKimiSession[] = []
     for (const source of getKimiWorkSessionsSources().filter((candidate) =>
       existsSync(candidate.dir),
     )) {
@@ -76,17 +78,16 @@ export class KimiWorkScanner implements AgentScanner {
       for (const file of wireFiles) {
         const resolved = resolveKimiSessionMeta(file, source)
         if (resolved === null) continue
-        const parsed = this.parseWireFile(file, source.dir, resolved, scanContext)
-        if (parsed.title) titleBySessionId.set(parsed.sessionId, parsed.title)
-        apiCalls.push(...parsed.apiCalls)
+        parsedFiles.push(this.parseWireFile(file, source.dir, resolved, scanContext))
       }
     }
+    const merged = mergeKimiWorkSessions(parsedFiles)
 
-    const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
-    applySessionTitles(sessions, titleBySessionId)
+    const sessions = buildSessionsFromApiCalls(this.agentName, merged.apiCalls)
+    applySessionTitles(sessions, merged.titleBySessionId)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
 
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls: merged.apiCalls }
   }
 
   private parseWireFile(
@@ -99,11 +100,16 @@ export class KimiWorkScanner implements AgentScanner {
     const sessionId = resolved.sessionId
     let sessionTitle = ''
     let projectPath = resolved.projectPath || ''
+    let turn: ConversationTurn | undefined
+    let completedStep: Record<string, unknown> | undefined
     try {
       for (const { line, lineIndex } of readUtf8Lines(file)) {
         if (line.length === 0) continue
         if (
           !line.includes('usage.record') &&
+          !line.includes('context.append_loop_event') &&
+          !line.includes('llm.request') &&
+          !line.includes('turn.steer') &&
           !mayContainSessionTitle(line) &&
           !mayContainProjectPath(line)
         )
@@ -115,11 +121,20 @@ export class KimiWorkScanner implements AgentScanner {
           continue
         }
         if (!isObject(obj)) continue
+        if (obj.type === 'llm.request' || obj.type === 'turn.prompt' || obj.type === 'turn.steer')
+          completedStep = undefined
+        if (obj.type === 'context.append_loop_event' && isObject(obj.event)) {
+          if (obj.event.type === 'step.end') completedStep = obj
+          else if (obj.event.type === 'step.start') completedStep = undefined
+        }
+        turn = kimiConversationTurn(turn, obj, `prompt:${relative(sessionsDir, file)}:${lineIndex}`)
         projectPath = projectPath || extractProjectPath(obj) || ''
         sessionTitle = keepFirstSessionTitle(sessionTitle, extractKimiTitle(obj))
         if (obj.type !== 'usage.record') continue
         // Kimi Work 的 session 级记录是 turn 明细的重复汇总，不能再次计入。
         if (obj.usageScope === 'session') continue
+        const timing = kimiWireGenerationTiming(completedStep, obj)
+        completedStep = undefined
 
         const model: string = typeof obj.model === 'string' ? obj.model : 'unknown'
         const time = toLong(obj.time)
@@ -144,6 +159,7 @@ export class KimiWorkScanner implements AgentScanner {
             : `${relative(sessionsDir, file).split(sep).join('/')}:${lineIndex}:${time}`
 
         const apiCall: TokenUsageApiCall = {
+          turn,
           agent: this.agentName,
           apiCallId: sourceId,
           sessionId,
@@ -153,6 +169,8 @@ export class KimiWorkScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
+          evidence: usageEvidence(),
+          ...(timing ? { generationTiming: timing } : {}),
           // inputOther 与 inputCacheRead 独立，total 包含 cacheRead/cacheWrite。
           ...buckets,
         }
@@ -165,6 +183,30 @@ export class KimiWorkScanner implements AgentScanner {
     const title = hasText(resolved.stateTitle) ? resolved.stateTitle : sessionTitle
     return { sessionId, title, apiCalls }
   }
+}
+
+/**
+ * 汇总多个 sessions 候选目录的解析结果。
+ *
+ * daimon-share 被重定向到自定义位置后，默认目录可能残留同一会话的迁移副本；
+ * 同一 apiCallId 只保留首次出现（候选源中重定向目录在前），避免新旧目录重复计量。
+ */
+export function mergeKimiWorkSessions(parsedFiles: readonly ParsedKimiSession[]): {
+  titleBySessionId: Map<string, string>
+  apiCalls: TokenUsageApiCall[]
+} {
+  const titleBySessionId = new Map<string, string>()
+  const apiCalls: TokenUsageApiCall[] = []
+  const seenApiCallIds = new Set<string>()
+  for (const parsed of parsedFiles) {
+    if (parsed.title) titleBySessionId.set(parsed.sessionId, parsed.title)
+    for (const call of parsed.apiCalls) {
+      if (seenApiCallIds.has(call.apiCallId)) continue
+      seenApiCallIds.add(call.apiCallId)
+      apiCalls.push(call)
+    }
+  }
+  return { titleBySessionId, apiCalls }
 }
 
 /** 将可能是 number/string 的值转为整数（对应 Java asLong(0)） */
@@ -289,9 +331,14 @@ function readKimiState(statePath: string): KimiStateMeta | null {
     custom !== null && typeof custom.conversationKey === 'string'
       ? custom.conversationKey.trim()
       : ''
-  const title = typeof obj.title === 'string' ? obj.title.trim() : ''
+  const title = typeof obj.title === 'string' ? stripKimiStateTitlePrefix(obj.title) : ''
   const projectPath = extractProjectPath(obj)
   return { title, conversationKey, sessionKind, ...(projectPath ? { projectPath } : {}) }
+}
+
+/** 新版桌面写入的 state 标题带 <meta .../> 系统前缀，仅保留用户可见文本。 */
+function stripKimiStateTitlePrefix(title: string): string {
+  return title.replace(/^(?:<meta\b[^>]*\/?>\s*)+/, '').trim()
 }
 
 function conversationDirSessionId(sessionDir: string): string {

@@ -3,8 +3,13 @@
  *
  * renderer 不保存业务域名；启动后只从主进程取得经过校验的唯一 API Base。
  */
-import axios from 'axios'
-import { AGENT_DEVICE_ID_HEADER, AGENT_USER_ID_HEADER } from '@shared/agent-client'
+import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import {
+  AGENT_DEVICE_CREDENTIAL_HEADER,
+  AGENT_DEVICE_ID_HEADER,
+  AGENT_USER_ID_HEADER,
+  DEVICE_CREDENTIAL_INVALID_CODE,
+} from '@shared/agent-client'
 
 export const ohmytokenApi = axios.create({
   baseURL: undefined,
@@ -12,17 +17,64 @@ export const ohmytokenApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-ohmytokenApi.interceptors.request.use(async (config) => {
+async function applyIdentityHeaders(config: InternalAxiosRequestConfig): Promise<void> {
   await baseURLReady()
   if (!ohmytokenApi.defaults.baseURL) throw new Error('com API Base 尚未就绪')
-  const identity = await window.api.getAgentRequestIdentity()
+  const result = await window.api.getAgentRequestIdentity()
+  if (result.status === 'unavailable') throw new Error(result.message)
+  const identity = result.identity
   config.headers.set(AGENT_DEVICE_ID_HEADER, identity.deviceId)
   if (identity.userId !== null) {
     config.headers.set(AGENT_USER_ID_HEADER, String(identity.userId))
   } else {
     config.headers.delete(AGENT_USER_ID_HEADER)
   }
+  if (identity.deviceCredential) {
+    config.headers.set(AGENT_DEVICE_CREDENTIAL_HEADER, identity.deviceCredential)
+  } else {
+    config.headers.delete(AGENT_DEVICE_CREDENTIAL_HEADER)
+  }
+}
+
+ohmytokenApi.interceptors.request.use(async (config) => {
+  await applyIdentityHeaders(config)
   return config
+})
+
+/** 并发 401 只触发一次重新登记；全部等待同一个换新完成后各自重试。 */
+let credentialRefresh: Promise<void> | null = null
+
+function refreshCredentialOnce(): Promise<void> {
+  if (!credentialRefresh) {
+    credentialRefresh = window.api
+      .refreshDeviceCredential()
+      .then((result) => {
+        if (result.status === 'unavailable') throw new Error(result.message)
+      })
+      .finally(() => {
+        credentialRefresh = null
+      })
+  }
+  return credentialRefresh
+}
+
+ohmytokenApi.interceptors.response.use(undefined, async (error: AxiosError) => {
+  const config = error.config as
+    (InternalAxiosRequestConfig & { credentialRetried?: boolean }) | undefined
+  const status = error.response?.status
+  const code: unknown = (error.response?.data as { code?: unknown } | undefined)?.code
+  if (
+    !config ||
+    config.credentialRetried ||
+    status !== 401 ||
+    code !== DEVICE_CREDENTIAL_INVALID_CODE
+  ) {
+    throw error
+  }
+  config.credentialRetried = true
+  await refreshCredentialOnce()
+  await applyIdentityHeaders(config)
+  return ohmytokenApi.request(config)
 })
 
 /**
@@ -65,3 +117,11 @@ export function baseURLReady(): Promise<void> {
 }
 
 export default ohmytokenApi
+
+export async function cloudApiUrl(
+  key: import('@shared/runtime-config').DesktopApiKey,
+  parameters?: import('@shared/runtime-config').DesktopApiParameters,
+): Promise<string> {
+  await baseURLReady()
+  return window.api.resolveApiUrl(key, parameters)
+}

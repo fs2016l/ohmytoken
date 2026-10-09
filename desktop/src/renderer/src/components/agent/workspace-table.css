@@ -1,0 +1,128 @@
+.usage-workspace-table {
+  table-layout: fixed;
+  min-width: 880px;
+}
+.usage-workspace-table th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--surface-container);
+  font-weight: 400;
+  font-size: 12px;
+  text-align: left;
+}
+.usage-workspace-table td {
+  height: 68px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  vertical-align: middle;
+  text-align: left;
+}
+.usage-workspace-table .favorite-cell {
+  width: 42px;
+  padding-inline: 8px;
+  text-align: center;
+}
+.usage-workspace-table .title-column {
+  padding-left: 36px;
+}
+.usage-workspace-table .identity-column {
+  width: 156px;
+}
+.usage-workspace-table .amount-column,
+.usage-workspace-table .calls-column {
+  width: 128px;
+}
+.usage-workspace-table .generation-column {
+  width: 140px;
+}
+.usage-workspace-table .recent-column {
+  width: 90px;
+}
+.usage-workspace-table tbody tr {
+  cursor: pointer;
+}
+.usage-workspace-table tbody tr:hover td {
+  background: var(--bg-hover);
+}
+.usage-workspace-table tbody tr.selected td {
+  background: var(--primary-soft);
+}
+.workspace-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.workspace-expand,
+.workspace-expand-spacer {
+  width: 16px;
+  flex: none;
+}
+.workspace-expand {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.usage-workspace-table .workspace-row-title {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.usage-workspace-table .workspace-row-title b,
+.usage-workspace-table .workspace-row-title small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.usage-workspace-table .workspace-row-title b {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.usage-workspace-table .workspace-row-title small {
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 18px;
+}
+.workspace-cell-lines {
+  display: grid;
+  gap: 0;
+  line-height: 20px;
+}
+.usage-workspace-table .recent-cell {
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.usage-workspace-table .child-row td,
+.usage-workspace-table .project-session-row td {
+  height: 58px;
+  background: var(--bg-base);
+}
+.usage-workspace-table .child-title,
+.usage-workspace-table .project-session-title {
+  padding-left: 24px;
+}
+.usage-workspace-table .table-saved-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

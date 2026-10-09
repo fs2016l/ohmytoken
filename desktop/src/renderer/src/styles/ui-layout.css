@@ -25,7 +25,7 @@
 #app .brand-mark {
   width: 40px;
   height: 40px;
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   border: 1px solid var(--primary-border);
   border-radius: 12px;
@@ -85,10 +85,42 @@
   background: var(--primary-soft);
   font-weight: var(--weight-semibold);
   box-shadow: inset 3px 0 var(--primary);
+  animation: nav-item-select 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 #app .nav-item.active .material-symbols-outlined {
   color: var(--primary);
+  animation: nav-icon-select 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes nav-item-select {
+  from {
+    opacity: 0.62;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes nav-icon-select {
+  0% {
+    transform: scale(0.82);
+  }
+  65% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app .nav-item.active,
+  #app .nav-item.active .material-symbols-outlined {
+    animation: none;
+  }
 }
 
 #app .side-footer {
@@ -208,7 +240,7 @@
 }
 
 #app .floating-window-toggle--active {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   border-color: var(--primary-border);
 }
@@ -284,7 +316,7 @@
 
 #app .avatar-trigger--logged-in,
 #app .header-avatar {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
   border-color: var(--primary-border);
 }
@@ -419,7 +451,7 @@
 }
 
 #app .notify-clear:hover {
-  color: var(--primary);
+  color: var(--primary-soft-text);
   background: var(--primary-soft);
 }
 
@@ -466,16 +498,7 @@
 
 /* Consistent page framing */
 
-#app
-  :is(
-    .dashboard-content,
-    .token-page,
-    .token-plan-page,
-    .coding-plan-page,
-    .agent-download-page,
-    .insight-page,
-    .settings-page
-  ) {
+#app :is(.dashboard-content, .token-page, .token-plan-page, .settings-page) {
   width: 100%;
   min-width: 0;
   max-width: 1500px;
@@ -744,64 +767,6 @@
   padding: 11px 13px;
   line-height: 1.55;
   resize: vertical;
-}
-
-/* Message banner */
-
-#app .message-host {
-  min-height: 40px;
-}
-
-#app .message-banner {
-  min-height: 40px;
-  gap: 5px;
-  padding: 3px 5px;
-  background: color-mix(in srgb, var(--message-color) 7%, var(--surface-low));
-  border-color: color-mix(in srgb, var(--message-color) 24%, var(--border));
-  border-radius: 10px;
-  box-shadow: none;
-}
-
-#app .message-main {
-  gap: 9px;
-}
-
-#app .message-main img,
-#app .message-icon {
-  flex-basis: 30px;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-}
-
-#app .message-copy strong {
-  color: var(--text);
-  font-size: 12px;
-  font-weight: var(--weight-semibold);
-  line-height: 16px;
-}
-
-#app .message-copy small {
-  color: var(--text-soft);
-  font-size: var(--type-caption);
-  line-height: var(--leading-caption);
-}
-
-#app .message-action {
-  min-height: 30px;
-  height: 30px;
-  padding: 0 10px;
-  color: white;
-  border-radius: 8px;
-  font-size: var(--type-caption);
-  font-weight: var(--weight-semibold);
-}
-
-#app .message-pager button,
-#app .message-detail {
-  width: 26px;
-  height: 28px;
-  border-radius: 8px;
 }
 
 /*

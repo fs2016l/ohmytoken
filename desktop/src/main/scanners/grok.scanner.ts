@@ -1,5 +1,6 @@
 /** 读取 Grok 本地会话与推理日志。 */
 import { existsSync, statSync } from 'fs'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -84,6 +85,10 @@ export class GrokScanner implements AgentScanner {
     apiCalls.push(...reconcileGrokSources(unifiedCalls, updateCalls))
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
+    for (const session of sessions) {
+      const title = sessionMetaById.get(session.sessionId)?.title
+      if (title) session.title = title
+    }
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
     return { records, sessions, apiCalls }
   }
@@ -313,9 +318,45 @@ export class GrokScanner implements AgentScanner {
         sessionMeta?.projectPath,
       )
       if (seen.has(apiCall.apiCallId)) continue
+      apiCall.evidence = usageEvidence({
+        modelSource: liveModelBySession.has(sessionId) ? 'response' : 'session',
+        bucketQuality: cachedRaw <= prompt && reasoningRaw <= completion ? 'verified' : 'uncertain',
+      })
+      apiCall.generationTiming = grokGenerationTiming(ctx, timestampValue, completion)
       seen.add(apiCall.apiCallId)
       if (!isApiCallInWindow(apiCall, context)) continue
       apiCalls.push(apiCall)
     }
   }
+}
+
+function grokGenerationTiming(
+  context: Record<string, unknown>,
+  timestamp: string | number,
+  generatedTokens: number,
+): TokenUsageApiCall['generationTiming'] {
+  const completedAtMs = typeof timestamp === 'string' ? Date.parse(timestamp) : 0
+  const timeToFirstTokenMs = measuredNumber(context.ttft_ms)
+  const modelElapsedMs = measuredNumber(context.model_elapsed_ms)
+  // 多次尝试的累计 model elapsed 与单次 TTFT 不一定共享起点。
+  if (
+    context.attempts !== 1 ||
+    !Number.isFinite(completedAtMs) ||
+    completedAtMs <= 0 ||
+    timeToFirstTokenMs === undefined ||
+    modelElapsedMs === undefined ||
+    modelElapsedMs < timeToFirstTokenMs
+  )
+    return undefined
+  return {
+    completedAtMs,
+    timeToFirstTokenMs,
+    streamDurationMs: modelElapsedMs - timeToFirstTokenMs,
+    // Grok completion_tokens 已包含 reasoning；不要再次相加。
+    generatedTokens,
+  }
+}
+
+function measuredNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }

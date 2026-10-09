@@ -15,6 +15,8 @@ import ProjectTrendPanel from '../components/agent/ProjectTrendPanel.vue'
 import ModelTable from '../components/agent/ModelTable.vue'
 import DetailModal from '../components/agent/DetailModal.vue'
 import PageIntro from '../components/base/PageIntro.vue'
+import UsageCostPanel from '../components/agent/UsageCostPanel.vue'
+import TurnActivityPanel from '../components/agent/TurnActivityPanel.vue'
 
 const { tr, label } = useI18n()
 
@@ -28,6 +30,7 @@ const {
   modelStats,
   projectOverview,
   isScanning,
+  detailsPending,
   scanResult,
   lastScanTime,
   comparisons,
@@ -107,123 +110,149 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="dashboard-content">
-    <PageIntro
-      icon="monitoring"
-      :eyebrow="label('LOCAL USAGE', '本地用量')"
-      :title="tr('pageTitle')"
-      :subtitle="tr('pageSubtitle')"
-    />
+  <div class="agent-page-root">
+    <main class="dashboard-content">
+      <PageIntro
+        icon="monitoring"
+        :eyebrow="label('LOCAL USAGE', '本地用量')"
+        :title="tr('pageTitle')"
+        :subtitle="tr('pageSubtitle')"
+      />
 
-    <StatCardsGrid
-      :overview-fixed="overviewFixed"
-      :total-agents="totalAgents"
-      :total-models="totalModels"
-      :today-usage="todayUsage"
-      :week-usage="weekUsage"
-      :month-usage="monthUsage"
-      :comparisons="comparisons"
-    />
+      <StatCardsGrid
+        :overview-fixed="overviewFixed"
+        :total-agents="totalAgents"
+        :total-models="totalModels"
+        :today-usage="todayUsage"
+        :week-usage="weekUsage"
+        :month-usage="monthUsage"
+        :comparisons="comparisons"
+      />
 
-    <ControlBar
-      v-model:date-from="dateFrom"
-      v-model:date-to="dateTo"
-      :quick-range="quickRange"
-      :last-scan-display="lastScanDisplay"
-      :is-scanning="isScanning"
-      @set-quick-range="setQuickRange"
-      @scan="handleScan"
-    />
+      <ControlBar
+        v-model:date-from="dateFrom"
+        v-model:date-to="dateTo"
+        :quick-range="quickRange"
+        :last-scan-display="lastScanDisplay"
+        :is-scanning="isScanning"
+        @set-quick-range="setQuickRange"
+        @scan="handleScan"
+      />
 
-    <ScanErrorBanner :scan-result="scanResult" :last-scan-time="lastScanTime" />
+      <ScanErrorBanner :scan-result="scanResult" :last-scan-time="lastScanTime" />
+      <UsageCostPanel
+        :from="dateFrom"
+        :to="dateTo"
+        :scanning="isScanning"
+        :pending="detailsPending"
+        :revision="lastScanTime + ':' + (overview?.grandTotal ?? 0)"
+        @recover="handleScan('incremental')"
+      />
 
-    <section class="chart-grid primary-charts">
-      <AgentPiePanel
-        :overview="overview"
+      <TurnActivityPanel
+        :from="dateFrom"
+        :to="dateTo"
+        :pending="detailsPending"
+        :revision="lastScanTime + ':' + (overview?.grandTotal ?? 0)"
+      />
+
+      <section class="chart-grid primary-charts">
+        <AgentPiePanel
+          :overview="overview"
+          @open-agent="showAgentDetail"
+          @show-all-user-sessions="() => showAllUserSessions('agent')"
+          @show-all-api-records="() => showAllApiRecords('agent')"
+        />
+        <AgentTrendPanel
+          :daily-stats="dailyStats"
+          :hourly-agent-stats="hourlyAgentStats"
+          :single-day-range="singleDayRange"
+          :date-from="dateFrom"
+        />
+      </section>
+
+      <section class="chart-grid secondary-charts">
+        <ModelPiePanel
+          :model-stats="modelStats"
+          @open-model="showModelDetail"
+          @show-all-user-sessions="() => showAllUserSessions('model')"
+          @show-all-api-records="() => showAllApiRecords('model')"
+        />
+        <ModelTrendPanel
+          :daily-model-stats="dailyModelStats"
+          :hourly-model-stats="hourlyModelStats"
+          :model-stats="modelStats"
+          :single-day-range="singleDayRange"
+          :date-from="dateFrom"
+        />
+      </section>
+
+      <div v-if="detailsPending" class="panel project-pending" role="status">
+        {{
+          label(
+            'Project usage will appear after the scan finishes.',
+            '项目用量将在扫描完成后自动显示。',
+          )
+        }}
+      </div>
+      <section v-else class="chart-grid project-charts">
+        <ProjectPiePanel
+          :overview="projectOverview"
+          @open-project="showProjectDetail"
+          @projects-changed="refreshProjects"
+          @show-all-user-sessions="
+            () => showAllUserSessions('project', { trackedProjectsOnly: true })
+          "
+          @show-all-api-records="() => showAllApiRecords('project', { trackedProjectsOnly: true })"
+        />
+        <ProjectTrendPanel :overview="projectOverview" :single-day-range="singleDayRange" />
+      </section>
+
+      <ModelTable
+        v-model:model-filter="modelFilter"
+        :models="filteredModels"
         @open-agent="showAgentDetail"
-        @show-all-user-sessions="() => showAllUserSessions('agent')"
-        @show-all-api-records="() => showAllApiRecords('agent')"
       />
-      <AgentTrendPanel
-        :daily-stats="dailyStats"
-        :hourly-agent-stats="hourlyAgentStats"
-        :single-day-range="singleDayRange"
-        :date-from="dateFrom"
-      />
-    </section>
+    </main>
 
-    <section class="chart-grid secondary-charts">
-      <ModelPiePanel
-        :model-stats="modelStats"
-        @open-model="showModelDetail"
-        @show-all-user-sessions="() => showAllUserSessions('model')"
-        @show-all-api-records="() => showAllApiRecords('model')"
-      />
-      <ModelTrendPanel
-        :daily-model-stats="dailyModelStats"
-        :hourly-model-stats="hourlyModelStats"
-        :model-stats="modelStats"
-        :single-day-range="singleDayRange"
-        :date-from="dateFrom"
-      />
-    </section>
-
-    <section class="chart-grid project-charts">
-      <ProjectPiePanel
-        :overview="projectOverview"
-        @open-project="showProjectDetail"
-        @projects-changed="refreshProjects"
-        @show-all-user-sessions="
-          () => showAllUserSessions('project', { trackedProjectsOnly: true })
-        "
-        @show-all-api-records="() => showAllApiRecords('project', { trackedProjectsOnly: true })"
-      />
-      <ProjectTrendPanel :overview="projectOverview" :single-day-range="singleDayRange" />
-    </section>
-
-    <ModelTable
-      v-model:model-filter="modelFilter"
-      :models="filteredModels"
-      @open-agent="showAgentDetail"
+    <DetailModal
+      :open="showModal"
+      :mode="modalMode"
+      :selected-agent="selectedAgent"
+      :selected-agent-name="selectedAgentName"
+      :selected-model="selectedModel"
+      :agent-model-data="agentModelData"
+      :model-agent-data="modelAgentData"
+      :selected-project-id="selectedProjectId"
+      :selected-project-name="selectedProjectName"
+      :project-detail-dimension="projectDetailDimension"
+      :project-detail-data="projectDetailData"
+      :loading="isLoadingDetail || detailsPending"
+      :scan-pending="detailsPending"
+      :detail-level="detailLevel"
+      :session-rows="sessionRows"
+      :api-call-rows="apiCallRows"
+      :selected-session-id="selectedSessionId"
+      :session-search-query="sessionSearchQuery"
+      :detail-page="detailPage"
+      :detail-page-size="detailPageSize"
+      :detail-total="detailTotal"
+      :model-color="modelColor"
+      @show-sessions-for-agent-model="showSessionsForAgentModel"
+      @show-sessions-for-model-agent="showSessionsForModelAgent"
+      @set-project-detail-dimension="setProjectDetailDimension"
+      @show-sessions-for-project-dimension="showSessionsForProjectDimension"
+      @show-api-calls-for-session="showApiCallsForSession"
+      @show-filtered-user-sessions="showUserSessionsForCurrentSelection"
+      @show-filtered-api-records="showApiRecordsForCurrentSelection"
+      @change-detail-page="changeDetailPage"
+      @change-detail-page-size="changeDetailPageSize"
+      @update-session-search="setSessionSearchQuery"
+      @back-to-detail-summary="backToDetailSummary"
+      @back-to-session-list="backToSessionList"
+      @close="closeModal"
     />
-  </main>
-
-  <DetailModal
-    :open="showModal"
-    :mode="modalMode"
-    :selected-agent="selectedAgent"
-    :selected-agent-name="selectedAgentName"
-    :selected-model="selectedModel"
-    :agent-model-data="agentModelData"
-    :model-agent-data="modelAgentData"
-    :selected-project-id="selectedProjectId"
-    :selected-project-name="selectedProjectName"
-    :project-detail-dimension="projectDetailDimension"
-    :project-detail-data="projectDetailData"
-    :loading="isLoadingDetail"
-    :detail-level="detailLevel"
-    :session-rows="sessionRows"
-    :api-call-rows="apiCallRows"
-    :selected-session-id="selectedSessionId"
-    :session-search-query="sessionSearchQuery"
-    :detail-page="detailPage"
-    :detail-page-size="detailPageSize"
-    :detail-total="detailTotal"
-    :model-color="modelColor"
-    @show-sessions-for-agent-model="showSessionsForAgentModel"
-    @show-sessions-for-model-agent="showSessionsForModelAgent"
-    @set-project-detail-dimension="setProjectDetailDimension"
-    @show-sessions-for-project-dimension="showSessionsForProjectDimension"
-    @show-api-calls-for-session="showApiCallsForSession"
-    @show-filtered-user-sessions="showUserSessionsForCurrentSelection"
-    @show-filtered-api-records="showApiRecordsForCurrentSelection"
-    @change-detail-page="changeDetailPage"
-    @change-detail-page-size="changeDetailPageSize"
-    @update-session-search="setSessionSearchQuery"
-    @back-to-detail-summary="backToDetailSummary"
-    @back-to-session-list="backToSessionList"
-    @close="closeModal"
-  />
+  </div>
 </template>
 
 <style scoped>
@@ -266,8 +295,19 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
+.agent-page-root {
+  width: 100%;
+  min-width: 0;
+}
+
 .dashboard-content {
   flex: 1;
+}
+
+.project-pending {
+  padding: 24px;
+  margin-bottom: 20px;
+  color: var(--text-secondary);
 }
 
 .chart-grid {

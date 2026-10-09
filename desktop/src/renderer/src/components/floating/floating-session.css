@@ -1,0 +1,213 @@
+.session-card.floating-card {
+  --floating-card-shadow: none;
+}
+.session-card {
+  position: relative;
+  padding: 6px 10px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+  box-sizing: border-box;
+}
+.session-card--pinned {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.floating-session-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 24px;
+  grid-template-rows: minmax(24px, auto) auto;
+  gap: 2px 8px;
+  align-items: center;
+}
+.session-title {
+  appearance: none;
+  justify-self: start;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  font-family: inherit;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 20px;
+  cursor: pointer;
+  transition: color var(--motion-hover);
+}
+.session-title:hover,
+.session-title:focus-visible {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.session-title:hover :deep(.rolling-text__line),
+.session-title:focus-visible :deep(.rolling-text__line) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.session-title:focus-visible {
+  outline: 2px solid var(--primary-border);
+  outline-offset: 3px;
+}
+.session-favorite {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  grid-column: 3;
+  grid-row: 1;
+}
+.floating-session-summary > .animated-number {
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.session-metadata {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+.session-meta {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.session-agent {
+  flex: none;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-meta-divider {
+  color: var(--border);
+}
+.session-meta :deep(.rolling-text) {
+  flex: 1;
+  overflow: hidden;
+}
+.session-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  white-space: nowrap;
+}
+.session-delta {
+  color: var(--primary);
+}
+.session-expanded {
+  margin-top: 10px;
+}
+.session-models {
+  margin: 0 0 8px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.session-models > span {
+  margin-inline-end: 6px;
+  color: var(--text-muted);
+}
+.token-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.token-cell {
+  min-width: 0;
+}
+.token-cell > span:not(.session-cost) {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.token-cell > strong {
+  display: block;
+  font-family: var(--font-number);
+  font-size: 12px;
+  font-weight: 500;
+}
+.token-cell--cost {
+  grid-column: 1 / -1;
+}
+.session-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 8px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.session-stale {
+  color: var(--warning);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.session-expanded :deep(.copy-text) {
+  font-size: 11px;
+  padding: 8px;
+}
+.session-card--dragging {
+  background: var(--primary-soft);
+  box-shadow: none;
+  translate: none;
+  transition: none;
+}
+.session-card--dragging > * {
+  visibility: hidden;
+}
+.session-card-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4000;
+  margin: 0;
+  background: var(--surface);
+  box-shadow: var(--floating-card-shadow-hover);
+  outline: 1px solid var(--border);
+  translate: none;
+  transition: none;
+  transform-origin: top left;
+  pointer-events: none;
+  will-change: transform;
+}
+.session-card-drag-preview * {
+  pointer-events: none !important;
+}
+.session-card--drop-before::after,
+.session-card--drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+  pointer-events: none;
+}
+.session-card--drop-before::after {
+  top: -3px;
+}
+.session-card--drop-after::after {
+  bottom: -3px;
+}

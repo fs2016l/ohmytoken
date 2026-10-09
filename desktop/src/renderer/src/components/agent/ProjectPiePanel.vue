@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onDeactivated, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import * as echarts from '../../utils/charts'
+import { chartMotion } from '../../config/motion'
 import type { ProjectUsageOverview } from '@shared/models'
 import { useI18n } from '../../i18n/useI18n'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
@@ -15,7 +16,6 @@ const emit = defineEmits<{
   openProject: [projectId: string]
   projectsChanged: []
   showAllUserSessions: []
-  showAllApiRecords: []
 }>()
 
 const PROJECT_COLORS = ['#8b5cf6', '#38bdf8', '#34d399', '#fbbf24', '#fb7185', '#e879f9', '#818cf8']
@@ -59,11 +59,11 @@ function projectName(projectId: string): string {
 function renderChart(): void {
   if (!chartRef.value) return
   showEmpty(chartRef.value, null)
-  chart?.dispose()
-  chart = null
   if (chartRef.value.clientWidth === 0) return
 
   if (projectsWithData.value.length === 0) {
+    chart?.dispose()
+    chart = null
     showEmpty(
       chartRef.value,
       props.overview.projects.length === 0 ? tr('noProjects') : tr('noProjectData'),
@@ -75,96 +75,106 @@ function renderChart(): void {
     legend.isSelected(project.projectId),
   )
   if (visibleProjects.length === 0) {
+    chart?.dispose()
+    chart = null
     showEmpty(chartRef.value, tr('allProjectsHidden'))
     return
   }
 
-  chart = echarts.init(chartRef.value)
+  chart ??= echarts.init(chartRef.value)
   const cc = getChartColors()
   const chartText = getChartText()
   const total = visibleProjects.reduce((sum, project) => sum + project.totalTokens, 0)
   const data = visibleProjects.map((project) => ({
+    id: project.projectId,
     name: project.name,
     value: project.totalTokens,
     projectId: project.projectId,
     itemStyle: { color: projectColor(project.projectId) },
   }))
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item',
-      renderMode: 'richText',
-      backgroundColor: cc.tooltipBg,
-      borderColor: cc.tooltipBorder,
-      textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
-      padding: [10, 12],
-      formatter: (value: unknown) => {
-        const item = value as { name?: string; value?: number; percent?: number }
-        return `${item.name || ''}: ${formatTokens(item.value || 0)} (${(item.percent || 0).toFixed(1)}%)\n${tr('clickToViewDetails')}`
-      },
-    },
-    legend: { show: false },
-    graphic: [
-      {
-        type: 'group',
-        left: 'center',
-        top: '40%',
-        cursor: 'default',
-        children: [
-          {
-            type: 'text',
-            left: 'center',
-            cursor: 'default',
-            style: {
-              text: formatTokens(total),
-              fill: cc.centerValue,
-              fontFamily: chartText.fontFamily,
-              fontSize: 18,
-              fontWeight: 600,
-              textAlign: 'center',
-            },
-          },
-          {
-            type: 'text',
-            left: 'center',
-            top: 24,
-            cursor: 'default',
-            style: {
-              text: getTotalLabel(),
-              fill: cc.centerLabel,
-              fontFamily: chartText.fontFamily,
-              fontSize: 12,
-              textAlign: 'center',
-            },
-          },
-        ],
-      },
-    ],
-    series: [
-      {
-        type: 'pie',
-        cursor: 'pointer',
-        radius: ['48%', '72%'],
-        center: ['50%', '48%'],
-        data,
-        minAngle: 8,
-        label: { show: false },
-        itemStyle: { borderRadius: 4, borderColor: cc.pieBorder, borderWidth: 2 },
-        emphasis: {
-          itemStyle: { shadowBlur: 18, shadowColor: cc.pieEmphasisShadow },
-          scaleSize: 5,
+  chart.setOption(
+    {
+      ...chartMotion(reduced.value),
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        renderMode: 'richText',
+        backgroundColor: cc.tooltipBg,
+        borderColor: cc.tooltipBorder,
+        textStyle: { ...chartText, color: cc.tooltipText, fontSize: 12 },
+        padding: [10, 12],
+        formatter: (value: unknown) => {
+          const item = value as { name?: string; value?: number; percent?: number }
+          return `${item.name || ''}: ${formatTokens(item.value || 0)} (${(item.percent || 0).toFixed(1)}%)\n${tr('clickToViewDetails')}`
         },
       },
-    ],
-  })
+      legend: { show: false },
+      graphic: [
+        {
+          type: 'group',
+          left: 'center',
+          top: '40%',
+          cursor: 'default',
+          children: [
+            {
+              type: 'text',
+              left: 'center',
+              cursor: 'default',
+              style: {
+                text: formatTokens(total),
+                fill: cc.centerValue,
+                fontFamily: chartText.fontFamily,
+                fontSize: 18,
+                fontWeight: 600,
+                textAlign: 'center',
+              },
+            },
+            {
+              type: 'text',
+              left: 'center',
+              top: 24,
+              cursor: 'default',
+              style: {
+                text: getTotalLabel(),
+                fill: cc.centerLabel,
+                fontFamily: chartText.fontFamily,
+                fontSize: 12,
+                textAlign: 'center',
+              },
+            },
+          ],
+        },
+      ],
+      series: [
+        {
+          id: 'distribution',
+          type: 'pie',
+          cursor: 'pointer',
+          radius: ['48%', '72%'],
+          center: ['50%', '48%'],
+          data,
+          minAngle: 8,
+          label: { show: false },
+          itemStyle: { borderRadius: 4, borderColor: cc.pieBorder, borderWidth: 2 },
+          emphasis: {
+            itemStyle: { shadowBlur: 18, shadowColor: cc.pieEmphasisShadow },
+            scaleSize: 5,
+          },
+        },
+      ],
+    },
+    { replaceMerge: ['series'] },
+  )
+  chart.off('click')
   chart.on('click', (params: unknown) => {
     const projectId = (params as { data?: { projectId?: string } }).data?.projectId
     if (projectId) emit('openProject', projectId)
   })
 }
 
-const { requestRender } = useChartRenderLifecycle(chartRef, {
+const { requestRender, reduced } = useChartRenderLifecycle(chartRef, {
   render: renderChart,
+  chart: () => chart,
   resize: () => chart?.resize(),
   dispose: () => {
     chart?.dispose()
@@ -212,16 +222,6 @@ watch(
         >
           <span class="material-symbols-outlined">account_tree</span>
           <span>{{ tr('allUserSessions') }}</span>
-        </button>
-        <button
-          class="panel-action-btn"
-          type="button"
-          :title="tr('viewAllApiRecords')"
-          :aria-label="tr('viewAllApiRecords')"
-          @click="emit('showAllApiRecords')"
-        >
-          <span class="material-symbols-outlined">dataset</span>
-          <span>{{ tr('allApiRecords') }}</span>
         </button>
         <LegendVisibilityButton :state="legendVisibilityState" @toggle="legend.toggleAll" />
       </div>

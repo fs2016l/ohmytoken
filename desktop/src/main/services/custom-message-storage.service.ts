@@ -1,3 +1,4 @@
+import type { DesktopMessageSyncResult } from '../../shared/desktop-api'
 import type {
   CustomMessageData,
   CustomMessageEvent,
@@ -92,7 +93,6 @@ function normalizeMessage(value: unknown): CustomMessageData | null {
     contentEn: optionalString(input.contentEn),
     level,
     displayScope,
-    showInNotificationCenter: input.showInNotificationCenter !== false,
     images: normalizeImages(input.images),
     priority: Number.isFinite(priority) ? priority : 0,
     displayDurationSeconds: Number.isFinite(duration) ? duration : DEFAULT_DURATION_SECONDS,
@@ -148,21 +148,6 @@ export function cacheCustomMessages(
   return messages
 }
 
-export function applyCustomSseMessage(value: Record<string, unknown>): void {
-  const operation = optionalString(value.operation)
-  const id = Number(value.id)
-  if (operation === 'offline' || operation === 'delete') {
-    if (Number.isSafeInteger(id) && id > 0) deactivateCustomMessage(id)
-    return
-  }
-  if (operation !== 'published') return
-  const message = normalizeMessage(value)
-  if (!message) return
-  const placement: CustomMessagePlacement =
-    message.displayScope === 'floating' ? 'floating' : 'main'
-  cacheCustomMessages([message], placement)
-}
-
 export function listCachedCustomMessages(placement: CustomMessagePlacement): CustomMessageData[] {
   const rows = openDatabase()
     .prepare(
@@ -183,40 +168,24 @@ export function listCachedCustomMessages(placement: CustomMessagePlacement): Cus
   return result
 }
 
-export function reconcileCustomMessages(
-  placement: CustomMessagePlacement,
-  activeMessageUids: string[],
-): void {
+/** Replace both placements in one SQLite transaction, including offline/deleted versions. */
+export function replaceCustomMessageSnapshot(snapshot: DesktopMessageSyncResult): void {
+  const all = [...snapshot.mainMessages, ...snapshot.floatingMessages]
+  if (all.some((value) => !normalizeMessage(value))) throw new Error('公告内容格式无效')
   const db = openDatabase()
-  const valid = [...new Set(activeMessageUids.filter((uid) => typeof uid === 'string' && uid))]
-  const scopeSql = "(display_scope = 'both' OR display_scope = ?)"
-  if (valid.length === 0) {
-    db.prepare(`UPDATE custom_messages SET active = 0, updated_at = ? WHERE ${scopeSql}`).run(
-      Date.now(),
-      placement,
-    )
-    return
-  }
-  const placeholders = valid.map(() => '?').join(',')
-  const now = Date.now()
-  const deactivateMissing = db.prepare(
-    `UPDATE custom_messages SET active = 0, updated_at = ?
-     WHERE ${scopeSql} AND message_uid NOT IN (${placeholders})`,
-  )
-  const reactivateValid = db.prepare(
-    `UPDATE custom_messages SET active = 1, updated_at = ?
-     WHERE ${scopeSql} AND active = 0 AND message_uid IN (${placeholders})`,
-  )
   db.transaction(() => {
-    deactivateMissing.run(now, placement, ...valid)
-    reactivateValid.run(now, placement, ...valid)
+    cacheCustomMessages(snapshot.mainMessages, 'main')
+    cacheCustomMessages(snapshot.floatingMessages, 'floating')
+    const uids = [...new Set(all.map((message) => message.messageUid))]
+    if (uids.length) {
+      db.prepare(
+        `UPDATE custom_messages SET active = 0, updated_at = ?
+        WHERE message_uid NOT IN (${uids.map(() => '?').join(',')})`,
+      ).run(Date.now(), ...uids)
+    } else {
+      db.prepare('UPDATE custom_messages SET active = 0, updated_at = ?').run(Date.now())
+    }
   })()
-}
-
-export function deactivateCustomMessage(messageId: number): void {
-  openDatabase()
-    .prepare('UPDATE custom_messages SET active = 0, updated_at = ? WHERE message_id = ?')
-    .run(Date.now(), messageId)
 }
 
 export function queueCustomMessageReceipt(

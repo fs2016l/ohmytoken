@@ -14,6 +14,18 @@
 
 ---
 
+## 许可与商业授权
+
+本版本采用 [Oh My Token 源码可用许可证 1.0](LICENSE)。个人和企业内部使用、修改及免费分享不收取软件许可费。
+**转售软件、销售修改版、以购买付费产品或服务为条件提供软件，以及收费向第三方提供软件全部或主要功能的在线服务，必须先取得许可方的书面授权。**
+**修改版对外分发或提供在线服务时，必须免费公开对应完整源码，并将有权许可的衍生修改按同一许可提供；内部自用无需公开。**
+取得销售或收费托管授权仍须履行源码义务。真实技术服务的允许范围见许可证第 4 条。
+
+这不是 MIT 或 OSI 认可的开源许可证。已经按 MIT 授出的权利及第三方组件的独立许可证继续有效，详见 [许可范围](LICENSE_SCOPE.md) 和 [历史 MIT 声明](LICENSE-MIT-LEGACY)。
+具体使用场景及授权方式见 [商业授权说明](COMMERCIAL_LICENSE.md)。商业授权须由许可方另行书面确认，付款或捐赠不自动构成授权；官方入口为 [Oh My Token 官网](https://ohmytoken.net)。
+
+第三方组件的版本、来源和许可证原文见 [第三方开源软件声明](desktop/third-party-licenses/THIRD_PARTY_NOTICES.md)，也可在应用“设置 → 关于与更新 → 开源软件声明”中离线查看。
+
 ## 开始使用
 
 1. 前往 [Oh My Token 官网](https://ohmytoken.net) 获取应用。
@@ -89,5 +101,6 @@ Oh My Token 可以统计多种Agent的token用量。
   <br><br>
   <kbd>Zed Agent</kbd>&nbsp;&nbsp;
   <kbd>Goose</kbd>&nbsp;&nbsp;
-  <kbd>Hermes</kbd>
+  <kbd>Hermes</kbd>&nbsp;&nbsp;
+  <kbd>DeepSeek Harness</kbd>
 </p>

@@ -11,7 +11,7 @@
  * totalTokens = input + output + cacheRead + cacheWrite + reasoning（MiniMax 官方 raw.total 口径）
  * 注意：cache_read_tokens 是独立列，未含在 input_tokens 中，与 Codex 不同，不可照搬 input+output 口径
  */
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -19,9 +19,10 @@ import type {
   TokenUsageApiCall,
   TokenUsageRecord,
 } from './types'
-import { getMavisDbCandidates } from '../lib/paths'
+import { getMavisConfigCandidates, getMavisDbCandidates } from '../lib/paths'
 import { formatDateFromMs } from '../lib/date-utils'
 import Database from 'better-sqlite3'
+import { usageEvidence } from '../cost/usage-evidence'
 import {
   applySessionTitles,
   buildRecordsFromSessions,
@@ -29,13 +30,12 @@ import {
   hourFromTimestamp,
   timestampsFromValue,
 } from './detail-utils'
-import {
-  filterApiCallsForContext,
-  isIncrementalContext,
-  normalizeScanContext,
-} from './incremental-utils'
+import { isIncrementalContext, normalizeScanContext } from './incremental-utils'
 import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
+import { readMiniMaxLatestGenerations } from './minimax-generation-timing'
+import { latestGeneration } from '../../shared/generation-timing'
+import type { LatestGeneration } from '../../shared/models'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -43,7 +43,12 @@ type DbValue = number | string | bigint | Uint8Array | null
 type SessionMetadata = {
   titles: Map<string, string>
   projectPaths: Map<string, string>
+  /** 旧版 sessions.session_type 的用户白名单；null 表示不按白名单过滤。 */
   userSessionIds: Set<string> | null
+  /** 新版 record.origin 的显式非用户会话；null 表示不按黑名单过滤。 */
+  nonUserSessionIds: Set<string> | null
+  /** 最近变化或仍在运行的会话；消息写入不一定推进会话更新时间。 */
+  timingSessionIds: Set<string>
 }
 
 type UsageTableName = 'token_usage' | 'local_runtime_token_usage'
@@ -75,6 +80,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
     const titleBySessionId = new Map<string, string>()
+    const generationBySessionId = new Map<string, LatestGeneration>()
     const dbPaths = this.resolveDbPaths()
     if (dbPaths.length === 0) return { records, sessions: [], apiCalls }
 
@@ -83,13 +89,24 @@ export class MiniMaxCodeScanner implements AgentScanner {
     let recognizedDatabaseCount = 0
     for (const dbPath of dbPaths) {
       try {
-        const result = this.scanDatabase(dbPath, scanContext, dedup)
+        const result = this.scanDatabase(
+          dbPath,
+          scanContext,
+          dedup,
+          readMiniMaxConfiguredModel(dbPath),
+        )
         if (!result.recognized) {
           failures.push(`${dbPath}: 未找到兼容的用量表`)
           continue
         }
         recognizedDatabaseCount += 1
         apiCalls.push(...result.apiCalls)
+        for (const sample of result.latestGenerations) {
+          generationBySessionId.set(
+            sample.sessionId,
+            latestGeneration(generationBySessionId.get(sample.sessionId), sample)!,
+          )
+        }
         for (const [sessionId, title] of result.titles) {
           if (!titleBySessionId.has(sessionId)) titleBySessionId.set(sessionId, title)
         }
@@ -101,16 +118,22 @@ export class MiniMaxCodeScanner implements AgentScanner {
     if (recognizedDatabaseCount === 0) {
       throw new Error(`MiniMax Code 扫描失败: ${failures.join('; ')}`)
     }
+    if (scanContext.strict && failures.length)
+      throw new Error(`MiniMax Code 来源读取不完整: ${failures.join('; ')}`)
 
-    const batchApiCalls = filterApiCallsForContext(apiCalls, scanContext)
+    // 用量仍按原请求时间进入批次；计时独立回填，不把历史 API 重播到用量窗口。
+    const batchApiCalls = apiCalls
     const sessions = buildSessionsFromApiCalls(this.agentName, batchApiCalls)
     applySessionTitles(sessions, titleBySessionId)
+    for (const session of sessions)
+      session.latestGeneration = generationBySessionId.get(session.sessionId)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
 
     return {
       records,
       sessions,
       apiCalls: batchApiCalls,
+      latestGenerations: [...generationBySessionId.values()],
     }
   }
 
@@ -118,9 +141,16 @@ export class MiniMaxCodeScanner implements AgentScanner {
     dbPath: string,
     scanContext: ScannerScanContext,
     dedup: MiniMaxDedupState,
-  ): { recognized: boolean; apiCalls: TokenUsageApiCall[]; titles: Map<string, string> } {
+    configuredModel: string,
+  ): {
+    recognized: boolean
+    apiCalls: TokenUsageApiCall[]
+    titles: Map<string, string>
+    latestGenerations: LatestGeneration[]
+  } {
     const apiCalls: TokenUsageApiCall[] = []
     const titles = new Map<string, string>()
+    let latestGenerations: LatestGeneration[] = []
     const pendingContentFingerprints = new Set<string>()
     const pendingIdentityFingerprints = new Set<string>()
     const sourceKey = databaseSourceKey(dbPath)
@@ -130,7 +160,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
       db.exec('PRAGMA busy_timeout = 5000')
 
       const usageTable = resolveUsageTable(db)
-      if (!usageTable) return { recognized: false, apiCalls, titles }
+      if (!usageTable) return { recognized: false, apiCalls, titles, latestGenerations }
       const callIdPrefix = databaseCallIdPrefix(dbPath, usageTable)
 
       // 动态检测列
@@ -178,13 +208,14 @@ export class MiniMaxCodeScanner implements AgentScanner {
 
       const sessionMetadata =
         usageTable === 'local_runtime_token_usage'
-          ? readRuntimeSessionMetadata(db)
+          ? readRuntimeSessionMetadata(db, scanContext)
           : readLegacySessionMetadata(db)
 
       // 动态构建 SELECT
       const selectCols: string[] = ['rowid AS __rowid', 'ts']
       if (hasModel) selectCols.push('model')
       if (hasSessionId) selectCols.push('session_id')
+      if (has('turn_id')) selectCols.push('turn_id')
       if (hasConversationId) selectCols.push('conversation_id')
       if (hasThreadId) selectCols.push('thread_id')
       if (hasChatId) selectCols.push('chat_id')
@@ -198,14 +229,31 @@ export class MiniMaxCodeScanner implements AgentScanner {
       if (hasReasoning) selectCols.push('reasoning_tokens')
       if (hasCacheRead) selectCols.push('cache_read_tokens')
       if (hasCacheWrite) selectCols.push('cache_write_tokens')
-      const whereSql = isIncrementalContext(scanContext) ? ' WHERE ts >= ?' : ''
+      const selectSql = `SELECT ${selectCols.join(', ')} FROM ${usageTable}`
+      const sql = isIncrementalContext(scanContext) ? `${selectSql} WHERE ts >= ?` : selectSql
       const params: QueryParam[] = isIncrementalContext(scanContext) ? [scanContext.sinceMs] : []
-      const sql = `SELECT ${selectCols.join(', ')} FROM ${usageTable}${whereSql}`
 
-      for (const row of queryAll(db, sql, params)) {
+      const usageRows = queryAll(db, sql, params)
+      if (usageTable === 'local_runtime_token_usage') {
+        const timingSessionIds = new Set(sessionMetadata.timingSessionIds)
+        for (const row of usageRows) {
+          const sessionId = dbString(row.session_id)
+          if (sessionId) timingSessionIds.add(sessionId)
+        }
+        latestGenerations = [
+          ...readMiniMaxLatestGenerations(
+            db,
+            [...timingSessionIds].filter((id) => !sessionMetadata.nonUserSessionIds?.has(id)),
+            configuredModel,
+          ).values(),
+        ]
+      }
+      for (const row of usageRows) {
         const ts = toLong(row.ts)
-        let model = hasModel && typeof row.model === 'string' ? row.model : 'unknown'
-        if (!model) model = 'unknown'
+        const rowModel = hasModel && typeof row.model === 'string' ? row.model.trim() : ''
+        // 新版 runtime 的 model 列常为 NULL；config.yaml 的 defaultModel 是最后的模型依据。
+        const model = rowModel || configuredModel || 'unknown'
+        const modelFromConfig = rowModel === '' && configuredModel !== ''
 
         const buckets = tokenBuckets({
           inputTokens: hasInput ? row.input_tokens : 0,
@@ -229,6 +277,10 @@ export class MiniMaxCodeScanner implements AgentScanner {
           sessionMetadata.userSessionIds &&
           !sessionMetadata.userSessionIds.has(sourceSessionId)
         ) {
+          continue
+        }
+        // 新版 record.json 已无 origin 字段；仅显式标记的非用户会话排除，未知格式照常计量。
+        if (sourceSessionId && sessionMetadata.nonUserSessionIds?.has(sourceSessionId)) {
           continue
         }
         const sessionId = sourceSessionId ?? `aggregate:${date}:${model}`
@@ -278,6 +330,10 @@ export class MiniMaxCodeScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
+          evidence: usageEvidence({
+            bucketQuality: hasInput && hasOutput ? 'verified' : 'uncertain',
+            modelSource: modelFromConfig ? 'current-config' : 'response',
+          }),
           // MiniMax 官方口径 total = input + output + cacheRead + cacheWrite + reasoning
           // 已用 token_usage.raw 字段验证：raw.total == 五项之和（全表 162/162 行吻合）
           ...buckets,
@@ -292,13 +348,33 @@ export class MiniMaxCodeScanner implements AgentScanner {
     for (const fingerprint of pendingIdentityFingerprints) {
       dedup.identitySources.set(fingerprint, sourceKey)
     }
-    return { recognized: true, apiCalls, titles }
+    return { recognized: true, apiCalls, titles, latestGenerations }
   }
 }
 
 interface MiniMaxDedupState {
   contentSources: Map<string, string>
   identitySources: Map<string, string>
+}
+
+/** 从 config.yaml 文本提取顶层 defaultModel；嵌套键与损坏内容一律返回空串。 */
+export function miniMaxDefaultModelFromText(text: string): string {
+  const match = /^defaultModel:[ \t]*(.+)$/m.exec(text)
+  const value = match?.[1]?.trim().replace(/^['"]|['"]$/g, '') ?? ''
+  return value
+}
+
+/** 读取 config.yaml 顶层 defaultModel 作为 model 为空用量行的兜底；保留 minimax/ 命名空间。 */
+function readMiniMaxConfiguredModel(dbPath: string): string {
+  for (const candidate of getMavisConfigCandidates(dbPath)) {
+    try {
+      const model = miniMaxDefaultModelFromText(readFileSync(candidate, 'utf8'))
+      if (model) return model
+    } catch {
+      // 配置缺失或不可读时继续尝试下一个候选。
+    }
+  }
+  return ''
 }
 
 function createMiniMaxDedupState(): MiniMaxDedupState {
@@ -385,6 +461,8 @@ function emptySessionMetadata(): SessionMetadata {
     titles: new Map<string, string>(),
     projectPaths: new Map<string, string>(),
     userSessionIds: null,
+    nonUserSessionIds: null,
+    timingSessionIds: new Set(),
   }
 }
 
@@ -393,6 +471,8 @@ function readLegacySessionMetadata(db: Database.Database): SessionMetadata {
     titles: new Map<string, string>(),
     projectPaths: new Map<string, string>(),
     userSessionIds: null,
+    nonUserSessionIds: null,
+    timingSessionIds: new Set(),
   }
   const tableRows = queryAll(
     db,
@@ -444,7 +524,10 @@ function readLegacySessionMetadata(db: Database.Database): SessionMetadata {
   return metadata
 }
 
-function readRuntimeSessionMetadata(db: Database.Database): SessionMetadata {
+export function readRuntimeSessionMetadata(
+  db: Database.Database,
+  scanContext?: ScannerScanContext,
+): SessionMetadata {
   const metadata = emptySessionMetadata()
   const tableRows = queryAll(
     db,
@@ -457,14 +540,31 @@ function readRuntimeSessionMetadata(db: Database.Database): SessionMetadata {
     const name = row.name
     if (typeof name === 'string') columns.add(name.toLowerCase())
   }
-  if (!columns.has('session_id') || !columns.has('record_json')) return metadata
+  if (!columns.has('session_id')) return metadata
 
-  const userSessionIds = new Set<string>()
+  const hasTitleColumn = columns.has('title')
+  const hasRecordColumn = columns.has('record_json')
+  const incremental = scanContext && isIncrementalContext(scanContext)
+  const nonUserSessionIds = new Set<string>()
   let hasOriginMetadata = false
-  for (const row of queryAll(db, 'SELECT session_id, record_json FROM local_runtime_sessions')) {
+  const sessionColumns = [
+    'session_id',
+    ...(hasRecordColumn ? ['record_json'] : []),
+    ...(hasTitleColumn ? ['title'] : []),
+    ...['updated_at_ms', 'status'].filter((name) => columns.has(name)),
+  ].join(', ')
+  for (const row of queryAll(db, `SELECT ${sessionColumns} FROM local_runtime_sessions`)) {
     const sessionId = dbString(row.session_id)
+    if (!sessionId) continue
+    if (!incremental || toLong(row.updated_at_ms) >= (scanContext?.sinceMs ?? 1))
+      metadata.timingSessionIds.add(sessionId)
+    if (['started', 'running'].includes(dbString(row.status).toLowerCase()))
+      metadata.timingSessionIds.add(sessionId)
+    // 新版 runtime 将当前标题保存在独立列，record_json 可能没有 title 或仍是旧值。
+    const columnTitle = hasTitleColumn ? dbString(row.title) : ''
+    if (columnTitle) metadata.titles.set(sessionId, columnTitle)
     const recordJson = dbString(row.record_json)
-    if (!sessionId || !recordJson) continue
+    if (!recordJson) continue
 
     let record: unknown
     try {
@@ -473,18 +573,26 @@ function readRuntimeSessionMetadata(db: Database.Database): SessionMetadata {
       continue
     }
     if (!isObject(record)) continue
+    if (
+      typeof record.status === 'string' &&
+      ['started', 'running'].includes(record.status.toLowerCase())
+    )
+      metadata.timingSessionIds.add(sessionId)
 
-    const title = typeof record.title === 'string' ? record.title.trim() : ''
-    if (title) metadata.titles.set(sessionId, title)
+    if (!columnTitle) {
+      const title = typeof record.title === 'string' ? record.title.trim() : ''
+      if (title) metadata.titles.set(sessionId, title)
+    }
     const projectPath = extractProjectPath(record)
     if (projectPath) metadata.projectPaths.set(sessionId, projectPath)
 
+    // 新版 record.json 已无 origin 字段；只有显式非用户会话进入排除集，未知格式照常计量。
     if (typeof record.origin === 'string') {
       hasOriginMetadata = true
-      if (record.origin === 'user') userSessionIds.add(sessionId)
+      if (record.origin !== 'user') nonUserSessionIds.add(sessionId)
     }
   }
-  if (hasOriginMetadata) metadata.userSessionIds = userSessionIds
+  if (hasOriginMetadata) metadata.nonUserSessionIds = nonUserSessionIds
   return metadata
 }
 

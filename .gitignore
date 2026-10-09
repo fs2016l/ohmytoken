@@ -32,7 +32,7 @@ builder-effective-config.yaml
 # Environment files and credentials
 .env
 .env.*
-!.env.production
+!/desktop/.env.production
 .envrc
 .direnv/
 .npmrc
@@ -149,3 +149,14 @@ $RECYCLE.BIN/
 *.csv
 *.tsv
 *.xlsx
+
+# Private development helpers and generated native binaries
+.local/
+/desktop/tests/
+/desktop/devlocal/
+/desktop/src/shared/dev-restart.ts
+/desktop/scripts/measure-cost-catalog.mjs
+/desktop/resources/network-monitor/
+/desktop/resources/window-material/
+/docs/*
+!/docs/screenshots/

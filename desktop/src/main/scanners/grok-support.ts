@@ -13,6 +13,7 @@ export const GROK_UNKNOWN_MODEL = 'grok-unknown'
 
 export interface GrokSessionMeta {
   model: string
+  title?: string
   projectPath?: string
 }
 
@@ -88,8 +89,10 @@ export function readGrokSessionMetadata(): Map<string, GrokSessionMeta> {
       if (!sessionDir.isDirectory()) continue
       const sessionId = sessionDir.name
       const dirPath = join(sessionsDir, workspace.name, sessionId)
-      const model = readGrokSessionModel(dirPath) || GROK_UNKNOWN_MODEL
-      map.set(sessionId, { model, ...(projectPath ? { projectPath } : {}) })
+      map.set(sessionId, {
+        ...readGrokSessionInfo(dirPath),
+        ...(projectPath ? { projectPath } : {}),
+      })
     }
   }
   return map
@@ -103,15 +106,21 @@ function decodeGrokProjectPath(encoded: string): string | undefined {
   }
 }
 
-function readGrokSessionModel(dirPath: string): string {
+function readGrokSessionInfo(dirPath: string): Pick<GrokSessionMeta, 'model' | 'title'> {
+  let model = ''
+  let title = ''
   const summaryPath = join(dirPath, 'summary.json')
   if (existsSync(summaryPath)) {
     try {
       const summary: unknown = JSON.parse(readFileSync(summaryPath, 'utf8'))
       if (isObject(summary)) {
+        if (typeof summary.generated_title === 'string') title = summary.generated_title.trim()
         for (const key of ['current_model_id', 'model_id', 'model']) {
           const value = summary[key]
-          if (typeof value === 'string' && value.trim()) return value.trim()
+          if (typeof value === 'string' && value.trim()) {
+            model = value.trim()
+            break
+          }
         }
       }
     } catch {
@@ -119,22 +128,22 @@ function readGrokSessionModel(dirPath: string): string {
     }
   }
   const signalsPath = join(dirPath, 'signals.json')
-  if (existsSync(signalsPath)) {
+  if (!model && existsSync(signalsPath)) {
     try {
       const signals: unknown = JSON.parse(readFileSync(signalsPath, 'utf8'))
       if (isObject(signals)) {
         const primary = signals.primaryModelId
-        if (typeof primary === 'string' && primary.trim()) return primary.trim()
+        if (typeof primary === 'string' && primary.trim()) model = primary.trim()
         const modelsUsed = signals.modelsUsed
-        if (Array.isArray(modelsUsed) && typeof modelsUsed[0] === 'string' && modelsUsed[0]) {
-          return modelsUsed[0]
+        if (!model && Array.isArray(modelsUsed) && typeof modelsUsed[0] === 'string') {
+          model = modelsUsed[0].trim()
         }
       }
     } catch {
       // 继续尝试下一种结构
     }
   }
-  return ''
+  return { model: model || GROK_UNKNOWN_MODEL, ...(title ? { title } : {}) }
 }
 
 export function createGrokCall(

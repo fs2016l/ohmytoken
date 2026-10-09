@@ -7,10 +7,18 @@
  * 该文件只关心"数据库连接与 schema"，具体业务 CRUD 由 data-storage.service.ts 完成。
  */
 import Database from 'better-sqlite3'
+import { ensureSessionUsageSchema } from './session-usage-schema'
+import { ensureSessionGenerationSchema } from './session-generation-storage'
+import { ensureSessionTurnTimingSchema } from './session-turn-timing-storage'
+import { ensureProjectSchema } from './project-schema'
+import { costSchemaReady, migrateCostSchema } from '../cost/cost-schema'
+import { parseCostRollup, type CostRollupRow } from '../cost/cost-rollup-storage'
 import type { TokenUsageRecord } from '../../shared/models'
 import { hasExplicitTimezone, localTimestampFromValue, timestampEpochMs } from '../lib/date-utils'
 import { getUsageDbFile } from '../lib/paths'
 import { SCANNER_REVISION } from './incremental-scan.constants'
+import { normalizeWorkspaceSearchText } from '../../shared/workspace-search'
+import { normalizeCollectedProjectPath } from '../scanners/project-path'
 import {
   searchableSessionTitleSql,
   USAGE_SESSION_SEARCH_CONTENT_VIEW,
@@ -20,7 +28,7 @@ import {
 let db: Database.Database | null = null
 
 /** usage_records 表行类型（snake_case 列名，对应 DB schema） */
-export interface UsageRecordRow {
+export interface UsageRecordRow extends CostRollupRow {
   agent: string
   date: string
   model: string
@@ -46,6 +54,7 @@ export function rowToRecord(row: UsageRecordRow): TokenUsageRecord {
     totalTokens: row.total_tokens,
     reasoningTokens: row.reasoning_tokens,
     cost: row.cost,
+    costSummary: parseCostRollup(row),
   }
 }
 
@@ -60,9 +69,18 @@ export function rowToRecord(row: UsageRecordRow): TokenUsageRecord {
  */
 export function openDatabase(): Database.Database {
   if (db) return db
+  db = openUsageDatabase(getUsageDbFile())
+  return db
+}
 
-  const dbPath = getUsageDbFile()
+export function openUsageDatabase(dbPath: string): Database.Database {
   const conn = new Database(dbPath)
+  conn.function('workspace_search_text', { deterministic: true }, normalizeWorkspaceSearchText)
+  conn.function(
+    'workspace_search_path',
+    { deterministic: true },
+    (value: unknown) => normalizeCollectedProjectPath(value) || '',
+  )
 
   // PRAGMA 设置：WAL 顺序追加写入；NORMAL 保证断电不损坏库（只在 checkpoint 时 fsync）
   conn.pragma('journal_mode = WAL')
@@ -436,11 +454,35 @@ export function openDatabase(): Database.Database {
     currentVersion = 12
   }
 
+  // schema v15：费用汇总与原始用量同表保存，同时修复不完整的开发数据库。
+  if (currentVersion < 15 || !costSchemaReady(conn)) {
+    migrateCostSchema(conn)
+    if (currentVersion < 15) conn.pragma('user_version = 15')
+  }
+
+  ensureSessionUsageSchema(conn)
+  ensureSessionGenerationSchema(conn)
+  ensureSessionTurnTimingSchema(conn)
+  ensureProjectSchema(conn)
+  if (currentVersion < 18) conn.pragma('user_version = 18')
+
   // 早期 v8 构建可能已经建好表但尚未写 Agent 状态；幂等补种避免首刷全量。
   seedAgentScanStatesFromUsage(conn)
 
-  db = conn
   return conn
+}
+
+/** 同步持久化步骤可在独立重建库中运行，结束后恢复当前连接。 */
+export function withUsageDatabase<T>(connection: Database.Database, action: () => T): T {
+  const previous = db
+  db = connection
+  try {
+    const result = action()
+    if (result instanceof Promise) throw new Error('数据库作用域仅支持同步操作')
+    return result
+  } finally {
+    db = previous
+  }
 }
 
 function tableExists(conn: Database.Database, tableName: string): boolean {

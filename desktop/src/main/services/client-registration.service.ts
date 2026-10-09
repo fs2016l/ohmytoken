@@ -1,16 +1,25 @@
 import { app } from 'electron'
 import { release as osRelease } from 'os'
-import type { AgentRequestIdentity } from '../../shared/agent-client'
+import type { AgentRequestIdentity, AgentRequestIdentityResult } from '../../shared/agent-client'
+import { parseDeviceCredential } from '../../shared/agent-client'
+import { remoteUnavailableMessage } from './remote-availability'
 import {
   AGENT_DEVICE_ID_HEADER,
   AGENT_USER_ID_HEADER,
   agentIdentityHeaders,
 } from '../../shared/agent-client'
+import {
+  clearDeviceCredential,
+  currentDeviceCredential,
+  saveDeviceCredential,
+  shouldRotateDeviceCredential,
+} from './device-credential.service'
 import { getDeviceId } from './device-id.service'
 import { getOhmytokenApiBase } from './server-config.service'
+import { resolveDesktopApiUrl } from './runtime-config.service'
 
 const API_BASE = getOhmytokenApiBase()
-const REGISTER_PATH = '/desktop/client/register'
+
 const CLIENT_TYPE = 'ohmyagent-desktop'
 const REQUEST_TIMEOUT_MS = 10_000
 
@@ -22,6 +31,14 @@ interface ClientRegistration {
 interface RegisterResponse {
   code?: number
   message?: string
+  data?: unknown
+}
+
+interface RegistrationOptions {
+  /** 跳过指纹/凭证检查，强制重新登记并轮换凭证。 */
+  force?: boolean
+  /** 禁止临期后台换新（防止强制流程里递归触发）。 */
+  allowBackgroundRotation?: boolean
 }
 
 let registration: ClientRegistration | null = null
@@ -101,7 +118,7 @@ async function sendRegistration(
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    return await fetch(API_BASE.replace(/\/+$/, '') + REGISTER_PATH, {
+    return await fetch(await resolveDesktopApiUrl('clientRegister'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -137,6 +154,13 @@ async function registerClient(
   if (!response.ok || result.code !== 200) {
     throw new Error(result.message || 'Agent 客户端登记失败 (HTTP ' + response.status + ')')
   }
+  // 登记成功即保存（或轮换）内容接口设备凭证；旧服务端不返回凭证时清掉旧值避免携带过期凭证。
+  const issued = parseDeviceCredential(result.data)
+  if (issued) {
+    saveDeviceCredential(issued)
+  } else {
+    clearDeviceCredential()
+  }
   return {
     fingerprint,
     deviceId: String(body.deviceId),
@@ -145,9 +169,12 @@ async function registerClient(
 
 export async function ensureAgentClientRegistered(
   token: string | null = null,
+  options: RegistrationOptions = {},
 ): Promise<AgentRequestIdentity> {
   const current = await metadata()
-  if (!registration || registration.fingerprint !== current.fingerprint) {
+  const needsRegistration =
+    options.force === true || !registration || registration.fingerprint !== current.fingerprint
+  if (needsRegistration) {
     if (!registrationPromise) {
       registrationPromise = registerClient(current.body, current.fingerprint, token)
         .then((registered) => {
@@ -162,9 +189,41 @@ export async function ensureAgentClientRegistered(
   }
 
   if (!registration) throw new Error('Agent 客户端尚未登记')
+  // 懒续期：凭证临期时后台静默重登记换新，不阻塞当前请求；失败也不影响本次凭证（未过期时）。
+  if (
+    !needsRegistration &&
+    options.allowBackgroundRotation !== false &&
+    shouldRotateDeviceCredential()
+  ) {
+    void ensureAgentClientRegistered(token, { force: true, allowBackgroundRotation: false }).catch(
+      (error) => {
+        console.warn('[client-registration] 设备凭证后台换新失败，等待下次请求重试:', error)
+      },
+    )
+  }
   return {
     deviceId: registration.deviceId,
     userId: tokenUserId(token),
+    deviceCredential: currentDeviceCredential(),
+  }
+}
+
+/**
+ * 凭证被服务端拒绝（401 + code=7016）后的恢复入口：清掉本地凭证并强制重新登记。
+ * 重新登记成功返回新的身份；失败按远端不可用处理，由调用方决定本次请求的结果。
+ */
+export async function resolveRefreshedAgentRequestIdentity(
+  readToken: () => Promise<string | null>,
+): Promise<AgentRequestIdentityResult> {
+  try {
+    clearDeviceCredential()
+    const identity = await ensureAgentClientRegistered(await readToken(), {
+      force: true,
+      allowBackgroundRotation: false,
+    })
+    return { status: 'ready', identity }
+  } catch (error) {
+    return { status: 'unavailable', message: remoteUnavailableMessage(API_BASE, error) }
   }
 }
 
@@ -172,4 +231,15 @@ export async function getAgentIdentityHeaders(
   token: string | null = null,
 ): Promise<Record<string, string>> {
   return agentIdentityHeaders(await ensureAgentClientRegistered(token))
+}
+
+export async function resolveAgentRequestIdentity(
+  readToken: () => Promise<string | null>,
+): Promise<AgentRequestIdentityResult> {
+  try {
+    const identity = await ensureAgentClientRegistered(await readToken())
+    return { status: 'ready', identity }
+  } catch (error) {
+    return { status: 'unavailable', message: remoteUnavailableMessage(API_BASE, error) }
+  }
 }

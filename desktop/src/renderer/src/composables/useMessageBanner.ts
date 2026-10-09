@@ -1,47 +1,16 @@
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
+import { isMessageCurrent, useMessageDetails } from './useMessageDetails'
 import {
-  reportMessageEvent,
-  syncActiveMessages,
   type DesktopMessage,
   type MessageClientEvent,
   type MessagePlacement,
 } from '../api/http/message'
 
-const POLL_INTERVAL_MS = 60_000
 const ACTIVE_MESSAGE_LIMIT = 10
 const DEFAULT_DISPLAY_DURATION_SECONDS = 8
 const MIN_DISPLAY_DURATION_SECONDS = 3
 const MAX_DISPLAY_DURATION_SECONDS = 300
 type RollDirection = 'up' | 'down'
-
-let receiptFlushPromise: Promise<void> | null = null
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function flushReceiptOutbox(): Promise<void> {
-  if (receiptFlushPromise) return receiptFlushPromise
-  receiptFlushPromise = (async () => {
-    const pending = await window.api.customMessageReceiptsPending()
-    for (const receipt of pending) {
-      try {
-        await reportMessageEvent(
-          receipt.messageId,
-          receipt.messageUid,
-          receipt.event,
-          receipt.placement,
-        )
-        await window.api.customMessageReceiptSent(receipt.id)
-      } catch (error) {
-        await window.api.customMessageReceiptFailed(receipt.id, errorText(error))
-      }
-    }
-  })().finally(() => {
-    receiptFlushPromise = null
-  })
-  return receiptFlushPromise
-}
 
 function displayDurationMs(message: DesktopMessage): number {
   const requested = Number(message.displayDurationSeconds)
@@ -49,13 +18,6 @@ function displayDurationMs(message: DesktopMessage): number {
   return (
     Math.max(MIN_DISPLAY_DURATION_SECONDS, Math.min(MAX_DISPLAY_DURATION_SECONDS, seconds)) * 1000
   )
-}
-
-function isCurrentlyActive(message: DesktopMessage): boolean {
-  const now = Date.now()
-  if (message.startAt && new Date(message.startAt).getTime() > now) return false
-  if (message.endAt && new Date(message.endAt).getTime() <= now) return false
-  return message.status === 'published'
 }
 
 function matchesPlacement(message: DesktopMessage, placement: MessagePlacement): boolean {
@@ -78,17 +40,19 @@ function sortMessages(messages: DesktopMessage[]): DesktopMessage[] {
   })
 }
 
-export function useMessageBanner(placement: MessagePlacement) {
+export function useMessageBanner(placement: MessagePlacement, interacting: Ref<boolean>) {
   const messages = ref<DesktopMessage[]>([])
   const activeIndex = ref(0)
   const rollDirection = ref<RollDirection>('up')
-  const detailsOpen = ref(false)
+  const details = useMessageDetails()
+  const detailsOpen = computed(() => !!details.message.value)
   const isLoading = ref(false)
   const viewedVersions = new Set<string>()
-  let pollTimer: ReturnType<typeof setInterval> | null = null
+  let expiryTimer: ReturnType<typeof setTimeout> | null = null
   let rotateTimer: ReturnType<typeof setTimeout> | null = null
+  let titleDuration: { messageUid: string; milliseconds: number } | null = null
   let mounted = false
-  let unsubscribeSse: (() => void) | null = null
+  let unsubscribeAnnouncements: (() => void) | null = null
 
   const currentMessage = computed(() => messages.value[activeIndex.value] || null)
   const rotationKey = computed(() => {
@@ -100,7 +64,7 @@ export function useMessageBanner(placement: MessagePlacement) {
     const currentUid = currentMessage.value?.messageUid
     const uniqueMessages = new Map<string, DesktopMessage>()
     for (const message of nextMessages) {
-      if (isCurrentlyActive(message) && matchesPlacement(message, placement)) {
+      if (isMessageCurrent(message) && matchesPlacement(message, placement)) {
         uniqueMessages.set(message.messageUid, message)
       }
     }
@@ -115,29 +79,40 @@ export function useMessageBanner(placement: MessagePlacement) {
       : -1
     messages.value = next
     activeIndex.value = preservedIndex >= 0 ? preservedIndex : 0
-    if (currentUid && preservedIndex < 0) detailsOpen.value = false
   }
 
   async function loadCached(): Promise<void> {
-    applyMessages(await window.api.customMessagesList(placement))
+    const cached = await window.api.customMessagesList(placement)
+    if (!mounted) return
+    applyMessages(cached)
+    if (expiryTimer) clearTimeout(expiryTimer)
+    const now = Date.now()
+    const ends = messages.value
+      .map((message) => (message.endAt ? new Date(message.endAt).getTime() : NaN))
+      .filter((end) => Number.isFinite(end) && end > now)
+    // Local expiry also hides the final remaining banner while the device is offline.
+    expiryTimer = ends.length
+      ? setTimeout(
+          () => {
+            void loadCached()
+          },
+          Math.min(2_147_483_647, Math.max(1, Math.min(...ends) - now)),
+        )
+      : null
   }
 
   async function queueReceipt(message: DesktopMessage, event: MessageClientEvent): Promise<void> {
     await window.api.customMessageReceiptQueue(message.id, message.messageUid, event, placement)
-    await flushReceiptOutbox()
   }
 
   async function refresh(): Promise<void> {
     if (isLoading.value) return
     isLoading.value = true
     try {
-      const remote = await syncActiveMessages(placement)
-      await window.api.customMessagesCache(remote.messages, placement)
-      await window.api.customMessagesReconcile(placement, remote.activeMessageUids)
+      await window.api.wakeAgentHeartbeat()
       await loadCached()
-      await flushReceiptOutbox()
     } catch (error) {
-      console.debug('[message-banner] 当前无法同步顶部消息，继续使用本地缓存:', error)
+      console.warn('[message-banner] 当前无法同步顶部消息，继续使用本地缓存:', error)
     } finally {
       isLoading.value = false
     }
@@ -152,6 +127,10 @@ export function useMessageBanner(placement: MessagePlacement) {
       return
     }
     activeIndex.value = normalized
+    if (placement === 'floating' && detailsOpen.value && currentMessage.value) {
+      details.open(currentMessage.value, placement)
+      reportViewed(currentMessage.value)
+    }
   }
 
   function next(): void {
@@ -163,17 +142,16 @@ export function useMessageBanner(placement: MessagePlacement) {
   }
 
   function openDetails(message: DesktopMessage): void {
-    detailsOpen.value = true
+    if (placement === 'floating' && details.message.value?.messageUid === message.messageUid) {
+      details.close()
+      return
+    }
+    details.open(message, placement)
     reportViewed(message)
   }
 
-  async function openAction(message: DesktopMessage, actionUrl?: string): Promise<void> {
-    if (!actionUrl || !/^https?:\/\//i.test(actionUrl)) return
-    void queueReceipt(message, 'click')
-    await window.api.openExternal(actionUrl)
-  }
-
   function reportViewed(message: DesktopMessage): void {
+    if (document.hidden) return
     const version = `${message.messageUid}:${placement}`
     if (viewedVersions.has(version)) return
     viewedVersions.add(version)
@@ -188,9 +166,25 @@ export function useMessageBanner(placement: MessagePlacement) {
   function scheduleRotation(): void {
     clearRotation()
     const message = currentMessage.value
-    if (!mounted || document.hidden || detailsOpen.value || messages.value.length <= 1 || !message)
+    if (
+      !mounted ||
+      document.hidden ||
+      detailsOpen.value ||
+      interacting.value ||
+      messages.value.length <= 1 ||
+      !message
+    )
       return
-    rotateTimer = setTimeout(next, displayDurationMs(message))
+    const readingTime =
+      titleDuration?.messageUid === message.messageUid ? titleDuration.milliseconds : 0
+    rotateTimer = setTimeout(next, Math.max(displayDurationMs(message), readingTime))
+  }
+
+  function setTitleDuration(messageUid: string, milliseconds: number): void {
+    // A leaving transition can still be measured after the next banner is active.
+    if (currentMessage.value?.messageUid !== messageUid) return
+    titleDuration = { messageUid, milliseconds }
+    scheduleRotation()
   }
 
   function handleVisibilityChange(): void {
@@ -198,7 +192,9 @@ export function useMessageBanner(placement: MessagePlacement) {
       clearRotation()
       return
     }
-    void refresh()
+    void loadCached().then(() => {
+      if (currentMessage.value) reportViewed(currentMessage.value)
+    })
     scheduleRotation()
   }
 
@@ -210,28 +206,31 @@ export function useMessageBanner(placement: MessagePlacement) {
     },
     { flush: 'post' },
   )
-  watch(detailsOpen, scheduleRotation, { flush: 'post' })
+  watch([detailsOpen, interacting], scheduleRotation, { flush: 'post' })
   watch(() => messages.value.length, scheduleRotation, { flush: 'post' })
 
   onMounted(() => {
     mounted = true
-    void loadCached().then(() => flushReceiptOutbox())
-    void refresh()
-    pollTimer = setInterval(() => void refresh(), POLL_INTERVAL_MS)
-    unsubscribeSse = window.api.onSsePushMessage((message) => {
-      if (message.type !== 'custom') return
-      void loadCached().then(() => flushReceiptOutbox())
+    void loadCached()
+    unsubscribeAnnouncements = window.api.onAnnouncementsChanged(() => {
+      void loadCached()
     })
+    window.addEventListener('online', handleOnline)
     document.addEventListener('visibilitychange', handleVisibilityChange)
   })
 
   onUnmounted(() => {
     mounted = false
-    if (pollTimer) clearInterval(pollTimer)
+    if (expiryTimer) clearTimeout(expiryTimer)
     clearRotation()
-    unsubscribeSse?.()
+    unsubscribeAnnouncements?.()
+    window.removeEventListener('online', handleOnline)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
   })
+
+  function handleOnline(): void {
+    void window.api.wakeAgentHeartbeat()
+  }
 
   return {
     messages,
@@ -245,6 +244,6 @@ export function useMessageBanner(placement: MessagePlacement) {
     previous,
     select,
     openDetails,
-    openAction,
+    setTitleDuration,
   }
 }

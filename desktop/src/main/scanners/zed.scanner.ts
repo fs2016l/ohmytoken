@@ -2,6 +2,7 @@
 import { existsSync } from 'fs'
 import { createRequire } from 'module'
 import Database from 'better-sqlite3'
+import { usageEvidence } from '../cost/usage-evidence'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -117,6 +118,10 @@ export class ZedScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model: modelId,
+          evidence: usageEvidence({
+            granularity: 'aggregate',
+            modelSource: 'session',
+          }),
           ...(projectPath ? { projectPath } : {}),
           ...buckets,
         })

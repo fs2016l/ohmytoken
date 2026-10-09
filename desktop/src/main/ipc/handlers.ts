@@ -19,44 +19,81 @@ import {
   type OpenDialogOptions,
 } from 'electron'
 import type { CloseBehavior, ScanOptions } from '../../shared/models'
-import type { TokenPlanCredentialInput, TokenPlanProviderId } from '../../shared/token-plan'
 import type { DiagnosticErrorPayload, DiagnosticUploadOptions } from '../../shared/diagnostics'
 import type { CustomMessageEvent, CustomMessagePlacement } from '../../shared/custom-message'
-import type {
-  DesktopFeedbackSubmitParams,
-  DesktopMessageEventInput,
-} from '../../shared/desktop-api'
+import type { DesktopFeedbackSubmitParams } from '../../shared/desktop-api'
 import { IPC } from './channels'
+import { usageTrendRange } from '../services/usage-trend-query'
+import { registerReplayHandlers } from './replay-handlers'
+import { registerThirdPartyNoticesHandlers } from './third-party-notices-handlers'
+import { registerScanRefreshHandlers } from './scan-refresh-handlers'
+import { registerNetworkMonitorHandlers } from './network-monitor-handlers'
+import { registerDiscoveryUiHandlers } from './discovery-ui-handlers'
+import { registerWindowMaterialIpc } from '../services/window-material.service'
+import { createBrowsingStateStore } from '../services/browsing-state.service'
+import { createRuntimeAccountFavorites } from '../services/account-favorites.runtime'
 import {
-  forceRefreshAccessToken,
+  createLocalFavoriteStore,
+  validateFavoriteTarget,
+} from '../services/local-favorites.service'
+import {
+  sessionFavoriteSnapshot,
+  type LocalFavorite,
+  type LocalFavoritesState,
+} from '../../shared/local-favorites'
+import { getUsageCostSummary } from '../services/usage-cost.service'
+import { getExchangeRates } from '../services/exchange-rate.service'
+import { startModelCatalogSync, stopModelCatalogSync } from '../services/model-catalog.service'
+import {
+  ensureModelIcons,
+  getModelIconSnapshot,
+  startModelIconSync,
+} from '../services/model-icons.service'
+import { getSessionWorkspace } from '../services/session-workspace.service'
+import { getProjectWorkspace } from '../services/project-workspace.service'
+import { updateProjectNotes } from '../services/project.service'
+import { getUsageAnalytics } from '../services/analytics.service'
+import { readTurnStats } from '../services/session-turns'
+import { openDatabase } from '../services/sqlite-storage.service'
+import {
   getAccessToken,
   hasAuthSession,
   initializeAuthSessionManager,
   revokeAndClearAuthSession,
   setOnLoginSuccessCallback,
   setOnSessionInvalidatedCallback,
-  setOnTokenRefreshedCallback,
   shutdownAuthSessionManager,
   startPkceLogin,
 } from '../services/auth.service'
 import { getDeviceId } from '../services/device-id.service'
-import { ensureAgentClientRegistered } from '../services/client-registration.service'
+import {
+  resolveAgentRequestIdentity,
+  resolveRefreshedAgentRequestIdentity,
+} from '../services/client-registration.service'
 import { getOhmytokenApiBase } from '../services/server-config.service'
-import { getDesktopRuntimeConfig } from '../services/runtime-config.service'
+import type { DesktopApiKey, DesktopApiParameters } from '../../shared/runtime-config'
+import { getDesktopRuntimeConfig, resolveDesktopApiUrl } from '../services/runtime-config.service'
+import { readInstallationLanguage } from '../services/installation-language.service'
+import { getExternalWebUrl } from '../services/window-navigation'
 import {
   getDiagnosticUploadState,
   confirmAndUploadDiagnosticReport,
   openDiagnosticLogs,
   reportDiagnosticError,
 } from '../services/diagnostic-log.service'
+import { getAuthSession, submitDesktopFeedback } from '../services/desktop-api.service'
 import {
-  getAuthSession,
-  reportDesktopMessageEvent,
-  submitDesktopFeedback,
-  syncDesktopMessages,
-} from '../services/desktop-api.service'
-import { performScan } from '../services/scan.service'
-import { SseService } from '../services/sse.service'
+  getScanProgress,
+  performScan,
+  resumeBackgroundScan,
+  stopBackgroundScan,
+} from '../services/scan.service'
+import {
+  startAgentHeartbeat,
+  stopAgentHeartbeat,
+  wakeAgentHeartbeat,
+  queueReceiptFlush,
+} from '../services/agent-heartbeat.service'
 import {
   getAgentModelStats,
   getComparisons,
@@ -73,15 +110,24 @@ import {
   getUsageSessions,
   getUserUsageSessionsPage,
 } from '../services/stats.service'
-import { checkForUpdates, downloadUpdate, quitAndInstall } from '../services/updater.service'
+import {
+  checkForUpdates,
+  downloadUpdate,
+  getUpdateState,
+  pauseUpdate,
+  resumeUpdate,
+  quitAndInstall,
+} from '../services/updater.service'
 import {
   getProjectUsageDetail,
   getProjectUsageOverview,
   listTrackedProjects,
   removeTrackedProject,
+  restoreTrackedProject,
   saveTrackedProject,
   updateTrackedProject,
 } from '../services/project.service'
+import { discoverProjects } from '../services/project-discovery'
 import {
   getCloseBehavior,
   resolveMainWindowClose,
@@ -90,28 +136,16 @@ import {
   type CloseDecision,
 } from '../services/tray.service'
 import {
-  listTokenPlanCredentials,
-  queryAllTokenPlanUsage,
+  discoverTokenPlanConnections,
   queryTokenPlanUsage,
-  removeTokenPlanCredential,
-  saveTokenPlanCredential,
+  queryTokenPlanDetails,
+  createTokenPlanMonitor,
 } from '../services/token-plan.service'
+import type { QuotaDetailQuery } from '../../shared/quota-details'
+import { createNetworkCheckService } from '../network-check'
 import {
-  deleteNotification,
-  insertNotification,
-  listNotifications,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '../services/notification-storage.service'
-import {
-  applyCustomSseMessage,
-  cacheCustomMessages,
   listCachedCustomMessages,
-  listPendingCustomMessageReceipts,
-  markCustomMessageReceiptFailed,
-  markCustomMessageReceiptSent,
   queueCustomMessageReceipt,
-  reconcileCustomMessages,
 } from '../services/custom-message-storage.service'
 
 /**
@@ -142,14 +176,7 @@ export interface ModelRangeParams extends RangeParams {
   model: string
 }
 
-export interface UsageSessionsParams extends RangeParams, PaginationParams {
-  agent?: string
-  model?: string
-  rootSessionId?: string
-  projectId?: string
-  trackedProjectsOnly?: boolean
-  query?: string
-}
+export type UsageSessionsParams = import('../../shared/models').UsageDetailPageFilter
 
 export interface UsageApiCallsParams {
   agent: string
@@ -167,7 +194,9 @@ export interface UsageApiRecordsParams extends RangeParams, PaginationParams {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  models?: string[]
   projectId?: string
+  projectIds?: string[]
   trackedProjectsOnly?: boolean
 }
 
@@ -179,12 +208,11 @@ export interface UsageTrendParams {
   from: number
   to: number
   groupBy: 'agent' | 'model'
+  baseline?: boolean
 }
 
 /** 主窗口 getter 类型：每次调用动态返回当前主窗口引用（可能为 null） */
 type MainWindowGetter = () => BrowserWindow | null
-
-let sseService: SseService | null = null
 
 function wrapHandler<TArgs extends unknown[], TResult>(
   fn: (event: IpcMainInvokeEvent, ...args: TArgs) => Promise<TResult> | TResult,
@@ -220,19 +248,228 @@ function wrapHandler<TArgs extends unknown[], TResult>(
  *                    （macOS activate 重建窗口后无需重新 register）
  */
 export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
-  if (!sseService) {
-    sseService = new SseService(DEFAULT_OHMYTOKEN_BASE, () => getAccessToken())
-    // SSE 推送消息持久化：收到推送时写入 notifications 表（在 IPC 转发 renderer 之前）
-    sseService.onPushMessage((message) => {
-      try {
-        if (message.type === 'custom') applyCustomSseMessage(message)
-        insertNotification(message)
-      } catch (e) {
-        console.error('[ipc] 通知持久化失败:', e)
-      }
-    })
+  registerDiscoveryUiHandlers(windowGetter)
+  registerScanRefreshHandlers()
+  registerReplayHandlers(windowGetter)
+  registerThirdPartyNoticesHandlers(windowGetter)
+  registerNetworkMonitorHandlers(windowGetter)
+  registerWindowMaterialIpc()
+  const quotaMonitor = createTokenPlanMonitor((state) => {
+    for (const window of BrowserWindow.getAllWindows())
+      if (!window.isDestroyed() && !window.webContents.isDestroyed())
+        window.webContents.send(IPC.TOKEN_PLAN_MONITOR_CHANGED, state)
+  })
+  app.once('before-quit', () => quotaMonitor.stop())
+  const quotaSenders = new Set<number>()
+  const checkQuotaSender = (event: IpcMainInvokeEvent): void => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !BrowserWindow.fromWebContents(event.sender)
+    )
+      throw new Error('Quota monitor requires an application window')
   }
-
+  ipcMain.handle(
+    IPC.TOKEN_PLAN_MONITOR_READ,
+    wrapHandler((event) => {
+      checkQuotaSender(event)
+      return quotaMonitor.read()
+    }),
+  )
+  ipcMain.handle(
+    IPC.TOKEN_PLAN_MONITOR_REFRESH,
+    wrapHandler(async (event, id?: string) => {
+      checkQuotaSender(event)
+      if (id !== undefined && (typeof id !== 'string' || !/^[a-f0-9]{32}$/.test(id)))
+        throw new Error('Invalid quota account')
+      await quotaMonitor.refresh(id)
+      return quotaMonitor.read()
+    }),
+  )
+  ipcMain.handle(
+    IPC.TOKEN_PLAN_MONITOR_INTERVAL,
+    wrapHandler(async (event, interval: number) => {
+      checkQuotaSender(event)
+      await quotaMonitor.setInterval(interval)
+      return quotaMonitor.read()
+    }),
+  )
+  ipcMain.handle(
+    IPC.TOKEN_PLAN_MONITOR_ACTIVE,
+    wrapHandler((event, active: boolean) => {
+      checkQuotaSender(event)
+      if (typeof active !== 'boolean') throw new Error('Invalid quota visibility')
+      const id = event.sender.id
+      if (!quotaSenders.has(id)) {
+        quotaSenders.add(id)
+        event.sender.once('destroyed', () => {
+          quotaSenders.delete(id)
+          void quotaMonitor.setActive(id, false).catch(() => {})
+        })
+      }
+      return quotaMonitor.setActive(id, active)
+    }),
+  )
+  let favorites: ReturnType<typeof createLocalFavoriteStore> | undefined
+  let favoriteRevision = 0
+  let favoriteWrites: Promise<unknown> = Promise.resolve()
+  const favoriteStore = (): ReturnType<typeof createLocalFavoriteStore> =>
+    (favorites ??= createLocalFavoriteStore(openDatabase()))
+  const checkFavoriteSender = (event: IpcMainInvokeEvent): void => {
+    if (
+      event.senderFrame !== event.sender.mainFrame ||
+      !BrowserWindow.fromWebContents(event.sender)
+    )
+      throw new Error('Favorites require an application window')
+  }
+  const mutateFavorites = (
+    action: () => LocalFavorite[] | Promise<LocalFavorite[]>,
+  ): Promise<LocalFavoritesState> => {
+    const request = favoriteWrites.then(async () => {
+      const items = await action()
+      const state = { revision: ++favoriteRevision, items }
+      for (const window of BrowserWindow.getAllWindows())
+        if (!window.isDestroyed()) window.webContents.send(IPC.LOCAL_FAVORITES_CHANGED, state)
+      return state
+    })
+    favoriteWrites = request.catch(() => {})
+    return request
+  }
+  ipcMain.handle(
+    IPC.LOCAL_FAVORITES_LIST,
+    wrapHandler((event) => {
+      checkFavoriteSender(event)
+      return { revision: favoriteRevision, items: favoriteStore().list() }
+    }),
+  )
+  ipcMain.handle(
+    IPC.LOCAL_FAVORITES_SET,
+    wrapHandler((event, target: unknown, favorite: unknown) => {
+      checkFavoriteSender(event)
+      const verified = validateFavoriteTarget(target)
+      return mutateFavorites(async () => {
+        if (typeof favorite !== 'boolean') throw new Error('Invalid favorite state')
+        const session =
+          favorite && verified.type === 'session'
+            ? (
+                await getUserUsageSessionsPage({
+                  agent: verified.agent,
+                  rootSessionId: verified.id,
+                  page: 1,
+                  pageSize: 1,
+                })
+              ).items[0]
+            : undefined
+        return favoriteStore().set(
+          verified,
+          favorite,
+          session ? sessionFavoriteSnapshot(session) : undefined,
+        )
+      })
+    }),
+  )
+  ipcMain.handle(
+    IPC.LOCAL_FAVORITES_REORDER,
+    wrapHandler((event, type: unknown, order: unknown) => {
+      checkFavoriteSender(event)
+      return mutateFavorites(() => favoriteStore().reorder(type, order))
+    }),
+  )
+  ipcMain.handle(
+    IPC.LOCAL_FAVORITES_MIGRATE,
+    wrapHandler((event, entries: unknown) => {
+      checkFavoriteSender(event)
+      return mutateFavorites(() => favoriteStore().migrateFloating(entries))
+    }),
+  )
+  const browsingState = createBrowsingStateStore()
+  const checkBrowsingSender = (event: IpcMainInvokeEvent): void => {
+    if (
+      event.sender.id !== windowGetter()?.webContents.id ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      throw new Error('Browsing state is only available in the main window')
+  }
+  ipcMain.handle(
+    IPC.BROWSING_READ,
+    wrapHandler((event) => {
+      checkBrowsingSender(event)
+      return browsingState.read()
+    }),
+  )
+  ipcMain.handle(
+    IPC.BROWSING_WRITE,
+    wrapHandler((event, key: unknown, page: unknown) => {
+      checkBrowsingSender(event)
+      browsingState.write(key, page)
+    }),
+  )
+  let accountFavorites: ReturnType<typeof createRuntimeAccountFavorites> | undefined
+  const accountFavoriteService = (): ReturnType<typeof createRuntimeAccountFavorites> =>
+    (accountFavorites ??= createRuntimeAccountFavorites((state) => {
+      const window = windowGetter()
+      if (window && !window.isDestroyed())
+        window.webContents.send(IPC.ACCOUNT_FAVORITES_CHANGED, state)
+    }))
+  ipcMain.handle(
+    IPC.ACCOUNT_FAVORITES_LIST,
+    wrapHandler((event, refresh: unknown) => {
+      checkBrowsingSender(event)
+      if (refresh !== undefined && typeof refresh !== 'boolean') throw new Error('Invalid refresh')
+      return accountFavoriteService().list(refresh === true)
+    }),
+  )
+  ipcMain.handle(
+    IPC.ACCOUNT_FAVORITES_SET,
+    wrapHandler((event, target: unknown, desired: unknown) => {
+      checkBrowsingSender(event)
+      if (typeof desired !== 'boolean') throw new Error('Invalid favorite value')
+      return accountFavoriteService().set(target, desired)
+    }),
+  )
+  const networkCheck = createNetworkCheckService((snapshot) => {
+    const window = windowGetter()
+    if (window && !window.isDestroyed())
+      window.webContents.send(IPC.NETWORK_CHECK_PROGRESS, snapshot)
+  })
+  const checkNetworkSender = (event: IpcMainInvokeEvent): void => {
+    if (
+      event.sender.id !== windowGetter()?.webContents.id ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      throw new Error('Network check is only available in the main window')
+  }
+  ipcMain.handle(
+    IPC.NETWORK_CHECK_STATUS,
+    wrapHandler((event) => {
+      checkNetworkSender(event)
+      return networkCheck.get()
+    }),
+  )
+  ipcMain.handle(
+    IPC.NETWORK_CHECK_START,
+    wrapHandler((event, mode: unknown, target?: unknown) => {
+      checkNetworkSender(event)
+      if (mode !== 'system' && mode !== 'direct') throw new Error('Invalid network mode')
+      if (target !== undefined && typeof target !== 'string')
+        throw new Error('Invalid network target')
+      return networkCheck.start(
+        mode,
+        target as import('../../shared/network-check').NetworkCheckTarget | undefined,
+      )
+    }),
+  )
+  ipcMain.handle(
+    IPC.NETWORK_CHECK_CANCEL,
+    wrapHandler((event) => {
+      checkNetworkSender(event)
+      return networkCheck.cancel()
+    }),
+  )
+  app.once('before-quit', () => networkCheck.cancel())
+  ipcMain.handle(
+    IPC.SCAN_STATUS,
+    wrapHandler(() => getScanProgress()),
+  )
   const notifyAuthLogout = (): void => {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
@@ -241,33 +478,30 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
     }
   }
 
-  /**
-   * 启动或重建 SSE 长连接。
-   */
-  function startSse(): void {
-    if (sseService) {
-      console.info('[ipc] 启动 SSE 长连接')
-      sseService.start(handleTokenExpired)
-    }
-  }
-
-  async function handleTokenExpired(): Promise<void> {
-    console.warn('[ipc] SSE 报告 Access Token 失效，尝试自动续期')
-    await forceRefreshAccessToken()
-  }
-
-  function handleSessionInvalidated(): void {
-    console.warn('[ipc] Refresh Token 已失效，需要用户重新登录')
+  setOnLoginSuccessCallback(() => {
+    void wakeAgentHeartbeat(true)
+  })
+  setOnSessionInvalidatedCallback(() => {
     notifyAuthLogout()
-    startSse()
-  }
-
-  setOnLoginSuccessCallback(startSse)
-  setOnTokenRefreshedCallback(startSse)
-  setOnSessionInvalidatedCallback(handleSessionInvalidated)
+    void wakeAgentHeartbeat(true)
+  })
   initializeAuthSessionManager()
+  startModelCatalogSync()
+  ipcMain.handle(
+    IPC.MODEL_ICONS_SNAPSHOT,
+    wrapHandler(() => getModelIconSnapshot()),
+  )
+  ipcMain.handle(
+    IPC.MODEL_ICONS_ENSURE,
+    wrapHandler((_event, modelIds: string[]) => ensureModelIcons(modelIds)),
+  )
+  startModelIconSync()
+  startAgentHeartbeat()
 
-  setTimeout(startSse, 500)
+  ipcMain.handle(
+    IPC.AGENT_HEARTBEAT_WAKE,
+    wrapHandler(() => wakeAgentHeartbeat()),
+  )
 
   // 扫描：POST /api/scan
   ipcMain.handle(
@@ -279,6 +513,27 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   ipcMain.handle(
     IPC.STATS_OVERVIEW,
     wrapHandler((_event, params?: RangeParams) => getOverview(params?.from, params?.to)),
+  )
+  ipcMain.handle(
+    IPC.STATS_COST,
+    wrapHandler((_event, params?: RangeParams) => getUsageCostSummary(params)),
+  )
+  ipcMain.handle(
+    IPC.COST_EXCHANGE_RATES,
+    wrapHandler((_event, refresh?: boolean) => getExchangeRates(refresh)),
+  )
+  ipcMain.handle(
+    IPC.STATS_TURNS,
+    wrapHandler((_event, params?: RangeParams & { groupBy?: string }) =>
+      readTurnStats(
+        openDatabase(),
+        {
+          from: typeof params?.from === 'string' ? params.from : undefined,
+          to: typeof params?.to === 'string' ? params.to : undefined,
+        },
+        params?.groupBy === 'agent' ? 'agent' : 'model',
+      ),
+    ),
   )
 
   // 每日（按 agent）：GET /api/stats/daily
@@ -347,6 +602,12 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
 
   // 用户级会话明细：GET /api/stats/user-sessions
   ipcMain.handle(
+    IPC.STATS_SESSION_WORKSPACE,
+    wrapHandler((_event, params?: import('../../shared/models').SessionWorkspaceFilter) =>
+      getSessionWorkspace(params ?? {}),
+    ),
+  )
+  ipcMain.handle(
     IPC.STATS_USER_SESSIONS,
     wrapHandler((_event, params?: UsageSessionsParams) => getUserUsageSessionsPage(params ?? {})),
   )
@@ -377,20 +638,11 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
     }),
   )
 
-  // 分钟级可缩放趋势：默认最近 24 小时，单次最多查询 31 天。
+  // 秒级可缩放趋势：快捷时段限制 31 天，自定义基线保留用户选择的起点。
   ipcMain.handle(
     IPC.STATS_USAGE_TREND,
     wrapHandler((_event, params?: UsageTrendParams) => {
-      const now = Date.now()
-      const to = typeof params?.to === 'number' && Number.isFinite(params.to) ? params.to : now
-      const fallbackFrom = to - 24 * 60 * 60 * 1000
-      const requestedFrom =
-        typeof params?.from === 'number' && Number.isFinite(params.from)
-          ? params.from
-          : fallbackFrom
-      const maxFrom = to - 60_000
-      const minFrom = to - 31 * 24 * 60 * 60 * 1000
-      const from = Math.max(minFrom, Math.min(requestedFrom, maxFrom))
+      const { from, to } = usageTrendRange(params)
       const groupBy = params?.groupBy === 'model' ? 'model' : 'agent'
       return getUsageTrendStats({ from, to, groupBy })
     }),
@@ -398,7 +650,10 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
 
   ipcMain.handle(
     IPC.PROJECTS_LIST,
-    wrapHandler(() => listTrackedProjects()),
+    wrapHandler(async () => {
+      await discoverProjects()
+      return listTrackedProjects()
+    }),
   )
 
   ipcMain.handle(
@@ -433,16 +688,45 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   )
 
   ipcMain.handle(
+    IPC.PROJECTS_IGNORED,
+    wrapHandler(() => listTrackedProjects(true).filter((project) => project.ignored)),
+  )
+  ipcMain.handle(
+    IPC.PROJECTS_RESTORE,
+    wrapHandler((_event, projectId?: string) => restoreTrackedProject(projectId ?? '')),
+  )
+
+  ipcMain.handle(
     IPC.PROJECTS_OVERVIEW,
-    wrapHandler((_event, params?: RangeParams) =>
-      getProjectUsageOverview(params?.from, params?.to),
-    ),
+    wrapHandler(async (_event, params?: RangeParams) => {
+      await discoverProjects()
+      return getProjectUsageOverview(params?.from, params?.to)
+    }),
   )
 
   ipcMain.handle(
     IPC.PROJECTS_DETAIL,
     wrapHandler((_event, params?: RangeParams & { projectId?: string }) =>
       getProjectUsageDetail(params?.projectId ?? '', params?.from, params?.to),
+    ),
+  )
+
+  ipcMain.handle(
+    IPC.PROJECTS_WORKSPACE,
+    wrapHandler((_event, params?: import('../../shared/models').SessionWorkspaceFilter) =>
+      getProjectWorkspace(params ?? {}),
+    ),
+  )
+  ipcMain.handle(
+    IPC.STATS_ANALYTICS,
+    wrapHandler((_event, params?: import('../../shared/analytics').UsageAnalyticsFilter) =>
+      getUsageAnalytics(params ?? {}),
+    ),
+  )
+  ipcMain.handle(
+    IPC.PROJECTS_NOTES,
+    wrapHandler((_event, input: { projectId: string; notes: string; name?: string }) =>
+      updateProjectNotes(input.projectId, input.notes, input.name),
     ),
   )
 
@@ -468,11 +752,11 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
     IPC.APP_OPEN_EXTERNAL,
     wrapHandler(async (_event, url: string) => {
       if (typeof url !== 'string' || url.length === 0 || url.length > 2_048) return
-      const parsed = new URL(url)
-      if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
-        throw new Error('只允许打开不含凭据的 HTTP(S) 外部链接')
-      }
-      await shell.openExternal(parsed.toString())
+      const externalUrl = getExternalWebUrl(
+        url,
+        app.isPackaged ? undefined : process.env.ELECTRON_RENDERER_URL,
+      )
+      if (externalUrl) await shell.openExternal(externalUrl)
     }),
   )
 
@@ -485,6 +769,13 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   ipcMain.handle(
     IPC.APP_GET_RUNTIME_CONFIG,
     wrapHandler((_event, forceRefresh?: boolean) => getDesktopRuntimeConfig(forceRefresh === true)),
+  )
+
+  ipcMain.handle(
+    IPC.APP_RESOLVE_API_URL,
+    wrapHandler((_event, key: DesktopApiKey, parameters?: DesktopApiParameters) =>
+      resolveDesktopApiUrl(key, parameters),
+    ),
   )
 
   // 获取当前应用版本号（读取 electron app.getVersion()，与 package.json 一致）
@@ -500,7 +791,12 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
 
   ipcMain.handle(
     IPC.APP_GET_REQUEST_IDENTITY,
-    wrapHandler(async () => ensureAgentClientRegistered(await getAccessToken())),
+    wrapHandler(() => resolveAgentRequestIdentity(getAccessToken)),
+  )
+
+  ipcMain.handle(
+    IPC.APP_REFRESH_DEVICE_CREDENTIAL,
+    wrapHandler(() => resolveRefreshedAgentRequestIdentity(getAccessToken)),
   )
 
   ipcMain.handle(
@@ -509,28 +805,22 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   )
 
   ipcMain.handle(
-    IPC.TOKEN_PLAN_CREDENTIALS_LIST,
-    wrapHandler(() => listTokenPlanCredentials()),
+    IPC.APP_GET_INSTALLATION_LANGUAGE,
+    wrapHandler(() => readInstallationLanguage(process.resourcesPath)),
   )
 
   ipcMain.handle(
-    IPC.TOKEN_PLAN_CREDENTIAL_SAVE,
-    wrapHandler((_event, input: TokenPlanCredentialInput) => saveTokenPlanCredential(input)),
-  )
-
-  ipcMain.handle(
-    IPC.TOKEN_PLAN_CREDENTIAL_REMOVE,
-    wrapHandler((_event, providerId: TokenPlanProviderId) => removeTokenPlanCredential(providerId)),
+    IPC.TOKEN_PLAN_DISCOVER,
+    wrapHandler((_event, force?: boolean) => discoverTokenPlanConnections(force === true)),
   )
 
   ipcMain.handle(
     IPC.TOKEN_PLAN_USAGE_QUERY,
-    wrapHandler((_event, providerId: TokenPlanProviderId) => queryTokenPlanUsage(providerId)),
+    wrapHandler((_event, id: string, force?: boolean) => queryTokenPlanUsage(id, force)),
   )
-
   ipcMain.handle(
-    IPC.TOKEN_PLAN_USAGE_QUERY_ALL,
-    wrapHandler(() => queryAllTokenPlanUsage()),
+    IPC.TOKEN_PLAN_DETAILS_QUERY,
+    wrapHandler((_event, id: string, query: QuotaDetailQuery) => queryTokenPlanDetails(id, query)),
   )
 
   // 检查更新：向 com 后端拉取 latest.yml 并对比当前版本
@@ -541,14 +831,51 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
 
   // 下载更新：autoDownload=false 时由用户在 UI 上手动触发
   ipcMain.handle(
+    IPC.UPDATE_STATE,
+    wrapHandler(async () => getUpdateState()),
+  )
+  ipcMain.handle(
+    IPC.UPDATE_PAUSE,
+    wrapHandler(async () => pauseUpdate()),
+  )
+  ipcMain.handle(
+    IPC.UPDATE_RESUME,
+    wrapHandler(async () => resumeUpdate()),
+  )
+  ipcMain.handle(
     IPC.UPDATE_DOWNLOAD,
     wrapHandler(async () => downloadUpdate()),
   )
 
-  // 退出应用并启动安装器（仅 Windows NSIS 有效）
+  // 更新前先等待扫描子进程退出；NSIS 在真正替换文件前还会执行最终进程门禁。
   ipcMain.handle(
     IPC.UPDATE_INSTALL,
-    wrapHandler(() => quitAndInstall()),
+    wrapHandler(async () => {
+      await stopBackgroundScan()
+
+      // electron-updater 启动安装器成功后会在下一轮事件循环触发 app.quit()。
+      // 若未触发（例如更新文件已丢失），恢复扫描，避免当前会话永久停用扫描功能。
+      let recoveryTimer: NodeJS.Timeout | null = null
+      const handleBeforeQuit = (): void => {
+        if (recoveryTimer) clearTimeout(recoveryTimer)
+        recoveryTimer = null
+      }
+      app.once('before-quit', handleBeforeQuit)
+
+      try {
+        quitAndInstall()
+      } catch (error) {
+        app.removeListener('before-quit', handleBeforeQuit)
+        resumeBackgroundScan()
+        throw error
+      }
+
+      recoveryTimer = setTimeout(() => {
+        app.removeListener('before-quit', handleBeforeQuit)
+        resumeBackgroundScan()
+      }, 2_000)
+      recoveryTimer.unref()
+    }),
   )
 
   ipcMain.on(IPC.DIAGNOSTICS_RENDERER_ERROR, (_event, payload: unknown) => {
@@ -591,21 +918,19 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   ipcMain.handle(
     IPC.AUTH_LOGIN,
     wrapHandler(async (_event, language?: string) => {
-      const ok = await startPkceLogin(windowGetter, language === 'en' ? 'en' : 'zh')
-      return ok ? { ok } : { ok, message: '无法打开系统浏览器' }
+      return startPkceLogin(windowGetter, language === 'en' ? 'en' : 'zh')
     }),
   )
 
-  // 登出：撤销服务端 Refresh Token、清除本地会话，再切换为未登录 SSE 连接
+  // 登出后立即用匿名身份更新同一个客户端的在线状态。
   // L3 修复：返回 {ok: boolean} 让 renderer 能给用户反馈
   ipcMain.handle(
     IPC.AUTH_LOGOUT,
     wrapHandler(async () => {
-      sseService?.stop()
       const ok = await revokeAndClearAuthSession()
       if (ok) {
         notifyAuthLogout()
-        sseService?.start(handleTokenExpired)
+        void wakeAgentHeartbeat(true)
       }
       return ok ? { ok } : { ok, message: '本地登录凭据清理失败' }
     }),
@@ -628,30 +953,8 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   )
 
   ipcMain.handle(
-    IPC.DESKTOP_MESSAGE_SYNC,
-    wrapHandler((_event, placement: CustomMessagePlacement) => syncDesktopMessages(placement)),
-  )
-
-  ipcMain.handle(
-    IPC.DESKTOP_MESSAGE_EVENT,
-    wrapHandler((_event, input: DesktopMessageEventInput) => reportDesktopMessageEvent(input)),
-  )
-
-  ipcMain.handle(
     IPC.CUSTOM_MESSAGES_LIST,
     wrapHandler((_event, placement: CustomMessagePlacement) => listCachedCustomMessages(placement)),
-  )
-  ipcMain.handle(
-    IPC.CUSTOM_MESSAGES_CACHE,
-    wrapHandler((_event, values: unknown[], placement: CustomMessagePlacement) =>
-      cacheCustomMessages(values, placement),
-    ),
-  )
-  ipcMain.handle(
-    IPC.CUSTOM_MESSAGES_RECONCILE,
-    wrapHandler((_event, placement: CustomMessagePlacement, activeMessageUids: string[]) =>
-      reconcileCustomMessages(placement, activeMessageUids),
-    ),
   )
   ipcMain.handle(
     IPC.CUSTOM_MESSAGE_RECEIPT_QUEUE,
@@ -662,59 +965,22 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
         messageUid: string,
         event: CustomMessageEvent,
         placement: CustomMessagePlacement,
-      ) => queueCustomMessageReceipt(messageId, messageUid, event, placement),
+      ) => {
+        queueCustomMessageReceipt(messageId, messageUid, event, placement)
+        queueReceiptFlush()
+      },
     ),
   )
-  ipcMain.handle(
-    IPC.CUSTOM_MESSAGE_RECEIPTS_PENDING,
-    wrapHandler(() => listPendingCustomMessageReceipts()),
-  )
-  ipcMain.handle(
-    IPC.CUSTOM_MESSAGE_RECEIPT_SENT,
-    wrapHandler((_event, id: number) => markCustomMessageReceiptSent(id)),
-  )
-  ipcMain.handle(
-    IPC.CUSTOM_MESSAGE_RECEIPT_FAILED,
-    wrapHandler((_event, id: number, error: string) => markCustomMessageReceiptFailed(id, error)),
-  )
-
-  // ===== 通知持久化 =====
-  // 查询通知列表（filter: 'all' 全部 | 'unread' 仅未读 | 'read' 仅已读，默认 all）
-  ipcMain.handle(
-    IPC.NOTIFICATIONS_LIST,
-    wrapHandler((_event, filter?: 'all' | 'unread' | 'read') => listNotifications(filter ?? 'all')),
-  )
-
-  // 标记单条通知为已读（参数 id）
-  ipcMain.handle(
-    IPC.NOTIFICATIONS_MARK_READ,
-    wrapHandler((_event, id: string) => markNotificationRead(id)),
-  )
-
-  // 标记所有未读通知为已读
-  ipcMain.handle(
-    IPC.NOTIFICATIONS_MARK_ALL_READ,
-    wrapHandler(() => markAllNotificationsRead()),
-  )
-
-  // 删除单条通知（参数 id）
-  ipcMain.handle(
-    IPC.NOTIFICATIONS_DELETE,
-    wrapHandler((_event, id: string) => deleteNotification(id)),
-  )
-
-  // 应用退出前停止 SSE 长连接（优雅断开，通知后端 agent 离线）
   app.on('before-quit', () => {
-    sseService?.stop()
+    stopModelCatalogSync()
+    stopAgentHeartbeat()
     shutdownAuthSessionManager()
   })
 }
 
-/**
- * 停止 SSE 长连接（供 index.ts 的 before-quit 钩子显式调用，确保退出前优雅断开）。
- * stop() 是幂等的，多次调用安全。
- */
-export function stopSseService(): void {
-  sseService?.stop()
+/** Stop network timers and token refresh before app shutdown. */
+export function stopAgentNetworkServices(): void {
+  stopModelCatalogSync()
+  stopAgentHeartbeat()
   shutdownAuthSessionManager()
 }

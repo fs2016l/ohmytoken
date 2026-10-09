@@ -1,5 +1,8 @@
 /** 读取 OpenCode 本地记录并生成统一扫描结果。 */
 import { createHash } from 'crypto'
+import { conversationTurn } from './conversation-turn'
+import { openCodeTurnReader } from './opencode-turns'
+import { openCodeGenerationTiming } from './opencode-generation-timing'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'path'
@@ -31,6 +34,7 @@ import {
 } from './incremental-utils'
 import { normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets, tokenCount } from './token-usage'
+import { usageEvidence } from '../cost/usage-evidence'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -66,6 +70,8 @@ class OpenCodeAccumulator {
         existing.call.apiCallId = parsed.call.apiCallId
       }
       mergeOpenCodeWorkspace(existing, parsed.call.projectPath)
+      existing.call.turn ??= parsed.call.turn
+      mergeOpenCodeTiming(existing.call, parsed.call)
       return
     }
 
@@ -83,18 +89,35 @@ class OpenCodeAccumulator {
         continue
       }
       mergeOpenCodeWorkspace(current, entry.call.projectPath)
+      mergeOpenCodeTiming(current.call, entry.call)
       if (
         entry.call.totalTokens > current.call.totalTokens ||
         (entry.call.totalTokens === current.call.totalTokens &&
           entry.call.timestamp > current.call.timestamp)
       ) {
         const projectPath = current.workspaceConflict ? undefined : current.call.projectPath
-        current.call = { ...entry.call, ...(projectPath ? { projectPath } : {}) }
+        current.call = {
+          ...entry.call,
+          generationTiming: current.call.generationTiming,
+          ...(projectPath ? { projectPath } : {}),
+        }
         if (!projectPath) delete current.call.projectPath
       }
     }
     return [...byId.values()].map((entry) => entry.call)
   }
+}
+
+function mergeOpenCodeTiming(current: TokenUsageApiCall, incoming: TokenUsageApiCall): void {
+  if (
+    incoming.generationTiming &&
+    (!current.generationTiming ||
+      incoming.generationTiming.completedAtMs > current.generationTiming.completedAtMs ||
+      (incoming.generationTiming.completedAtMs === current.generationTiming.completedAtMs &&
+        incoming.generationTiming.streamDurationMs !== undefined &&
+        current.generationTiming.streamDurationMs === undefined))
+  )
+    current.generationTiming = incoming.generationTiming
 }
 
 function mergeOpenCodeWorkspace(entry: OpenCodeAccumulatedCall, incoming?: string): void {
@@ -140,6 +163,11 @@ export class OpenCodeScanner implements AgentScanner {
     let legacyParsedCount = 0
 
     for (const dbPath of dbPaths) {
+      scanContext.reportProgress?.({
+        unit: 'files',
+        completed: parsedDbCount,
+        total: dbPaths.length,
+      })
       let db: Database.Database | null = null
       try {
         const dbMiniMaxRuntimeSessionIds = new Set<string>()
@@ -147,17 +175,24 @@ export class OpenCodeScanner implements AgentScanner {
         db = new Database(dbPath, { readonly: true })
         db.exec('PRAGMA busy_timeout = 5000')
 
-        // session 表只提供元数据；早期库可以只有 message 表。
+        // 新版使用 session_v2；迁移库同时存在两张表时优先使用新版元数据。
+        // 早期库也可以只有 message 表。
         const tableRows = queryAll(
           db,
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='session'",
+          "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('session_v2', 'session') ORDER BY CASE name WHEN 'session_v2' THEN 0 ELSE 1 END",
         )
-        if (tableRows.length > 0) {
-          this.readSessionTable(db, scanContext, {
-            sessionMeta,
-            miniMaxRuntimeSessionIds: dbMiniMaxRuntimeSessionIds,
-            recentSessionIds: dbRecentSessionIds,
-          })
+        for (const row of tableRows) {
+          const table = row.name === 'session_v2' ? 'session_v2' : 'session'
+          this.readSessionTable(
+            db,
+            scanContext,
+            {
+              sessionMeta,
+              miniMaxRuntimeSessionIds: dbMiniMaxRuntimeSessionIds,
+              recentSessionIds: dbRecentSessionIds,
+            },
+            table,
+          )
           for (const sessionId of dbMiniMaxRuntimeSessionIds) {
             miniMaxRuntimeSessionIds.add(sessionId)
           }
@@ -208,8 +243,14 @@ export class OpenCodeScanner implements AgentScanner {
       throw new Error(`OpenCode 扫描失败: ${dbErrors.join('; ')}`)
     }
     if (dbErrors.length > 0) {
+      if (scanContext.strict) throw new Error(`OpenCode 来源读取不完整: ${dbErrors.join('; ')}`)
       console.warn(`[opencode-scanner] 部分数据源跳过: ${dbErrors.join('; ')}`)
     }
+    scanContext.reportProgress?.({
+      unit: 'files',
+      completed: dbPaths.length,
+      total: dbPaths.length,
+    })
 
     apiCalls.push(...accumulator.values())
     sessions.push(...buildSessionsFromApiCalls(this.agentName, apiCalls))
@@ -262,15 +303,17 @@ export class OpenCodeScanner implements AgentScanner {
       miniMaxRuntimeSessionIds: Set<string>
       recentSessionIds: Set<string>
     },
+    table: 'session' | 'session_v2' = 'session',
   ): void {
     // 动态检测当前表结构
     const columns = new Set<string>()
-    for (const row of queryAll(db, 'PRAGMA table_info(session)')) {
+    for (const row of queryAll(db, `PRAGMA table_info(${table})`)) {
       const name = row.name
       if (typeof name === 'string') columns.add(name.toLowerCase())
     }
 
     const has = (...names: string[]) => names.every((n) => columns.has(n))
+    if (!has('id')) return
     const hasModel = has('model')
     const hasTimeCreated = has('time_created')
     const hasSessionTimeUpdated = has('time_updated')
@@ -288,7 +331,7 @@ export class OpenCodeScanner implements AgentScanner {
     if (hasModel) selectCols.push('model')
     if (hasTimeCreated) selectCols.push('time_created')
     if (hasSessionTimeUpdated) selectCols.push('time_updated')
-    const sessionRows = queryAll(db, `SELECT ${selectCols.join(', ')} FROM session`)
+    const sessionRows = queryAll(db, `SELECT ${selectCols.join(', ')} FROM ${table}`)
 
     const parentBySessionId = new Map<string, string>()
     for (const row of sessionRows) {
@@ -389,6 +432,7 @@ export class OpenCodeScanner implements AgentScanner {
     }
     const has = (...names: string[]) => names.every((name) => columns.has(name))
     if (!has('id', 'session_id', 'data', 'type')) return
+    const readTurn = openCodeTurnReader(db, 'session_message')
     const hasTimeCreated = has('time_created')
     const hasTimeUpdated = has('time_updated')
 
@@ -397,13 +441,25 @@ export class OpenCodeScanner implements AgentScanner {
     if (hasTimeUpdated) selectCols.push('time_updated')
 
     const consume = (whereSql: string, params: QueryParam[] = []): void => {
+      const clause = `${whereSql ? `${whereSql} AND` : ' WHERE'} type = 'assistant'`
+      const total =
+        !isIncrementalContext(context) && context.reportProgress
+          ? (
+              db
+                .prepare(`SELECT COUNT(*) AS count FROM session_message${clause}`)
+                .get(...params) as { count: number }
+            ).count
+          : undefined
+      let completed = 0
+      context.reportProgress?.({ unit: 'rows', completed, total })
       // 在查询阶段排除无关记录
       const statement = db.prepare(
         `SELECT ${selectCols.join(', ')}
-         FROM session_message${whereSql ? `${whereSql} AND` : ' WHERE'} type = 'assistant'
+         FROM session_message${clause}
          ORDER BY id ASC, session_id ASC`,
       )
       for (const rawRow of statement.iterate(...params)) {
+        if (++completed % 256 === 0) context.reportProgress?.({ unit: 'rows', completed, total })
         const row = rawRow as Record<string, DbValue>
         const sessionId = dbString(row.session_id)
         if (excludedSessionIds.has(sessionId)) continue
@@ -412,6 +468,7 @@ export class OpenCodeScanner implements AgentScanner {
           sessionById,
           true,
           openCodeSourceNamespace(dbPath, 'session_message'),
+          readTurn,
         )
         if (parsed) accumulator.ingest(parsed)
       }
@@ -474,6 +531,11 @@ export class OpenCodeScanner implements AgentScanner {
     }
     const has = (...names: string[]) => names.every((name) => columns.has(name))
     if (!has('id', 'session_id', 'data')) return
+    const readTurn = openCodeTurnReader(
+      db,
+      'message',
+      !isIncrementalContext(context) && (has('time_created') || !has('time_updated')),
+    )
 
     const hasTimeCreated = has('time_created')
     const hasTimeUpdated = has('time_updated')
@@ -482,6 +544,16 @@ export class OpenCodeScanner implements AgentScanner {
     if (hasTimeUpdated) selectCols.push('time_updated')
 
     const consume = (whereSql: string, orderColumn: string, params: QueryParam[] = []): void => {
+      const total =
+        !isIncrementalContext(context) && context.reportProgress
+          ? (
+              db.prepare(`SELECT COUNT(*) AS count FROM message${whereSql}`).get(...params) as {
+                count: number
+              }
+            ).count
+          : undefined
+      let completed = 0
+      context.reportProgress?.({ unit: 'rows', completed, total })
       const statement = db.prepare(
         `SELECT ${selectCols.join(', ')}
          FROM message${whereSql}
@@ -489,6 +561,7 @@ export class OpenCodeScanner implements AgentScanner {
       )
       // iterate() 保持结果逐行解码，避免把大型 message.data 全量驻留在 JS 堆中。
       for (const rawRow of statement.iterate(...params)) {
+        if (++completed % 256 === 0) context.reportProgress?.({ unit: 'rows', completed, total })
         const row = rawRow as Record<string, DbValue>
         const sessionId = dbString(row.session_id)
         if (excludedSessionIds.has(sessionId)) continue
@@ -497,6 +570,7 @@ export class OpenCodeScanner implements AgentScanner {
           sessionById,
           false,
           openCodeSourceNamespace(dbPath, 'message'),
+          readTurn,
         )
         if (parsed) accumulator.ingest(parsed)
       }
@@ -564,6 +638,7 @@ export class OpenCodeScanner implements AgentScanner {
         try {
           text = readFileSync(file, 'utf8')
         } catch {
+          if (context.strict) throw new Error(`OpenCode 消息文件不可读: ${file}`)
           continue
         }
         let data: unknown
@@ -605,6 +680,10 @@ export class OpenCodeScanner implements AgentScanner {
         )
         const model = resolveOpenCodeModel(data) || session?.model || 'unknown'
         const provider = resolveOpenCodeProvider(data)
+        const evidence = usageEvidence({
+          reportedUsd: readCost(data.cost),
+          modelSource: resolveOpenCodeModel(data) ? 'response' : 'session',
+        })
         const messageId = readString(data, 'id').trim()
         const apiCallId = messageId || legacyJsonApiCallId(file)
         const embeddedProjectPath = normalizeCollectedProjectPath(readObject(data, 'path').root)
@@ -613,6 +692,10 @@ export class OpenCodeScanner implements AgentScanner {
         const subAgentName = resolveOpenCodeAgent(data) || session?.subAgentName
 
         const apiCall: TokenUsageApiCall = {
+          turn:
+            data.summary === true || session?.parentSessionId
+              ? conversationTurn(`auto:${String(data.parentID)}`, false)
+              : undefined,
           agent: this.agentName,
           apiCallId,
           sessionId,
@@ -621,8 +704,13 @@ export class OpenCodeScanner implements AgentScanner {
           timestamp,
           hour: hourFromTimestamp(timestamp),
           model,
+          evidence,
           ...buckets,
         }
+        apiCall.generationTiming = openCodeGenerationTiming(
+          data,
+          buckets.outputTokens + buckets.reasoningTokens,
+        )
         if (session?.parentSessionId) apiCall.parentSessionId = session.parentSessionId
         const rootSessionId = session?.rootSessionId ?? sessionId
         if (rootSessionId !== sessionId || session?.parentSessionId) {
@@ -658,12 +746,14 @@ export class OpenCodeScanner implements AgentScanner {
     sessionById: Map<string, TokenUsageSession>,
     missingRoleIsAssistant: boolean,
     sourceNamespace: string,
+    readTurn?: ReturnType<typeof openCodeTurnReader>,
   ): OpenCodeParsedCall | null {
     const data = parseObject(row.data)
     const sessionId = dbString(row.session_id) || readString(data, 'sessionID').trim()
     if (!sessionId) return null
     const session = sessionById.get(sessionId)
     const role = readString(data, 'role') || (missingRoleIsAssistant ? 'assistant' : '')
+    readTurn?.observe(sessionId, dbString(row.id) || readString(data, 'id'), data)
     if (role !== 'assistant') return null
     const timestampValue =
       readNestedNumber(data, ['time', 'created']) ??
@@ -676,6 +766,10 @@ export class OpenCodeScanner implements AgentScanner {
     )
     const model = resolveOpenCodeModel(data) || session?.model || 'unknown'
     const provider = resolveOpenCodeProvider(data)
+    const evidence = usageEvidence({
+      reportedUsd: readCost(data.cost),
+      modelSource: resolveOpenCodeModel(data) ? 'response' : 'session',
+    })
     const tokens = readObject(data, 'tokens')
     if (Object.keys(tokens).length === 0) return null
     const input = optionalTokenNumber(tokens, 'input')
@@ -705,6 +799,10 @@ export class OpenCodeScanner implements AgentScanner {
     const cost = readCost(data.cost)
 
     const apiCall: TokenUsageApiCall = {
+      turn:
+        data.summary === true || session?.parentSessionId
+          ? conversationTurn(`auto:${String(data.parentID)}`, false)
+          : readTurn?.(sessionId, data.parentID),
       agent: this.agentName,
       apiCallId,
       sessionId,
@@ -713,8 +811,13 @@ export class OpenCodeScanner implements AgentScanner {
       timestamp,
       hour: hourFromTimestamp(timestamp),
       model,
+      evidence,
       ...buckets,
     }
+    apiCall.generationTiming = openCodeGenerationTiming(
+      data,
+      buckets.outputTokens + buckets.reasoningTokens,
+    )
     if (session?.parentSessionId) apiCall.parentSessionId = session.parentSessionId
     const rootSessionId = session?.rootSessionId ?? sessionId
     if (rootSessionId !== sessionId || session?.parentSessionId) {

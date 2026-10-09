@@ -1,3 +1,22 @@
+import type { ReplayAPI } from '../shared/replay'
+import type { DiscoveryNativeAPI } from '../shared/discovery-ui'
+import type { ThirdPartyNoticesAPI } from '../shared/third-party-notices'
+import type { ScanRefreshAPI } from '../shared/scan-refresh'
+import type { ModelIconAPI } from '../shared/model-icons'
+import type { NetworkMonitorAPI } from './network-monitor-api'
+import type { WindowMaterialAPI } from '../shared/window-material'
+import type { WindowChromeAPI } from '../shared/window-chrome'
+import type {
+  AccountFavoriteTarget,
+  AccountFavoritesState,
+  AccountFavoriteResult,
+} from '../shared/account-favorites'
+import type {
+  LocalFavoriteTarget,
+  LocalFavoriteType,
+  LocalFavoriteImport,
+  LocalFavoritesState,
+} from '../shared/local-favorites'
 /**
  * Preload 暴露给 renderer 的 API 类型声明
  *
@@ -9,14 +28,18 @@
  * 不需要再手动断言。
  */
 import type { ElectronAPI } from '@electron-toolkit/preload'
-import type { AgentRequestIdentity } from '../shared/agent-client'
-import type { DesktopRuntimeConfig } from '../shared/runtime-config'
+import type { BrowsingSnapshot, BrowsingPageSnapshot } from '../shared/browsing-state'
+import type { AgentRequestIdentityResult } from '../shared/agent-client'
+import type {
+  DesktopRuntimeConfig,
+  DesktopApiKey,
+  DesktopApiParameters,
+} from '../shared/runtime-config'
+import type { NetworkCheckSnapshot, NetworkMode, NetworkCheckTarget } from '../shared/network-check'
 import type {
   AuthActionResult,
   AuthSessionResult,
   DesktopFeedbackSubmitParams,
-  DesktopMessageEventInput,
-  DesktopMessageSyncResult,
 } from '../shared/desktop-api'
 import type {
   DiagnosticErrorPayload,
@@ -46,16 +69,15 @@ import type {
   UsageTrendStats,
 } from '../shared/models'
 import type {
-  TokenPlanCredentialInput,
-  TokenPlanCredentialStatus,
-  TokenPlanProviderId,
+  TokenPlanInventory,
+  TokenPlanMonitorState,
   TokenPlanUsageSnapshot,
 } from '../shared/token-plan'
+import type { QuotaDetailQuery, QuotaDetails } from '../shared/quota-details'
 import type {
   CustomMessageData,
   CustomMessageEvent,
   CustomMessagePlacement,
-  CustomMessageReceipt,
 } from '../shared/custom-message'
 
 /** 日期范围参数 */
@@ -79,14 +101,7 @@ export interface ModelRangeParams extends RangeParams {
   model: string
 }
 
-export interface UsageSessionsParams extends RangeParams, PaginationParams {
-  agent?: string
-  model?: string
-  rootSessionId?: string
-  projectId?: string
-  trackedProjectsOnly?: boolean
-  query?: string
-}
+export type UsageSessionsParams = import('../shared/models').UsageDetailPageFilter
 
 export interface UsageApiCallsParams {
   agent: string
@@ -104,7 +119,9 @@ export interface UsageApiRecordsParams extends RangeParams, PaginationParams {
   sessionId?: string
   rootSessionId?: string
   model?: string
+  models?: string[]
   projectId?: string
+  projectIds?: string[]
   trackedProjectsOnly?: boolean
 }
 
@@ -116,12 +133,14 @@ export interface UsageTrendParams {
   from: number
   to: number
   groupBy: 'agent' | 'model'
+  baseline?: boolean
 }
 
 /** autoUpdater 推送到 renderer 的事件 payload（与 updater.service.ts 转发的字段一致） */
 export interface UpdaterEvent {
   /** 事件类型 */
   type:
+    | 'state'
     | 'checking-for-update'
     | 'update-available'
     | 'update-not-available'
@@ -136,18 +155,62 @@ export interface UpdaterEvent {
   version?: string
   /** error 时携带：错误消息 */
   message?: string
+  state?: import('../shared/updater').UpdateState
 }
 
 /**
  * renderer 通过 window.api 调用的业务 API
  * 方法签名与 preload/index.ts 暴露的对象一致，但这里给出强类型返回值
  */
-export interface AppAPI {
+export interface AppAPI
+  extends
+    DiscoveryNativeAPI,
+    ReplayAPI,
+    ThirdPartyNoticesAPI,
+    NetworkMonitorAPI,
+    WindowMaterialAPI,
+    WindowChromeAPI,
+    ScanRefreshAPI,
+    ModelIconAPI {
+  accountFavoritesList(refresh?: boolean): Promise<AccountFavoritesState>
+  accountFavoriteSet(
+    target: AccountFavoriteTarget,
+    desired: boolean,
+  ): Promise<AccountFavoriteResult>
+  onAccountFavoritesChanged(callback: (state: AccountFavoritesState) => void): () => void
+  localFavoritesList(): Promise<LocalFavoritesState>
+  localFavoriteSet(target: LocalFavoriteTarget, favorite: boolean): Promise<LocalFavoritesState>
+  localFavoritesReorder(
+    type: LocalFavoriteType,
+    order: LocalFavoriteTarget[],
+  ): Promise<LocalFavoritesState>
+  localFavoritesMigrate(entries: LocalFavoriteImport[]): Promise<LocalFavoritesState>
+  onLocalFavoritesChanged(callback: (state: LocalFavoritesState) => void): () => void
+  readBrowsingState(): Promise<BrowsingSnapshot>
+  writeBrowsingState(key: string, page: BrowsingPageSnapshot): Promise<void>
+  networkCheckStatus(): Promise<NetworkCheckSnapshot>
+  networkCheckStart(mode: NetworkMode, target?: NetworkCheckTarget): Promise<NetworkCheckSnapshot>
+  networkCheckCancel(): Promise<NetworkCheckSnapshot>
+  onNetworkCheckProgress(callback: (snapshot: NetworkCheckSnapshot) => void): () => void
+  getUsageTurns(
+    params: RangeParams & { groupBy: 'agent' | 'model' },
+  ): Promise<import('../shared/models').UsageTurnStats>
   /** POST /api/scan — 执行一次扫描 */
   scanPerform(options?: ScanOptions): Promise<ScanResult>
+  getScanProgress(): Promise<import('../shared/scan-progress').ScanProgress | null>
+  onScanProgress(
+    callback: (progress: import('../shared/scan-progress').ScanProgress) => void,
+  ): () => void
 
   /** GET /api/stats/overview — 总览（grandTotal/agentTotals/今日本周本月用量） */
   getOverview(params?: RangeParams): Promise<Overview>
+  getUsageAnalytics(
+    params?: import('../shared/analytics').UsageAnalyticsFilter,
+  ): Promise<import('../shared/analytics').UsageAnalytics>
+  getUsageCostSummary(
+    params?: RangeParams,
+  ): Promise<import('../shared/usage-cost').UsageCostSummary>
+  getExchangeRates(refresh?: boolean): Promise<import('../shared/cost-currency').ExchangeRateState>
 
   /** GET /api/stats/daily — 每日统计（按 agent 分组） */
   getDailyStats(params?: RangeParams): Promise<DailyStats[]>
@@ -175,6 +238,9 @@ export interface AppAPI {
 
   /** GET /api/stats/user-sessions — 用户级会话汇总，子会话位于 children 内 */
   getUserUsageSessions(params: UsageSessionsParams): Promise<PageResult<TokenUsageUserSession>>
+  getSessionWorkspace(
+    params: import('../shared/models').SessionWorkspaceFilter,
+  ): Promise<import('../shared/models').SessionWorkspacePage>
 
   /** GET /api/stats/api-calls — 会话内 API / prompt 轮次 token 明细 */
   getUsageApiCalls(params: UsageApiCallsParams): Promise<TokenUsageApiCall[]>
@@ -185,7 +251,7 @@ export interface AppAPI {
   /** GET /api/stats/hourly — 小时级 token 统计 */
   getHourlyUsageStats(params: HourlyUsageParams): Promise<HourlyUsageStats[]>
 
-  /** 分钟级 Token 趋势，供悬浮窗缩放到分钟粒度。 */
+  /** 秒级 Token 趋势，支持快捷时段和固定统计基线。 */
   getUsageTrendStats(params: UsageTrendParams): Promise<UsageTrendStats>
 
   projectsList(): Promise<TrackedProject[]>
@@ -193,14 +259,27 @@ export interface AppAPI {
   saveProject(input: { name: string; path: string }): Promise<TrackedProject>
   updateProject(input: { projectId: string; name: string; path: string }): Promise<TrackedProject>
   removeProject(projectId: string): Promise<boolean>
+  updateProjectNotes(input: {
+    projectId: string
+    notes: string
+    name?: string
+  }): Promise<TrackedProject>
+  getProjectWorkspace(
+    params: import('../shared/models').SessionWorkspaceFilter,
+  ): Promise<import('../shared/models').ProjectWorkspacePage>
+  getIgnoredProjects(): Promise<TrackedProject[]>
+  restoreProject(projectId: string): Promise<boolean>
   getProjectUsageOverview(params?: RangeParams): Promise<ProjectUsageOverview>
   getProjectUsageDetail(params: RangeParams & { projectId: string }): Promise<ProjectUsageDetail>
 
-  tokenPlanCredentialsList(): Promise<TokenPlanCredentialStatus[]>
-  tokenPlanCredentialSave(input: TokenPlanCredentialInput): Promise<TokenPlanCredentialStatus>
-  tokenPlanCredentialRemove(providerId: TokenPlanProviderId): Promise<boolean>
-  tokenPlanUsageQuery(providerId: TokenPlanProviderId): Promise<TokenPlanUsageSnapshot>
-  tokenPlanUsageQueryAll(): Promise<TokenPlanUsageSnapshot[]>
+  tokenPlanDiscover(force?: boolean): Promise<TokenPlanInventory>
+  tokenPlanMonitorRead(): Promise<TokenPlanMonitorState>
+  tokenPlanMonitorRefresh(id?: string): Promise<TokenPlanMonitorState>
+  tokenPlanMonitorSetInterval(interval: number): Promise<TokenPlanMonitorState>
+  tokenPlanMonitorSetActive(active: boolean): Promise<void>
+  onTokenPlanMonitorChanged(callback: (state: TokenPlanMonitorState) => void): () => void
+  tokenPlanUsageQuery(id: string, force?: boolean): Promise<TokenPlanUsageSnapshot>
+  tokenPlanDetailsQuery(id: string, query: QuotaDetailQuery): Promise<QuotaDetails>
 
   /** shell.openExternal — 在系统默认浏览器打开 URL */
   openExternal(url: string): Promise<void>
@@ -209,6 +288,7 @@ export interface AppAPI {
   getOhmytokenBase(): Promise<string>
 
   /** com 后台下发的公开 URL；不包含密钥或登录凭据。 */
+  resolveApiUrl(key: DesktopApiKey, parameters?: DesktopApiParameters): Promise<string>
   getRuntimeConfig(forceRefresh?: boolean): Promise<DesktopRuntimeConfig>
 
   /** 打开并聚焦 Token 会话悬浮窗 */
@@ -216,6 +296,7 @@ export interface AppAPI {
 
   /** 关闭 Token 会话悬浮窗 */
   closeFloatingWindow(): Promise<void>
+  resetFloatingWindowPreferences(): Promise<void>
 
   /** 查询 Token 会话悬浮窗是否可见 */
   isFloatingWindowVisible(): Promise<boolean>
@@ -228,15 +309,40 @@ export interface AppAPI {
 
   /** 设置 Token 会话悬浮窗是否保持在所有窗口最前面，并返回实际状态 */
   setFloatingWindowAlwaysOnTop(alwaysOnTop: boolean): Promise<boolean>
+  isFloatingWindowCollapsed(): Promise<boolean>
+  hasFloatingWindowResizeHandles(): Promise<boolean>
+  beginFloatingWindowResize(
+    direction: import('../shared/floating-window').FloatingResizeDirection,
+  ): Promise<boolean>
+  setFloatingWindowCollapsed(collapsed: boolean, height: number): Promise<boolean>
+  getFloatingWindowEdge(): Promise<import('../shared/floating-window').FloatingEdgeState>
+  setFloatingWindowEdgeEnabled(
+    enabled: boolean,
+  ): Promise<import('../shared/floating-window').FloatingEdgeState>
+  setFloatingWindowInteracting(active: boolean): Promise<void>
+  revealFloatingWindowFromEdge(): Promise<void>
+  completeFloatingWindowEdgeMotion(id: number): Promise<void>
+  onFloatingWindowEdgeChanged(
+    callback: (state: import('../shared/floating-window').FloatingEdgeState) => void,
+  ): () => void
+  openFloatingWorkspace(
+    destination: import('../shared/floating-window').FloatingWorkspaceTarget,
+  ): Promise<void>
+  takeWorkspaceNavigation(): Promise<string | null>
+  onWorkspaceNavigationPending(callback: () => void): () => void
 
   /** 获取当前应用版本号（electron app.getVersion()，与 package.json 一致） */
   getVersion(): Promise<string>
 
   getDeviceId(): Promise<string>
 
-  getAgentRequestIdentity(): Promise<AgentRequestIdentity>
+  getAgentRequestIdentity(): Promise<AgentRequestIdentityResult>
+
+  /** 设备凭证被服务端拒绝后重新登记并返回新的请求身份。 */
+  refreshDeviceCredential(): Promise<AgentRequestIdentityResult>
 
   setAppLanguage(language: 'zh' | 'en'): Promise<void>
+  getInstallationLanguage(): Promise<import('../shared/app-preferences').AppLanguage | null>
 
   /** 响应主窗口关闭请求，并选择进入后台、退出或取消。 */
   resolveTrayClose(input: {
@@ -265,6 +371,9 @@ export interface AppAPI {
 
   /** 下载更新（autoDownload=false 时由用户手动触发） */
   downloadUpdate(): Promise<void>
+  getUpdateState(): Promise<import('../shared/updater').UpdateState>
+  pauseUpdate(): Promise<void>
+  resumeUpdate(): Promise<void>
 
   /** 退出应用并启动安装器（仅 Windows NSIS 有效） */
   installUpdate(): Promise<void>
@@ -290,59 +399,18 @@ export interface AppAPI {
   authStatus(): Promise<boolean>
   authSession(): Promise<AuthSessionResult>
   submitDesktopFeedback(params: DesktopFeedbackSubmitParams): Promise<number>
-  syncDesktopMessages(placement: CustomMessagePlacement): Promise<DesktopMessageSyncResult>
-  reportDesktopMessageEvent(input: DesktopMessageEventInput): Promise<AuthActionResult>
   onAuthLoginSuccess(callback: () => void): () => void
   onAuthLogoutEvent(callback: () => void): () => void
-  /**
-   * 注册 SSE 服务端推送消息监听（新闻/套餐更新/版本更新/广播）。
-   * 返回取消订阅函数，组件 onUnmounted 时必须调用以避免内存泄漏。
-   */
-  onSsePushMessage(callback: (message: PushMessage) => void): () => void
+  onAnnouncementsChanged(callback: () => void): () => void
+  wakeAgentHeartbeat(): Promise<void>
 
   customMessagesList(placement: CustomMessagePlacement): Promise<CustomMessageData[]>
-  customMessagesCache(
-    messages: CustomMessageData[],
-    placement: CustomMessagePlacement,
-  ): Promise<CustomMessageData[]>
-  customMessagesReconcile(
-    placement: CustomMessagePlacement,
-    activeMessageUids: string[],
-  ): Promise<void>
   customMessageReceiptQueue(
     messageId: number,
     messageUid: string,
     event: CustomMessageEvent,
     placement: CustomMessagePlacement,
   ): Promise<void>
-  customMessageReceiptsPending(): Promise<CustomMessageReceipt[]>
-  customMessageReceiptSent(id: number): Promise<void>
-  customMessageReceiptFailed(id: number, error: string): Promise<void>
-
-  // ===== 通知持久化 =====
-  /** 查询通知列表（filter: 'all' 全部 | 'unread' 仅未读 | 'read' 仅已读） */
-  notificationsList(filter?: 'all' | 'unread' | 'read'): Promise<NotificationItem[]>
-  /** 标记单条通知为已读 */
-  notificationsMarkRead(id: string): Promise<void>
-  /** 标记所有未读通知为已读 */
-  notificationsMarkAllRead(): Promise<void>
-  /** 删除单条通知 */
-  notificationsDelete(id: string): Promise<void>
-}
-
-/** 通知项（从 SQLite 读取，rawData 为原始推送 JSON，renderer 按当前语言格式化展示） */
-export interface NotificationItem {
-  id: string
-  type: string
-  read: boolean
-  createdAt: number
-  rawData: Record<string, unknown>
-}
-
-/** SSE 服务端推送消息类型 */
-export interface PushMessage {
-  type: 'news' | 'plan' | 'release' | 'broadcast' | 'notification' | 'custom' | 'connected'
-  [key: string]: unknown
 }
 
 declare global {
