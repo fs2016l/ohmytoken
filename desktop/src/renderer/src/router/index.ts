@@ -3,7 +3,8 @@
  *
  * 路由设计：
  *   /            → 重定向到 /agent
- *   /agent       → AgentPage（agent 维度 token 仪表盘）
+ *   /agent       → OverviewPage（用量概览）
+ *   /sessions、/projects、/analytics → 会话、项目和用量分析
  *   /token       → TokenPlanPage（各 vendor token 用量）
  *   /codingplan、/agent-download、/insight 及其子路由
  *                 → DiscoveryRoute（由 Cloud discovery 页面展示）
