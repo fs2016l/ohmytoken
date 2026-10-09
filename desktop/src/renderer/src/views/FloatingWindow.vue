@@ -338,7 +338,7 @@ onUnmounted(() => {
       <header class="floating-header">
         <div class="floating-drag-title">
           <span class="floating-brand"><BrandMark :size="20" /></span>
-          <strong>{{ label('Usage monitor', '用量监测') }}</strong>
+          <strong>Oh My Token</strong>
         </div>
         <button
           class="floating-icon-button floating-pin-button"

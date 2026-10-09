@@ -12,4 +12,5 @@ module.exports = async function afterPack(context) {
       : join(context.appOutDir, 'resources')
   verifyPackagedNotices(context.packager.projectDir, resources)
   await require('./network-monitor-after-pack.cjs')(context)
+  require('./windows-uninstall-files.cjs').writeUninstallInclude(context)
 }

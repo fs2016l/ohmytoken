@@ -2,9 +2,13 @@
   container-type: inline-size;
 }
 .network-report .page-surface-content {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
   padding-inline: 24px;
 }
 .network-report-heading {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -37,7 +41,7 @@
   display: grid;
   grid-template-columns: minmax(0, 928fr) minmax(300px, 392fr);
   gap: 16px;
-  min-height: calc(100dvh - var(--header-height) - 128px);
+  flex: 1;
 }
 .network-report-main,
 .network-report-side {
@@ -51,10 +55,10 @@
   border: 1px solid var(--border);
   border-radius: 16px;
   min-width: 0;
-  padding: 20px;
+  padding: 16px;
 }
 .network-report-side {
-  gap: 12px;
+  gap: 8px;
 }
 .network-report-panel h2 {
   margin: 0;
@@ -241,15 +245,24 @@
   line-height: 24px;
 }
 .network-exit-card {
-  padding-block: 16px;
+  padding-block: 12px;
 }
 .network-risk-card {
-  min-height: 260px;
   display: flex;
   flex-direction: column;
 }
 .network-risk-card .network-risk-gauge {
-  min-height: 128px;
+  min-height: 112px;
+  padding-top: 40px;
+}
+.network-risk-card .network-risk-arc {
+  width: 180px;
+  height: 90px;
+  left: calc(50% - 90px);
+}
+.network-risk-card .network-risk-arc i {
+  width: 180px;
+  height: 180px;
 }
 .network-risk-card .network-risk-gauge p {
   margin-top: 8px;
@@ -263,7 +276,7 @@
   min-height: 28px;
 }
 .network-dns-card {
-  min-height: 216px;
+  padding-block: 12px;
 }
 .network-secondary-risk {
   border-top: 1px solid var(--border);

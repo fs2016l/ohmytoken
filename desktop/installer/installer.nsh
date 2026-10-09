@@ -12,59 +12,7 @@
   !define MUI_LANGDLL_ALLLANGUAGES
 !endif
 
-; 在新安装器和旧卸载器两个入口检查当前安装目录。用户更换安装位置后，
-; 如果自选回放目录因此落入清理范围，就在任何文件替换前停止。
-!macro AgentProtectReplayLocation
-  Push $R5
-  Push $R6
-  Push $R7
-  ClearErrors
-  FileOpen $R7 "$APPDATA\ohmytoken\replay-storage-location.txt" r
-  ${IfNot} ${Errors}
-    ClearErrors
-    FileReadUTF16LE $R7 $R6
-    ${If} ${Errors}
-      FileClose $R7
-      DetailPrint "Cannot read replay storage location"
-      SetErrorLevel 2
-      Quit
-    ${EndIf}
-    FileClose $R7
-    StrLen $R7 $R6
-    ${If} $R7 < 2
-      DetailPrint "Invalid replay storage location"
-      SetErrorLevel 2
-      Quit
-    ${EndIf}
-    IntOp $R7 $R7 - 2
-    StrCpy $R5 $R6 2 $R7
-    ${If} $R5 != "$\r$\n"
-      DetailPrint "Invalid replay storage location"
-      SetErrorLevel 2
-      Quit
-    ${EndIf}
-    StrCpy $R6 $R6 $R7
-    ${If} $R6 != ""
-      StrLen $R7 "$INSTDIR"
-      StrCpy $R5 $R6 $R7
-      ${If} $R5 == "$INSTDIR"
-        StrCpy $R5 $R6 1 $R7
-        ${If} $R5 == ""
-        ${OrIf} $R5 == "\"
-          DetailPrint "Replay storage is inside the installation directory; aborting"
-          ${IfNot} ${Silent}
-            MessageBox MB_OK|MB_ICONEXCLAMATION "生成历史存储位置位于安装目录内。请另选安装位置或回放目录。$\r$\nReplay storage is inside the installation directory. Choose another location."
-          ${EndIf}
-          SetErrorLevel 2
-          Quit
-        ${EndIf}
-      ${EndIf}
-    ${EndIf}
-  ${EndIf}
-  Pop $R7
-  Pop $R6
-  Pop $R5
-!macroend
+!include "${PROJECT_DIR}\installer\safe-installation.nsh"
 
 ; electron-builder 默认会尝试通过 PowerShell/taskkill 自动结束正在运行的应用，
 ; 甚至在等待后强制终止。更新时不允许安装器这样做：先给应用自身退出的
@@ -72,7 +20,12 @@
 ; CHECK_APP_RUNNING 位于旧版卸载和新文件写入之前，因此应用仍在运行时
 ; 不会提前进入破坏旧版本的文件替换阶段。
 !macro customCheckAppRunning
-  !insertmacro AgentProtectReplayLocation
+  !ifdef BUILD_UNINSTALLER
+    !insertmacro AgentProtectUninstall
+  !else
+    !insertmacro AgentPrepareInstallation
+    StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+  !endif
   StrCpy $R1 0
 
   AgentWaitForAppExit:
@@ -99,51 +52,41 @@
   AgentAppExited:
 !macroend
 
-; 覆盖更新会先运行旧卸载器并清空安装目录。只暂存当前安装目录的回放，
-; 新安装器完成文件安装后立即恢复；不读取旧版 userData/replays 历史。
-; 手动卸载时暂存目录保留，重新安装时恢复；--delete-app-data 会将其删除。
-!macro customUnInstall
-  !insertmacro AgentProtectReplayLocation
-  Push $R8
-  Push $R9
-
-  ${If} ${FileExists} "$INSTDIR\replays\*.*"
-    CreateDirectory "$APPDATA\ohmytoken\replay-upgrade-backup"
-    FindFirst $R8 $R9 "$INSTDIR\replays\*.*"
-    ${While} $R9 != ""
-      ${If} $R9 != "."
-      ${AndIf} $R9 != ".."
-        ${If} ${FileExists} "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-          DetailPrint "Replay backup already exists: $R9"
-          SetErrorLevel 2
-          Quit
-        ${Else}
-          ClearErrors
-          Rename "$INSTDIR\replays\$R9" "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-          ${If} ${Errors}
-            ; 跨盘时复制；失败则中止卸载，保留安装目录中的原文件。
-            ClearErrors
-            CopyFiles /SILENT "$INSTDIR\replays\$R9" "$APPDATA\ohmytoken\replay-upgrade-backup"
-            ${If} ${Errors}
-              Delete "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-              RMDir /r "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-              DetailPrint "Cannot back up replay: $R9"
-              SetErrorLevel 2
-              Quit
-            ${EndIf}
-          ${EndIf}
-        ${EndIf}
-      ${EndIf}
-      FindNext $R8 $R9
-    ${EndWhile}
-    FindClose $R8
-  ${EndIf}
-
-  Pop $R9
-  Pop $R8
+!macro customUnInit
+  !insertmacro AgentProtectUninstall
 !macroend
 
 !ifndef BUILD_UNINSTALLER
+
+; Silent all-users installation selects its mode again after customInit. Do not allow
+; that step to replace a safe derived subdirectory with an unsafe raw /D argument.
+!macro customInit
+  ${If} ${Silent}
+    Push $0
+    Push "$INSTDIR"
+    !insertmacro AgentPrepareInstallation
+    Pop $0
+    !ifdef INSTALL_MODE_PER_ALL_USERS
+      ${If} $0 != $INSTDIR
+        Call AgentUnsafePath
+      ${EndIf}
+    !else
+      ${If} $hasPerMachineInstallation == "1"
+      ${AndIf} $0 != $INSTDIR
+        Call AgentUnsafePath
+      ${EndIf}
+    !endif
+    Pop $0
+  ${EndIf}
+!macroend
+
+Function AgentBeforeInstallFiles
+  ; Assisted elevated instances skip CHECK_APP_RUNNING; guard the final directory here too.
+  !ifdef allowToChangeInstallationDirectory
+    Call instFilesPre
+  !endif
+  !insertmacro AgentPrepareInstallation
+FunctionEnd
 
 Var AgentLegalCheckbox
 Var AgentTermsLink
@@ -174,49 +117,7 @@ LangString AgentLegalRequired 2052 "请先阅读并同意 Agent 用户协议和 
     FileClose $0
   ${EndIf}
 
-  Push $R8
-  Push $R9
-  ${If} ${FileExists} "$APPDATA\ohmytoken\replay-upgrade-backup\*.*"
-    CreateDirectory "$INSTDIR\replays"
-    FindFirst $R8 $R9 "$APPDATA\ohmytoken\replay-upgrade-backup\*.*"
-    ${While} $R9 != ""
-      ${If} $R9 != "."
-      ${AndIf} $R9 != ".."
-        ${If} ${FileExists} "$INSTDIR\replays\$R9"
-          DetailPrint "Replay restore destination already exists: $R9"
-          SetErrorLevel 2
-          Quit
-        ${Else}
-          ClearErrors
-          Rename "$APPDATA\ohmytoken\replay-upgrade-backup\$R9" "$INSTDIR\replays\$R9"
-          ${If} ${Errors}
-            ClearErrors
-            CopyFiles /SILENT "$APPDATA\ohmytoken\replay-upgrade-backup\$R9" "$INSTDIR\replays"
-            ${If} ${Errors}
-              Delete "$INSTDIR\replays\$R9"
-              RMDir /r "$INSTDIR\replays\$R9"
-              DetailPrint "Cannot restore replay: $R9"
-              SetErrorLevel 2
-              Quit
-            ${Else}
-              Delete "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-              RMDir /r "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-              ${If} ${FileExists} "$APPDATA\ohmytoken\replay-upgrade-backup\$R9"
-                DetailPrint "Cannot remove replay backup after restore: $R9"
-                SetErrorLevel 2
-                Quit
-              ${EndIf}
-            ${EndIf}
-          ${EndIf}
-        ${EndIf}
-      ${EndIf}
-      FindNext $R8 $R9
-    ${EndWhile}
-    FindClose $R8
-    RMDir "$APPDATA\ohmytoken\replay-upgrade-backup"
-  ${EndIf}
-  Pop $R9
-  Pop $R8
+  !insertmacro AgentWriteInstallationMarker
 !macroend
 
 !define AGENT_TERMS_URL "https://ohmytoken.net/legal/agent-terms"
@@ -224,6 +125,10 @@ LangString AgentLegalRequired 2052 "请先阅读并同意 Agent 用户协议和 
 
 !macro customPageAfterChangeDir
   Page custom AgentLegalPageCreate AgentLegalPageLeave
+  !ifdef MUI_PAGE_CUSTOMFUNCTION_PRE
+    !undef MUI_PAGE_CUSTOMFUNCTION_PRE
+  !endif
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE AgentBeforeInstallFiles
 !macroend
 
 Function AgentLegalPageCreate

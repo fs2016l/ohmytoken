@@ -16,6 +16,9 @@ files:
   - '!scripts/third-party-notices.mjs'
   - '!scripts/verify-packaged-notices.mjs'
   - '!scripts/licenses-*.cjs'
+  - '!scripts/windows-uninstall-files.cjs'
+  - '!installer/**'
+  - '!build/windows-uninstall-files.nsh'
   - '!third-party-licenses/**'
   - '!electron-builder.network-monitor.yml'
   - '!**/.vscode/*'
@@ -74,6 +77,8 @@ nsis:
     - zh_CN
   displayLanguageSelector: true
   include: installer/installer.nsh
+  installerIcon: src/renderer/public/brand/app-icon.ico
+  uninstallerIcon: src/renderer/public/brand/app-icon.ico
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
