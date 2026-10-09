@@ -28,8 +28,8 @@ const AGENT_SCANNER_REVISIONS: Readonly<Record<string, number>> = {
   // 补齐已有逐请求/逐 step 的原生首 Token 延迟和流输出计时。
   zcode: 4,
   kimiwork: 4,
-  // 回填因响应 ID 秒值与本机请求起点不同而漏掉的原生计时。
-  workbuddy: 5,
+  // 回填新版带 PID / MODEL_REQUEST 标记、逐调用 messageId 的原生计时。
+  workbuddy: 6,
   // 读取助手消息已有的原生单次生成计时，保留会话累计用量口径。
   goose: 4,
 }

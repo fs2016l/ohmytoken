@@ -165,7 +165,11 @@ function parseProjectJsonlLine(params: {
 
   const providerData = objectValue(root.providerData)
   if (providerData === null) return null
-  for (const id of [providerData.traceId, providerData.conversationRequestId])
+  for (const id of [
+    providerData.messageId,
+    providerData.traceId,
+    providerData.conversationRequestId,
+  ])
     if (typeof id === 'string' && id.trim()) params.requestIds.add(id.trim())
 
   const usage = parseWorkBuddyProviderUsage(providerData)

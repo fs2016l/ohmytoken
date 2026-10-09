@@ -6,6 +6,8 @@ import type { TokenUsageApiCall } from './types'
 interface RequestTiming {
   startedAtMs: number
   model: string
+  requestIdentity: 'trace' | 'message'
+  processId?: string
   firstTokenAtMs?: number
   timeToFirstTokenMs?: number
   conflicted?: boolean
@@ -106,29 +108,47 @@ export function readWorkBuddyGenerationTimings(
   return { files, samples }
 }
 
-/** 原生请求身份、首个输出的毫秒时间和模型必须共同且唯一指向同一物理调用。 */
+/** 新版逐调用 messageId、旧版 traceId + 首输出时间必须唯一指向完整原生流。 */
 export function matchWorkBuddyGenerationTiming(
   index: WorkBuddyTimingIndex,
   root: Record<string, unknown>,
   providerData: Record<string, unknown>,
-  firstOutputAtMs: number,
+  recordedAtMs: number,
 ): TokenUsageApiCall['generationTiming'] {
-  const requestId = text(providerData.traceId) || text(providerData.conversationRequestId)
   const model = text(providerData.model) || text(providerData.requestModelId)
+  const messageId = text(providerData.messageId)
   const usage = providerData.usage as { requests?: unknown } | undefined
   if (
     !text(root.id) ||
-    !requestId ||
     !model ||
-    !text(providerData.messageId) ||
-    !Number.isSafeInteger(firstOutputAtMs) ||
+    !messageId ||
+    !Number.isSafeInteger(recordedAtMs) ||
     (usage?.requests !== undefined && usage.requests !== 1)
   )
     return undefined
   // 响应 ID 是不透明身份；gen-* 中的秒值不能当作本机 Sending request 的起点。
-  const matches = (index.samples.get(requestId) ?? []).filter(
-    (sample) => sample.firstTokenAtMs === firstOutputAtMs && sample.model === model,
+  // 新版 MODEL_REQUEST 的 requestId 是逐调用 messageId；转录在完成后落盘，
+  // 不能再把转录 timestamp 当作首输出边界。同一 ID 有重试等多个流时拒绝关联。
+  const messageSamples = (index.samples.get(messageId) ?? []).filter(
+    (sample) => sample.requestIdentity === 'message',
   )
+  let matches: readonly GenerationSample[]
+  if (messageSamples.length) {
+    if (messageSamples.length !== 1 || (root.status !== undefined && root.status !== 'completed'))
+      return undefined
+    matches = messageSamples.filter(
+      (sample) => sample.model === model && recordedAtMs >= sample.firstTokenAtMs!,
+    )
+  } else {
+    const requestId = text(providerData.traceId) || text(providerData.conversationRequestId)
+    if (!requestId) return undefined
+    matches = (index.samples.get(requestId) ?? []).filter(
+      (sample) =>
+        sample.requestIdentity === 'trace' &&
+        sample.firstTokenAtMs === recordedAtMs &&
+        sample.model === model,
+    )
+  }
   if (matches.length !== 1) return undefined
   const sample = matches[0]
   return {
@@ -141,12 +161,12 @@ export function matchWorkBuddyGenerationTiming(
 function consumeTimingLine(line: string, state: CachedLog): void {
   if (!line.includes('[ModelProvider]')) return
   const parsed =
-    /^\[(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})\.(\d{3})\]\s+\[Info\]\s+\[ModelProvider\]\s+\[ModelProvider\]\s+(Sending request|First meaningful token received|Stream completed):\s+(.+)$/.exec(
+    /^\[(\d{4})\/(\d{1,2})\/(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})\.(\d{3})\]\s+\[Info\]\s+(?:\[pid=(\d+)\]\s+)?\[ModelProvider\]\s+(\[cbc-kw=MODEL_REQUEST\]\s+)?\[ModelProvider\]\s+(Sending request|First meaningful token received|Stream completed):\s+(.+)$/.exec(
       line,
     )
   if (!parsed) return
-  const [, year, month, day, hour, minute, second, millisecond, kind, fields] = parsed
-  // 原生日志采用本机日历时间，转录 time 是同一客户端的 epoch 毫秒。
+  const [, year, month, day, hour, minute, second, millisecond, pid, marker, kind, fields] = parsed
+  // 原生日志采用本机日历时间，三个流边界来自同一客户端时钟。
   const atMs = new Date(
     Number(year),
     Number(month) - 1,
@@ -158,19 +178,24 @@ function consumeTimingLine(line: string, state: CachedLog): void {
   ).getTime()
   const id = /(?:^|,\s*)requestId=([\w-]+)(?:,|$)/.exec(fields)?.[1]
   if (!id || !Number.isSafeInteger(atMs)) return
+  const requestKey = `${pid ?? ''}:${id}`
+  const requestIdentity = marker ? 'message' : 'trace'
   if (kind === 'Sending request') {
     const model = /(?:^|,\s*)model=([^,]+)(?:,|$)/.exec(fields)?.[1]?.trim()
     if (!model) return
-    const overlapping = state.requests.has(id)
-    state.requests.set(id, {
+    const overlapping = state.requests.has(requestKey)
+    state.requests.set(requestKey, {
       startedAtMs: atMs,
       model,
+      requestIdentity,
+      ...(pid ? { processId: pid } : {}),
       ...(overlapping ? { conflicted: true } : {}),
     })
     return
   }
-  const request = state.requests.get(id)
+  const request = state.requests.get(requestKey)
   if (!request) return
+  if (request.requestIdentity !== requestIdentity) request.conflicted = true
   if (kind === 'First meaningful token received') {
     const ttft = /(?:^|,\s*)ttft=(\d+)ms(?:,|$)/.exec(fields)?.[1]
     if (
@@ -185,7 +210,7 @@ function consumeTimingLine(line: string, state: CachedLog): void {
     request.timeToFirstTokenMs = Number(ttft)
     return
   }
-  state.requests.delete(id)
+  state.requests.delete(requestKey)
   const elapsed = /(?:^|,\s*)elapsed=(\d+)ms(?:,|$)/.exec(fields)?.[1]
   if (
     request.conflicted ||
