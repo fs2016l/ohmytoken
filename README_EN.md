@@ -24,6 +24,8 @@ Oh My Token is a desktop app for understanding usage across multiple AI agents. 
 
 The previews use demo data. Amounts, quotas, prices, and articles illustrate the interface. Click an animation to open its full-resolution still image.
 
+[![Usage analytics by model, agent, and project](docs/screenshots/readme/analytics-en.gif)](docs/screenshots/readme/analytics-en.png)
+
 ### See usage and reference costs together
 
 Compare tokens and estimated API costs over a date range. Explore trends by agent, model, or project to see where usage is concentrated. Cost estimates are reference figures, not provider invoices or subscription deductions.

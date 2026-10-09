@@ -24,6 +24,8 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 以下画面使用演示数据，金额、额度、价格和文章内容仅用于展示界面。点击动图可查看高清静态图。
 
+[![按模型、Agent 和项目分析用量](docs/screenshots/readme/analytics-zh.gif)](docs/screenshots/readme/analytics-zh.png)
+
 ### 看清用量，找到消耗来源
 
 选定日期范围，集中查看 Token 用量、参考费用和趋势，再按 Agent、模型或项目找到主要消耗来源。费用按 API 价格规则估算，供参考，不等于厂商实际账单或套餐扣费。
