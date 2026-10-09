@@ -136,7 +136,43 @@ jobs:
         run: npm ci
 
       - name: Download Electron runtime
-        run: npx --no-install install-electron
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $downloadScript = @'
+          const { downloadArtifact } = require('@electron/get');
+          const { version } = require('electron/package.json');
+          downloadArtifact({
+            version, artifactName: 'electron', platform: 'win32', arch: 'x64',
+            checksums: require('electron/checksums.json')
+          }).then(path => process.stdout.write(path)).catch(error => {
+            console.error(error);
+            process.exit(1);
+          });
+          '@
+          $archivePath = & node -e $downloadScript
+          if ($LASTEXITCODE -ne 0) { throw 'Electron runtime download failed.' }
+
+          $electronDirectory = (Resolve-Path 'node_modules/electron').Path
+          $version = (Get-Content (Join-Path $electronDirectory 'package.json') -Raw | ConvertFrom-Json).version
+          $archiveName = "electron-v$version-win32-x64.zip"
+          $checksums = Get-Content (Join-Path $electronDirectory 'checksums.json') -Raw | ConvertFrom-Json
+          $expectedHash = $checksums.$archiveName
+          $actualHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash
+          if ($expectedHash -notmatch '^[0-9a-fA-F]{64}$' -or $actualHash -ne $expectedHash) {
+            throw 'Electron runtime archive checksum mismatch.'
+          }
+
+          # Use Windows ZIP extraction for compatibility with the signing host.
+          $distributionDirectory = Join-Path $electronDirectory 'dist'
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $distributionDirectory -Force
+          $installedVersion = (Get-Content (Join-Path $distributionDirectory 'version') -Raw).Trim().TrimStart('v')
+          if ($installedVersion -ne $version) { throw 'Electron runtime version mismatch.' }
+          if (-not (Test-Path -LiteralPath (Join-Path $distributionDirectory 'electron.exe'))) {
+            throw 'Electron runtime executable is missing.'
+          }
+          [System.IO.File]::WriteAllText((Join-Path $electronDirectory 'path.txt'), 'electron.exe')
+          Write-Output "Electron $version Windows x64 runtime verified and installed."
 
       - name: Build application
         run: npm run build
