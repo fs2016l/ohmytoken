@@ -58,6 +58,8 @@
 
 !ifndef BUILD_UNINSTALLER
 
+!include "${PROJECT_DIR}\installer\shortcut-icons.nsh"
+
 ; Silent all-users installation selects its mode again after customInit. Do not allow
 ; that step to replace a safe derived subdirectory with an unsafe raw /D argument.
 !macro customInit
@@ -118,6 +120,7 @@ LangString AgentLegalRequired 2052 "请先阅读并同意 Agent 用户协议和 
   ${EndIf}
 
   !insertmacro AgentWriteInstallationMarker
+  !insertmacro AgentRefreshApplicationShortcuts
 !macroend
 
 !define AGENT_TERMS_URL "https://ohmytoken.net/legal/agent-terms"
