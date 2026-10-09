@@ -26,6 +26,7 @@ jobs:
     steps:
       - name: Validate requested release tag
         if: inputs.release_tag != ''
+        working-directory: ${{ github.workspace }}
         shell: bash
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
