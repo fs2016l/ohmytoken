@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "applicationVersion": "2.0.2",
-  "lockfileSha256": "0a503ab441213d37b28fdf9b6a1bec00ff3c7dd67a32d4b89d9800217c12f1a0",
+  "applicationVersion": "2.0.3",
+  "lockfileSha256": "4dd8fddd770bbc1dbaa23eefd223fbeb8fbab475ff0c6899c25926f3261c88d2",
   "fontAssets": {
     "material-symbols-outlined.woff2": "ccc0bf9cc6263ea82935c9519bde26e2f39da1642bf0db7df246b0053ac06aa0",
     "ui/ibm-plex-mono/IBMPlexMono-Medium.woff2": "33faf307fa6031fb4062276d7320a6d632de890cbb347576fd80cfa01077bc25",

@@ -18,7 +18,7 @@
   <a href="#product-preview">Product preview</a>
 </p>
 
-Oh My Token is a desktop app for understanding usage across multiple AI agents. It reads local usage records from [multiple supported agents](#supported-agents) and brings tokens, reference API costs, sessions, and projects into one workspace. Check provider quotas while you work, then turn your usage into a visual recap to share.
+Oh My Token is a desktop app for understanding usage across multiple AI agents. It reads local usage records from [multiple supported agents](#supported-agents) and brings tokens, reference API costs, sessions, and projects into one workspace. Check provider quotas and account balances while you work, then turn your usage into a visual recap to share.
 
 ## Product preview
 
@@ -38,13 +38,29 @@ Search and filter sessions, expand sub-sessions, and inspect model calls and tok
 
 [![Session workspace with a session list, filters, and usage details](docs/screenshots/readme/sessions-en.gif)](docs/screenshots/readme/sessions-en.png)
 
-### Check quotas before continuing
+<details>
+<summary>View the project workspace</summary>
 
-Discover supported provider connections on your computer and check remaining quotas, balances, and reset windows. Existing DeepSeek Harness sign-ins and DeepSeek API keys are supported, with account balances shown by currency. The floating window keeps tokens, sessions, and quotas within reach while you work, with an always-on-top toggle and session sorting.
+![Project list and selected project usage details](docs/screenshots/readme/projects-en.png)
 
-[![Provider quotas with remaining allowances and reset windows](docs/screenshots/readme/quota-en.gif)](docs/screenshots/readme/quota-en.png)
+</details>
+
+### Check quotas and balances
+
+Discover supported provider connections on your computer and check remaining quotas, account balances, and reset times together. Existing DeepSeek Harness sign-ins and DeepSeek API keys are supported, with balances shown by currency.
+
+[![Updated quota view with quota windows, reset times, and DeepSeek balances](docs/screenshots/readme/quota-en.gif)](docs/screenshots/readme/quota-en.png)
 
 Quota fields depend on the provider, account authorization, and connection. Support for scanning an agent's local usage does not imply support for querying its provider quota.
+
+### Keep usage within reach
+
+The desktop floating window has Token and Quota tabs. Collapse it for a quick summary or expand it for trends, followed sessions, and quota windows. Keep it on top, reorder sessions and followed accounts, and switch the expanded Quota view between bars and orbs.
+
+|                                                                                                                  Token                                                                                                                  |                                                                                                                          Quota                                                                                                                           |
+| :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| **Expanded**<br><a href="docs/screenshots/readme/floating-token-expanded-en.png"><img src="docs/screenshots/readme/floating-token-expanded-en.png" width="420" alt="Expanded Token window with usage trends and followed sessions"></a> |         **Expanded**<br><a href="docs/screenshots/readme/floating-quota-expanded-en.png"><img src="docs/screenshots/readme/floating-quota-expanded-en.png" width="420" alt="Expanded Quota window with followed accounts and quota windows"></a>         |
+|        **Collapsed**<br><a href="docs/screenshots/readme/floating-token-collapsed-en.png"><img src="docs/screenshots/readme/floating-token-collapsed-en.png" width="420" alt="Collapsed Token window with a usage summary"></a>         | **Collapsed**<br><a href="docs/screenshots/readme/floating-quota-collapsed-en.png"><img src="docs/screenshots/readme/floating-quota-collapsed-en.png" width="420" alt="Collapsed Quota window with balances, remaining allowances, and reset times"></a> |
 
 ### Create a usage recap to share
 
@@ -52,34 +68,33 @@ Turn local usage into animated rankings, trends, and changing shares, or a still
 
 [![Usage recap editor with animated rankings, a timeline, and export settings](docs/screenshots/readme/replay-en.gif)](docs/screenshots/readme/replay-en.png)
 
-Cloud discovery content also offers plan and API price comparison, an agent directory, and AI insights. Loading this content requires a network connection.
+### Discover insights and tools
 
-<details>
-<summary>More screens: analytics, projects, plan comparison, and AI insights</summary>
-
-#### Usage analytics
-
-![Usage analytics by model, agent, and project](docs/screenshots/readme/analytics-en.png)
-
-#### Project workspace
-
-![Project list and selected project usage details](docs/screenshots/readme/projects-en.png)
+Discover brings together plan and API price comparison, AI insights, and agent downloads. These features require an internet connection.
 
 #### Plan and API price comparison
+
+Compare plans by billing period and check model API prices to find options that fit your workload.
 
 ![Provider plan comparison with billing-period filters](docs/screenshots/readme/plans-en.png)
 
 #### AI insights
 
-![AI insights articles and category filters](docs/screenshots/readme/insights-en.png)
+Browse articles about models, tools, and practical workflows by category, then open an article to read more.
 
-</details>
+![AI insights with category filters, featured articles, and reading links](docs/screenshots/readme/insights-en.png)
+
+#### Agent downloads
+
+Filter agents by platform and tool type, then explore their overviews, installation guides, and official links.
+
+![Agent downloads with featured tools, platform filters, and an agent catalog](docs/screenshots/readme/agents-en.png)
 
 ## Supported agents
 
-Supports multiple agents, with ongoing updates.
+A selection of supported agents is shown below. Support continues to grow.
 
-[![DeepSeek Harness, Codex, MiniMax Code, OpenCode, Z Code, WorkBuddy, KimiWork, Kimi Code, Gemini CLI, Qwen Code, OpenClaw, Grok, Hermes, and Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
+[![DeepSeek Harness, Codex, MiniMax Code, OpenCode, Z Code, WorkBuddy, KimiWork, Kimi Code, Antigravity, Qwen Code, OpenClaw, Grok, Hermes, and Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
 
 Available details depend on what each agent records locally. Token breakdowns and generation metrics vary by source; some sources provide estimated generation rates.
 

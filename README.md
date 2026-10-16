@@ -18,7 +18,7 @@
   <a href="#界面预览">界面预览</a>
 </p>
 
-Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量，把消耗按 Agent、模型、会话和项目整理清楚。你可以查看用量趋势、API 参考费用与套餐余量，再把用量变化生成可分享的回顾。
+Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量，把消耗按 Agent、模型、会话和项目整理清楚。你可以查看用量趋势、API 参考费用、厂商额度与账户余额，再把用量变化生成可分享的回顾。
 
 ## 界面预览
 
@@ -38,13 +38,29 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 [![会话工作区：会话列表、筛选与选中会话的用量明细](docs/screenshots/readme/sessions-zh.gif)](docs/screenshots/readme/sessions-zh.png)
 
-### 查看额度，留意重置时间
+<details>
+<summary>查看项目工作区</summary>
 
-自动发现本机已有的受支持厂商连接，查询套餐余量、余额与重置窗口。支持读取 DeepSeek Harness 已有登录和 DeepSeek API Key，按币种展示账户余额。工作时，也可以通过桌面浮窗查看 Token、会话和额度，按需置顶或调整会话排序。
+![项目列表与选中项目的用量明细](docs/screenshots/readme/projects-zh.png)
 
-[![套餐额度：厂商连接、剩余额度与重置窗口](docs/screenshots/readme/quota-zh.gif)](docs/screenshots/readme/quota-zh.png)
+</details>
+
+### 查看额度与余额
+
+自动发现本机已有的受支持厂商连接，把剩余额度、账户余额和重置时间放在一起查看。支持读取 DeepSeek Harness 已有登录与 DeepSeek API Key，按币种展示余额。
+
+[![新版额度界面：额度窗口、重置时间与 DeepSeek 余额](docs/screenshots/readme/quota-zh.gif)](docs/screenshots/readme/quota-zh.png)
 
 可查询的额度字段取决于厂商、账户授权和连接情况；支持某个 Agent 的本地扫描，不代表支持查询其厂商额度。
+
+### 工作时，用浮窗随时看一眼
+
+桌面浮窗提供 Token 和额度两个页签：收起时看摘要，展开时查看用量趋势、关注会话和额度窗口。支持窗口置顶，也可以调整会话与关注账户的顺序；展开的额度界面可切换条形和圆球两种样式。
+
+|                                                                                                  Token                                                                                                   |                                                                                                      额度                                                                                                      |
+| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| **展开**<br><a href="docs/screenshots/readme/floating-token-expanded-zh.png"><img src="docs/screenshots/readme/floating-token-expanded-zh.png" width="420" alt="Token 浮窗展开：用量趋势与关注会话"></a> |     **展开**<br><a href="docs/screenshots/readme/floating-quota-expanded-zh.png"><img src="docs/screenshots/readme/floating-quota-expanded-zh.png" width="420" alt="额度浮窗展开：关注账户与额度窗口"></a>     |
+|     **收起**<br><a href="docs/screenshots/readme/floating-token-collapsed-zh.png"><img src="docs/screenshots/readme/floating-token-collapsed-zh.png" width="420" alt="Token 浮窗收起：用量摘要"></a>     | **收起**<br><a href="docs/screenshots/readme/floating-quota-collapsed-zh.png"><img src="docs/screenshots/readme/floating-quota-collapsed-zh.png" width="420" alt="额度浮窗收起：余额、余量与重置时间摘要"></a> |
 
 ### 把用量变成可分享的回顾
 
@@ -52,34 +68,33 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 [![用量回顾编辑器：动态排行、时间轴与导出设置](docs/screenshots/readme/replay-zh.gif)](docs/screenshots/readme/replay-zh.png)
 
-云端发现内容还提供套餐与 API 比价、Agent 目录和 AI 信息差，需联网加载。
+### 发现信息与工具
 
-<details>
-<summary>更多界面：用量分析、项目、套餐比价与 AI 信息差</summary>
-
-#### 用量分析
-
-![按模型、Agent 和项目分析用量](docs/screenshots/readme/analytics-zh.png)
-
-#### 项目工作区
-
-![项目列表与选中项目的用量明细](docs/screenshots/readme/projects-zh.png)
+发现区提供套餐与 API 比价、AI 信息差和 Agent 下载，需要联网加载。
 
 #### 套餐与 API 比价
+
+按付费周期比较套餐，也可以查看 API 模型价格，结合自己的工作量选择用法。
 
 ![厂商套餐比价与付费周期筛选](docs/screenshots/readme/plans-zh.png)
 
 #### AI 信息差
 
-![AI 信息差文章与分类筛选](docs/screenshots/readme/insights-zh.png)
+按分类浏览模型、工具与使用实践，打开文章阅读详情。
 
-</details>
+![AI 信息差：分类筛选、精选文章与阅读入口](docs/screenshots/readme/insights-zh.png)
+
+#### Agent 下载
+
+按平台与工具形态筛选 Agent，查看介绍、安装指引和官方入口。
+
+![Agent 下载：精选工具、平台筛选与 Agent 目录](docs/screenshots/readme/agents-zh.png)
 
 ## 支持的 Agent
 
-目前支持多种 Agent，不断更新。
+下图展示部分受支持的 Agent，支持范围持续更新。
 
-[![DeepSeek Harness、Codex、MiniMax Code、OpenCode、Z Code、WorkBuddy、KimiWork、Kimi Code、Gemini CLI、Qwen Code、OpenClaw、Grok、Hermes、Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
+[![DeepSeek Harness、Codex、MiniMax Code、OpenCode、Z Code、WorkBuddy、KimiWork、Kimi Code、Antigravity、Qwen Code、OpenClaw、Grok、Hermes、Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
 
 可查看的明细以各 Agent 的本地记录为准。Token 分类与生成指标因数据源而异，部分数据源提供的是估算均速。
 

@@ -96,14 +96,14 @@ Var AgentPrivacyLink
 
 LangString AgentLegalIntro 1033 "Before installing and using Oh My Token, please read these two documents."
 LangString AgentLegalIntro 2052 "安装并使用 Oh My Token 前，请阅读以下两份在线文档。"
-LangString AgentLegalTerms 1033 "Agent Terms of Use"
-LangString AgentLegalTerms 2052 "《Agent 用户协议》"
-LangString AgentLegalPrivacy 1033 "Agent Privacy Policy"
-LangString AgentLegalPrivacy 2052 "《Agent 隐私政策》"
-LangString AgentLegalAccept 1033 "I have read and agree to the Agent Terms of Use and Agent Privacy Policy."
-LangString AgentLegalAccept 2052 "我已阅读并同意《Agent 用户协议》和《Agent 隐私政策》。"
-LangString AgentLegalRequired 1033 "Please read and accept the Agent Terms of Use and Agent Privacy Policy first."
-LangString AgentLegalRequired 2052 "请先阅读并同意 Agent 用户协议和 Agent 隐私政策。"
+LangString AgentLegalTerms 1033 "Terms of Use"
+LangString AgentLegalTerms 2052 "《用户协议》"
+LangString AgentLegalPrivacy 1033 "Privacy Policy"
+LangString AgentLegalPrivacy 2052 "《隐私政策》"
+LangString AgentLegalAccept 1033 "I have read and agree to the Terms of Use and Privacy Policy."
+LangString AgentLegalAccept 2052 "我已阅读并同意《用户协议》和《隐私政策》。"
+LangString AgentLegalRequired 1033 "Please read and accept the Terms of Use and Privacy Policy first."
+LangString AgentLegalRequired 2052 "请先阅读并同意《用户协议》和《隐私政策》。"
 
 ; Persist the selected installer language alongside the app. It is only a first-run hint;
 ; application upgrades never overwrite an existing language or currency preference.
