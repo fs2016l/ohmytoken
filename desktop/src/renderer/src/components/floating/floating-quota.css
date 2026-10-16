@@ -62,19 +62,19 @@
   }
 }
 .floating-quota-account > header {
-  margin-bottom: 14px;
+  gap: 8px;
+  margin-bottom: 8px;
   min-height: 24px;
 }
 .floating-quota-identity {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   min-width: 0;
   flex: 1;
-  gap: 2px 8px;
+  gap: 6px;
 }
 .floating-quota-identity strong {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -84,15 +84,11 @@
   gap: 6px;
 }
 .floating-quota-tier {
+  min-width: 0;
   color: var(--text-muted);
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.floating-quota-updated {
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 16px;
   white-space: nowrap;
 }
 .floating-quota-footer {
@@ -105,31 +101,58 @@
 .floating-quota-footer > .floating-row {
   margin-left: auto;
 }
-.floating-quota-risk {
-  flex: 0 0 auto;
-  font-size: 11px;
-  color: var(--quota-warningText);
-}
-.floating-quota-risk.critical {
-  color: var(--quota-criticalText);
-}
-.floating-quota-grid {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 8px;
-}
 .floating-quota-error {
-  margin-top: 8px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--warning);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
+  cursor: pointer;
 }
-.floating-quota-error button {
-  flex: 0 0 auto;
+.floating-quota-stale {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+.floating-quota-stale .material-symbols-outlined {
+  font-size: 14px;
+}
+.floating-quota-error:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.floating-quota-error .material-symbols-outlined {
+  font-size: 15px;
+}
+.floating-quota-balances {
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+}
+.floating-quota-balance {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-soft);
+  font-family: var(--font-number);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.floating-quota-balance .material-symbols-outlined {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.floating-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .floating-quota-manage {
   padding: 0 0 8px;

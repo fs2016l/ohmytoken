@@ -17,6 +17,7 @@ interface StagedAgent {
   context: ScannerScanContext
   records: ScannerUsageDetails['records']
   sessions: ScannerUsageDetails['sessions']
+  completeSessionIds?: ScannerUsageDetails['completeSessionIds']
   latestGenerations?: ScannerUsageDetails['latestGenerations']
   latestTurnFirstTokens?: ScannerUsageDetails['latestTurnFirstTokens']
   sourceStates: ScanSourceStateUpdate[]
@@ -101,6 +102,7 @@ export class ScanStaging {
       context: storedContext,
       records: details.records,
       sessions: details.sessions,
+      completeSessionIds: details.completeSessionIds,
       latestGenerations: details.latestGenerations,
       latestTurnFirstTokens: details.latestTurnFirstTokens,
       sourceStates,
@@ -125,6 +127,7 @@ export class ScanStaging {
         records: stored.records,
         sessions: stored.sessions,
         apiCalls,
+        ...(stored.completeSessionIds ? { completeSessionIds: stored.completeSessionIds } : {}),
         ...(stored.latestGenerations ? { latestGenerations: stored.latestGenerations } : {}),
         ...(stored.latestTurnFirstTokens
           ? { latestTurnFirstTokens: stored.latestTurnFirstTokens }

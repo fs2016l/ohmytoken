@@ -1,0 +1,102 @@
+.deepseek-balances {
+  min-width: 0;
+  color: var(--text);
+}
+.deepseek-balances__currency + .deepseek-balances__currency {
+  margin-top: 14px;
+}
+.deepseek-balances__primary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.deepseek-balances__wallet {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.deepseek-balances__wallet > span,
+.deepseek-balances__spent > span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+.deepseek-balances strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-number);
+  font-size: 24px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 30px;
+}
+.deepseek-balances__spent {
+  min-width: 0;
+  display: flex;
+}
+.deepseek-balances--floating .deepseek-balances__primary {
+  padding: 4px 0 14px;
+}
+.deepseek-balances--floating .deepseek-balances__wallet {
+  padding: 0 14px;
+}
+.deepseek-balances--floating .deepseek-balances__wallet + .deepseek-balances__wallet {
+  border-left: 1px solid var(--border);
+}
+.deepseek-balances--floating .deepseek-balances__spent {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.deepseek-balances--floating .deepseek-balances__spent strong {
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 18px;
+}
+.deepseek-balances--compact {
+  width: 100%;
+}
+.deepseek-balances--compact .deepseek-balances__primary {
+  height: 58px;
+  align-items: center;
+  gap: 4px;
+}
+.deepseek-balances--compact .deepseek-balances__wallet {
+  gap: 3px;
+  text-align: center;
+}
+.deepseek-balances--compact .deepseek-balances__wallet > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+  line-height: 12px;
+}
+.deepseek-balances--compact .deepseek-balances__wallet strong {
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.4px;
+}
+.deepseek-balances--compact .deepseek-balances__identity {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  height: 16px;
+  margin-top: 3px;
+}
+.deepseek-balances--compact .deepseek-balances__spent {
+  justify-content: center;
+  align-items: baseline;
+  gap: 3px;
+  margin-top: 3px;
+}
+.deepseek-balances--compact .deepseek-balances__spent > span,
+.deepseek-balances--compact .deepseek-balances__spent strong {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+}

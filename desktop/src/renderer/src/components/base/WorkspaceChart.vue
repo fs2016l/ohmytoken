@@ -6,10 +6,19 @@ import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecyc
 import { useTypography } from '../../composables/useTypography'
 import { chartMotion } from '../../config/motion'
 const props = defineProps<{ option: EChartsCoreOption; label: string; highlight?: string }>()
-const emit = defineEmits<{ select: [index: number]; hover: [seriesId?: string] }>()
+const emit = defineEmits<{
+  select: [index: number]
+  hover: [seriesId?: string]
+  layout: []
+}>()
 const element = ref<HTMLElement | null>(null)
 const { currentInterfaceFont, currentNumberFont } = useTypography()
 let chart: ECharts | undefined
+function getCategoryPosition(index: number): number | undefined {
+  const position = chart?.convertToPixel({ xAxisIndex: 0 }, index)
+  return typeof position === 'number' && Number.isFinite(position) ? position : undefined
+}
+defineExpose({ getCategoryPosition })
 function applyHighlight(): void {
   chart?.dispatchAction({ type: 'downplay' })
   if (props.highlight) chart?.dispatchAction({ type: 'highlight', seriesId: props.highlight })
@@ -45,11 +54,15 @@ function render(): void {
     { replaceMerge: ['series'] },
   )
   applyHighlight()
+  emit('layout')
 }
 const { requestRender, reduced } = useChartRenderLifecycle(element, {
   render,
   chart: () => chart,
-  resize: () => chart?.resize(),
+  resize: () => {
+    chart?.resize()
+    emit('layout')
+  },
   dispose: () => {
     chart?.dispose()
     chart = undefined

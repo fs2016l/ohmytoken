@@ -40,7 +40,7 @@ Search and filter sessions, expand sub-sessions, and inspect model calls and tok
 
 ### Check quotas before continuing
 
-Discover supported provider connections on your computer and check remaining quotas and reset windows. The floating window keeps tokens, sessions, and quotas within reach while you work, with an always-on-top toggle and session sorting.
+Discover supported provider connections on your computer and check remaining quotas, balances, and reset windows. Existing DeepSeek Harness sign-ins and DeepSeek API keys are supported, with account balances shown by currency. The floating window keeps tokens, sessions, and quotas within reach while you work, with an always-on-top toggle and session sorting.
 
 [![Provider quotas with remaining allowances and reset windows](docs/screenshots/readme/quota-en.gif)](docs/screenshots/readme/quota-en.png)
 
@@ -82,6 +82,8 @@ Supports multiple agents, with ongoing updates.
 [![DeepSeek Harness, Codex, MiniMax Code, OpenCode, Z Code, WorkBuddy, KimiWork, Kimi Code, Gemini CLI, Qwen Code, OpenClaw, Grok, Hermes, and Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
 
 Available details depend on what each agent records locally. Token breakdowns and generation metrics vary by source; some sources provide estimated generation rates.
+
+Antigravity desktop support reads the local session database for usage, sessions, projects, native time to first token, and model generation rates. Provider quotas are queried from Google's cloud over HTTPS, using Windows Credential Manager or the macOS login keychain; Antigravity does not need to remain open. Quota windows reflect what the account actually exposes, and missing values are not shown as zero or full allowances.
 
 ## Get started
 

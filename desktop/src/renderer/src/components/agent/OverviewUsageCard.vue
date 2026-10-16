@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AnalyticsDimension, UsageAnalytics } from '@shared/analytics'
-import { computed } from 'vue'
+import { computed, onDeactivated, ref } from 'vue'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
 import AnimatedCost from '../base/AnimatedCost.vue'
 import AnimatedBar from '../base/AnimatedBar.vue'
@@ -23,6 +23,8 @@ const props = withDefaults(
   { kind: 'models' },
 )
 const emit = defineEmits<{ open: [] }>()
+const labelsVisible = ref(false)
+onDeactivated(() => (labelsVisible.value = false))
 const { label } = useI18n()
 const tokens = useChartTokens()
 const { mode } = useChartColorMode()
@@ -81,7 +83,13 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 })
 </script>
 <template>
-  <article class="overview-model workspace-panel" :data-dimension="kind" :data-usage-id="item.id">
+  <article
+    class="overview-model workspace-panel"
+    :data-dimension="kind"
+    :data-usage-id="item.id"
+    @mouseenter="labelsVisible = true"
+    @mouseleave="labelsVisible = false"
+  >
     <button type="button" class="model-heading" :aria-label="name" @click="emit('open')">
       <span class="model-glyph" aria-hidden="true">
         <RollingMark :kind="kind" :value="isAgent ? item.id : item.name" :size="32" />
@@ -116,7 +124,12 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
       </div>
     </div>
     <div class="model-trend" :aria-busy="pendingScope">
-      <UsageBars :points="points" :label="label(`${name} usage trend`, `${name} 用量趋势`)" mini />
+      <UsageBars
+        :points="points"
+        :label="label(`${name} usage trend`, `${name} 用量趋势`)"
+        :labels-visible="labelsVisible"
+        mini
+      />
       <p v-if="isAgent && scoped.error.value" class="trend-status" role="alert">
         {{ label('Trend update failed', '趋势更新失败') }} ·
         <button type="button" class="workspace-link" @click="scoped.refresh()">

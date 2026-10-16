@@ -19,12 +19,21 @@ export interface TokenUsageRecord {
 /** 关闭主窗口后的全局行为；主进程持久化，所有 renderer 共用同一份偏好。 */
 export type CloseBehavior = 'ask' | 'background' | 'quit'
 
-/** 单次 API 的原生生成计时或明确标注的响应均速估算，时长均为毫秒。 */
+/**
+ * 速度口径：缺省为原生流速；`stream-estimate` 是由记录时间推导的首输出至完成区间，
+ * `response-estimate` 是可观察的请求至完成区间。估算不能混用原生流输出时长。
+ */
+export type GenerationSpeedKind = 'response-estimate' | 'stream-estimate'
+
+/** 单次 API 的原生生成计时或明确标注的估算，时长均为毫秒。 */
 export interface GenerationTiming {
-  /** 默认是原生流速；响应均速估算不能混用流输出时长。 */
-  speedKind?: 'response-estimate'
-  /** 日志中可观察的响应区间，包含首输出等待和其他客户端开销。 */
+  speedKind?: GenerationSpeedKind
+  /** 估算区间：response-estimate 含首输出等待与客户端开销，stream-estimate 从推导的首输出开始。 */
   responseDurationMs?: number
+  /** 首 Token 由记录时间推导而非来源原生计时。 */
+  ttftKind?: 'estimate'
+  /** 本次计时不覆盖输出生成（如整块下发的工具调用），只提供首 Token，不替换会话已有的速度样本。 */
+  speedExcluded?: true
   /** 累计用量来源携带的原生单次调用身份；逐调用用量默认使用外层身份。 */
   apiCallId?: string
   /** 个别来源只有响应落库排序时间，不能标为精确生成完成时间。 */
@@ -36,10 +45,29 @@ export interface GenerationTiming {
   generatedTokens?: number
 }
 
-/** 会话最近一条原生计时样本或带响应均速估算的用量记录。 */
+/** 速度样本之外另一次调用的首 Token；身份与速度样本分开展示。 */
+export interface LatestFirstToken {
+  apiCallId: string
+  sessionId: string
+  model: string
+  completedAtMs: number
+  timeToFirstTokenMs: number
+  timeSource?: 'recorded'
+  ttftKind?: 'estimate'
+}
+
+/** 会话最近一条原生计时样本或带估算的用量记录。 */
 export interface LatestGeneration {
-  speedKind?: 'response-estimate'
+  speedKind?: GenerationSpeedKind
   responseDurationMs?: number
+  ttftKind?: 'estimate'
+  /** 会话尚无速度样本，本样本只提供首 Token。 */
+  speedExcluded?: true
+  /**
+   * 另一次调用的首 Token，速度仍取本样本：更晚的仅首字调用，或本样本缺首字时
+   * 会话中最近一次有首字的较早调用。
+   */
+  firstToken?: LatestFirstToken
   timeSource?: 'recorded'
   apiCallId: string
   sessionId: string
@@ -281,6 +309,8 @@ export interface ScannerUsageDetails {
   records: TokenUsageRecord[]
   sessions: TokenUsageSession[]
   apiCalls: TokenUsageApiCall[]
+  /** 成功完整读取的会话按整会话对账；不在本批来源中的会话仍保留历史。 */
+  completeSessionIds?: string[]
   /** 原生响应自带计时和用量，但没有与用量表共享的请求 ID 时独立传递。 */
   latestGenerations?: LatestGeneration[]
   /** 不与某次 API 共用边界的原生轮级首 Token。 */

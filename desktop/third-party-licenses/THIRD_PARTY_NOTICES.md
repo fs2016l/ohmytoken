@@ -156,4 +156,5 @@ Chromium、Node.js 及运行时内嵌组件的完整原文随安装包提供于 
 | vue-echarts | 8.0.1 | MIT | [source](https://registry.npmjs.org/vue-echarts/-/vue-echarts-8.0.1.tgz) | [LICENSE](generated/documents/6f7fc0224dab3e18a5291d781f748d96de55b99565e6d3bb9fb4933d6dbc7a3d.txt) |
 | vue-router | 4.6.4 | MIT | [source](https://registry.npmjs.org/vue-router/-/vue-router-4.6.4.tgz) | [LICENSE](generated/documents/91a2845c4db44e7497b514b98634a674c737986ad0db81599307cf733bf850b2.txt) |
 | wrappy | 1.0.2 | ISC | [source](https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz) | [LICENSE](generated/documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt) |
+| yaml | 2.9.1 | ISC | [source](https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz) | [LICENSE](generated/documents/5bba27375d93e9119f76c1015f7672cf9ad5f70952296e0842fb2243d6376869.txt) |
 | zrender | 6.1.0 | BSD-3-Clause | [source](https://registry.npmjs.org/zrender/-/zrender-6.1.0.tgz) | [LICENSE](generated/documents/a681e9d183c72b4af4856935893805eb48c08f0f5a3f260203db7444c20fb98a.txt) |

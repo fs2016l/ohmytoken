@@ -81,52 +81,73 @@
 .floating-summary-account.is-unavailable {
   --summary-ring: var(--text-muted);
 }
-.floating-summary-ring {
-  position: relative;
-  display: grid;
-  place-items: center;
+/* 收起状态与展开状态共用液面效果：同一个液面组件裁成圆球，读数居中。 */
+.floating-summary-accounts .floating-summary-account .floating-summary-orb {
+  flex: none;
   width: 58px;
-  height: 58px;
+  border-radius: 50%;
 }
-.floating-summary-ring svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  fill: none;
-  stroke: var(--summary-ring);
-  stroke-width: 5;
+.floating-summary-accounts .floating-summary-orb .liquid-readout {
+  padding: 0;
+  align-items: center;
+  justify-content: center;
 }
-.ring-track {
-  opacity: 0.16;
-}
-.ring-value {
-  transform: rotate(-90deg);
-  transform-origin: center;
-  stroke-linecap: round;
-}
-.floating-summary-ring strong {
+.floating-summary-orb strong {
+  color: var(--text);
+  font-family: var(--font-number);
   font-size: 15px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.floating-summary-account b,
-.floating-summary-account small {
+/* 百分号作为伪元素缩小显示，读数保持为单个文本节点。 */
+.floating-summary-orb strong::after {
+  content: attr(data-suffix);
+  margin-left: 1px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 400;
+}
+.floating-summary-account > b,
+.floating-summary-account > small {
   max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 .floating-summary-account b {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   font-size: 11px;
   font-weight: 500;
 }
-.floating-summary-account small {
+.floating-summary-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floating-summary-tier {
+  flex: none;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.floating-summary-alert {
+  flex: none;
+  color: var(--warning);
+  font-size: 12px;
+}
+.floating-summary-account > small {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   font-size: 10px;
   color: var(--text-muted);
 }
-.floating-summary-account small.is-failed {
-  color: var(--error);
+.floating-summary-account > small .material-symbols-outlined {
+  margin-left: 4px;
+  font-size: 11px;
+}
+.floating-summary-reset {
+  font-family: var(--font-number);
 }
 .floating-summary-footer {
   display: flex;

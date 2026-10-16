@@ -643,7 +643,11 @@ export class CodexScanner implements AgentScanner {
         }
         if (isCodexModelOutputLine(line)) {
           // 只识别原生 ResponseItem 的类型，不解析或保留模型正文。
-          generationEstimate.modelOutput(sessionId, currentTurnId || turn?.id || '')
+          generationEstimate.modelOutput(
+            sessionId,
+            currentTurnId || turn?.id || '',
+            CODEX_TOOL_CALL_LINE.test(line),
+          )
         }
         if (!isCodexRelevantLine(line)) continue
         let obj: unknown
@@ -1275,6 +1279,8 @@ const CODEX_RELEVANT_LINE =
 const CODEX_TOOL_OUTPUT_LINE = /"type":\s*"(function_call_output|custom_tool_call_output)"/
 const CODEX_MODEL_OUTPUT_LINE =
   /"payload":\s*\{\s*"type":\s*"(reasoning|function_call|custom_tool_call)"/
+/** 工具调用只在参数完整后落盘，没有可用作首字的开始时间。 */
+const CODEX_TOOL_CALL_LINE = /"payload":\s*\{\s*"type":\s*"(function_call|custom_tool_call)"/
 const CODEX_ASSISTANT_MESSAGE_LINE = /"payload":\s*\{\s*"type":\s*"message"/
 
 function isCodexModelOutputLine(line: string): boolean {

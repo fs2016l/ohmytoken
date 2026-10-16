@@ -15,6 +15,8 @@ export function detailSources(connection: DiscoveredConnection): QuotaDetailSour
     case 'zhipu':
       return ['glm-models', 'glm-tools']
     case 'kimi':
+    case 'antigravity':
+    case 'deepseek':
       return []
     case 'minimax':
       return ['minimax-billing']

@@ -5,6 +5,8 @@ import Database from 'better-sqlite3'
 import type { TokenPlanProviderId } from '../../shared/token-plan'
 import { groupQuotaAccounts } from './accounts'
 import { kimiCodeHomes, kimiRegion } from './kimi-login'
+import { discoverAntigravityGrants } from './antigravity-credentials'
+import { readDeepSeekCredentials } from './deepseek-credentials'
 import {
   jwtClaims,
   object,
@@ -13,6 +15,7 @@ import {
   type DiscoveredConnection,
   type DiscoveryResult,
   type JsonObject,
+  type AntigravityOAuthGrant,
 } from './types'
 
 interface DiscoveryOptions {
@@ -20,6 +23,7 @@ interface DiscoveryOptions {
   env: NodeJS.ProcessEnv
   platform: NodeJS.Platform
   legacy?: Record<string, string>
+  antigravityGrants?: Array<{ source: string; grant: AntigravityOAuthGrant }>
 }
 
 type Destination = { providerId: TokenPlanProviderId; region: 'cn' | 'global' }
@@ -32,6 +36,7 @@ const hosts: Record<string, Destination> = {
   'api.minimax.io': { providerId: 'minimax', region: 'global' },
   'api.kimi.com': { providerId: 'kimi', region: 'cn' },
   'api.kimi.ai': { providerId: 'kimi', region: 'global' },
+  'api.deepseek.com': { providerId: 'deepseek', region: 'global' },
   'cli-chat-proxy.grok.com': { providerId: 'xai', region: 'global' },
 }
 const defaults: Record<string, Destination> = {
@@ -44,6 +49,7 @@ const defaults: Record<string, Destination> = {
   'minimax-cn': hosts['api.minimaxi.com'],
   minimax: hosts['api.minimax.io'],
   'kimi-for-coding': hosts['api.kimi.com'],
+  deepseek: hosts['api.deepseek.com'],
 }
 
 export function providerDestination(base: unknown, provider?: string): Destination | null {
@@ -240,6 +246,12 @@ export async function discoverQuotaConnections(
         add(source, destination, values.KIMI_CODE_API_KEY, 'api-key')
       else issue(source, 'unsupported')
     }
+    if (values.DEEPSEEK_API_KEY) {
+      const destination = providerDestination(values.DEEPSEEK_BASE_URL, 'deepseek')
+      if (destination?.providerId === 'deepseek')
+        add(source, destination, values.DEEPSEEK_API_KEY, 'api-key')
+      else issue(source, 'unsupported')
+    }
     const minimaxKey = values.MINIMAX_CODING_API_KEY ?? values.MINIMAX_API_KEY
     if (minimaxKey) {
       const destination = providerDestination(
@@ -295,6 +307,16 @@ export async function discoverQuotaConnections(
 
   environment('Environment', env)
   result.checkedSources.push('Environment')
+  const deepseek = await readDeepSeekCredentials(home, env)
+  result.checkedSources.push('DeepSeek Harness')
+  result.issues.push(...deepseek.issues)
+  if (deepseek.apiKey)
+    environment('DeepSeek Harness', {
+      DEEPSEEK_API_KEY: deepseek.apiKey,
+      DEEPSEEK_BASE_URL: env.DEEPSEEK_BASE_URL,
+    })
+  if (deepseek.accountGrant)
+    add('DeepSeek Harness', hosts['api.deepseek.com'], deepseek.accountGrant.token, 'oauth')
   const claudeHome = resolve(env.CLAUDE_CONFIG_DIR || join(home, '.claude'))
   const claude = object(
     (await read(join(claudeHome, '.credentials.json'), 'Claude Code')).claudeAiOauth,
@@ -377,6 +399,52 @@ export async function discoverQuotaConnections(
   add('Gemini', { providerId: 'google', region: 'global' }, google.access_token, 'oauth', {
     expiresAt: timestamp(google.expiry_date) ?? undefined,
   })
+  const antigravity = options.antigravityGrants
+    ? { grants: options.antigravityGrants, checkedSources: ['Antigravity'], issues: [] }
+    : await discoverAntigravityGrants(options)
+  result.checkedSources.push(...antigravity.checkedSources)
+  result.issues.push(...antigravity.issues)
+  for (const { source, grant } of antigravity.grants) {
+    const token = textValue(grant.accessToken)
+    const refresh = textValue(grant.refreshToken)
+    if (!token || token.length > 32768 || /[\r\n]/.test(token)) {
+      issue(source, 'invalid_config')
+      continue
+    }
+    const accountId = grant.accountIdentityVerified ? textValue(grant.accountId) : undefined
+    const id = digest(
+      JSON.stringify([
+        'antigravity',
+        source,
+        accountId ?? '',
+        grant.clientId ?? '',
+        refresh ?? token,
+      ]),
+    ).slice(0, 32)
+    found.set(id, {
+      token,
+      fingerprint: digest(token),
+      accountId,
+      expiresAt: grant.expiresAt,
+      projectId: grant.projectId,
+      antigravityOAuth: grant,
+      public: {
+        id,
+        providerId: 'antigravity',
+        region: 'global',
+        sources: [source],
+        authType: 'oauth',
+        accountLabel: accountId ? `…${accountId.slice(-6)}` : null,
+        state:
+          grant.expiresAt &&
+          grant.expiresAt <= Date.now() &&
+          !(grant.refreshToken && grant.clientId && grant.clientSecret)
+            ? 'expired'
+            : 'ready',
+        scope: 'account',
+      },
+    })
+  }
   const grok = await read(join(env.GROK_HOME || join(home, '.grok'), 'auth.json'), 'Grok')
   for (const [scope, value] of Object.entries(grok)) {
     const entry = object(value)

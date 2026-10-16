@@ -130,11 +130,16 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
     <div class="detail-generation">
       <h3>
         {{
-          session.latestTurnFirstToken || session.agent === 'codex'
+          session.latestTurnFirstToken ||
+          session.agent === 'codex' ||
+          session.latestGeneration?.firstToken ||
+          session.latestGeneration?.speedExcluded
             ? label('Latest generation metrics', '最近生成指标')
             : session.latestGeneration?.speedKind === 'response-estimate'
               ? label('Latest response · average estimate', '最近响应 · 均速估算')
-              : label('Latest completed call', '最近已完成调用')
+              : session.latestGeneration?.speedKind === 'stream-estimate'
+                ? label('Latest response · stream estimate', '最近响应 · 流速估算')
+                : label('Latest completed call', '最近已完成调用')
         }}
       </h3>
       <GenerationMetrics

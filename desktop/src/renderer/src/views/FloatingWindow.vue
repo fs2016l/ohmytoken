@@ -17,6 +17,7 @@ import AnchoredPopover from '../components/base/AnchoredPopover.vue'
 import MessageBanner from '../components/message/MessageBanner.vue'
 import FloatingTokenView from '../components/floating/FloatingTokenView.vue'
 import FloatingQuotaView from '../components/floating/FloatingQuotaView.vue'
+import FloatingQuotaStyleToggle from '../components/floating/FloatingQuotaStyleToggle.vue'
 import FloatingResizeFrame from '../components/floating/FloatingResizeFrame.vue'
 import NetworkRefreshButton from '../components/network/NetworkRefreshButton.vue'
 import { useTheme } from '../composables/useTheme'
@@ -337,7 +338,15 @@ onUnmounted(() => {
     <div ref="header" class="floating-header-block">
       <header class="floating-header">
         <div class="floating-drag-title">
-          <span class="floating-brand"><BrandMark :size="20" /></span>
+          <button
+            type="button"
+            class="floating-brand floating-icon-button"
+            :aria-label="label('Open main window', '打开主窗口')"
+            :title="label('Open main window', '打开主窗口')"
+            @click="openWorkspace('overview')"
+          >
+            <BrandMark :size="20" />
+          </button>
           <strong>Oh My Token</strong>
         </div>
         <button
@@ -491,6 +500,7 @@ onUnmounted(() => {
             :label="label('Monitor view', '监测视图')"
             :compact="collapsed"
           />
+          <FloatingQuotaStyleToggle v-if="mode === 'quota' && !collapsed" />
           <i
             v-if="attention && !collapsed"
             class="floating-quota-attention"

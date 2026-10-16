@@ -3,45 +3,30 @@ import { computed } from 'vue'
 import type { TokenPlanWindowUsage } from '../../../../shared/token-plan'
 import { useI18n } from '../../i18n/useI18n'
 import { useVisibleNow } from '../../composables/useVisibleNow'
-import { formatNumber } from '../../utils/number-format'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
 import RollingText from '../base/RollingText.vue'
 import LiquidQuota from './LiquidQuota.vue'
 import { quotaRemainingPercent } from '../../utils/quota-display'
+import {
+  quotaPeriodText,
+  quotaResetText,
+  quotaUnitBadge,
+  quotaWindowTitle,
+  quotaWindowTooltip,
+} from '../../utils/quota-window-display'
 
-const props = defineProps<{ usage: TokenPlanWindowUsage; compact?: boolean }>()
+/** scope 是所在分组名（如 MCP），并入标题行，不再单独占一行，同一排卡片的磁贴始终对齐。 */
+const props = defineProps<{ usage: TokenPlanWindowUsage; scope?: string | null }>()
 const { currentLang, label } = useI18n()
 const now = useVisibleNow()
-const title = computed(() => {
-  const row = props.usage
-  const names: Record<string, string> = {
-    '5h': label('5-hour quota', '5 小时额度'),
-    '7d': label('Weekly quota', '每周额度'),
-    monthly: label('Monthly quota', '每月额度'),
-    quota: label('Usage limit', '用量限制'),
-    'MCP · monthly': label('Monthly MCP calls', '每月 MCP 调用'),
-    total: label('Total quota', '总额度'),
-    'Kimi shared quota': label('Kimi shared quota', 'Kimi 共享额度'),
-    Credits: label('Credits', '积分'),
-    'Code review': label('Code review', '代码审查'),
-    'On-demand': label('On-demand usage', '按量用量'),
-    Prepaid: label('Prepaid balance', '预付余额'),
-    USAGE_PERIOD_TYPE_WEEKLY: label('Weekly quota', '每周额度'),
-    USAGE_PERIOD_TYPE_MONTHLY: label('Monthly quota', '每月额度'),
-  }
-  const duration = row.windowMinutes
-  const suffix =
-    duration === 300
-      ? '5h'
-      : duration === 10080
-        ? '7d'
-        : duration
-          ? `${formatNumber(duration)} min`
-          : ''
-  const canonical = ['5h', '7d', 'monthly', 'MCP · monthly'].includes(row.label)
-  return `${names[row.label] ?? row.label}${!canonical && suffix ? ` · ${suffix}` : ''}`
-})
-const expired = computed(() => props.usage.resetsAt !== null && props.usage.resetsAt <= now.value)
+const period = computed(() =>
+  [props.scope, quotaPeriodText(props.usage, label)].filter(Boolean).join(' · '),
+)
+// 按次计的额度不显示单位标签，单位与用量留在悬停提示。
+const unit = computed(() =>
+  props.usage.unit === 'requests' ? '' : quotaUnitBadge(props.usage, label),
+)
+const remainingPercent = computed(() => quotaRemainingPercent(props.usage))
 const remainingCount = computed(() => {
   const row = props.usage
   return (
@@ -49,165 +34,113 @@ const remainingCount = computed(() => {
     (row.limit !== null && row.used !== null ? Math.max(0, row.limit - row.used) : null)
   )
 })
-const remainingPercent = computed(() => quotaRemainingPercent(props.usage))
-const numericValue = computed(() =>
-  props.usage.available ? (remainingPercent.value ?? remainingCount.value) : null,
+const unlimited = computed(() => props.usage.available && props.usage.unlimited)
+const countFormat = computed(() =>
+  props.usage.unit === 'USD' || props.usage.unit === 'CNY' ? { currency: props.usage.unit } : {},
 )
-const numberFormat = computed(() =>
-  remainingPercent.value !== null
-    ? { percent: true }
-    : props.usage.unit === 'USD' || props.usage.unit === 'CNY'
-      ? { currency: props.usage.unit }
-      : {},
-)
-const detailText = computed(() => {
-  const row = props.usage
-  if (!row.available)
-    return row.limit !== null
-      ? `${label('Limit', '限额')} ${formatNumber(row.limit)} · ${label('Usage unavailable', '用量未提供')}`
-      : label('Not returned by the provider', '厂商未返回可确认的用量')
-  if (row.unlimited) return label('Unlimited', '不限量')
-  const remaining = remainingCount.value
-  if (remaining !== null && row.limit !== null)
-    return `${label('Remaining', '剩余')} ${formatNumber(remaining)} / ${formatNumber(row.limit)}${row.unit ? ` ${row.unit}` : ''}`
-  if (row.usedPercent !== null)
-    return `${label('Used', '已用')} ${formatNumber(row.usedPercent, { percent: true })}`
-  return remaining !== null
-    ? `${label('Remaining', '剩余额度')}${row.unit ? ` · ${row.unit}` : ''}`
-    : label('Remaining amount not provided', '厂商未提供剩余额度')
-})
-const resetDate = computed(() =>
-  props.usage.resetsAt
-    ? new Intl.DateTimeFormat(currentLang.value === 'zh' ? 'zh-CN' : 'en-US', {
-        month: 'numeric',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(props.usage.resetsAt)
-    : '',
-)
-const resetText = computed(() => {
-  if (!props.usage.resetsAt) return label('Reset time not provided', '未提供重置时间')
-  if (expired.value) return label('Reset time passed. Refresh quota.', '已到重置时间，请刷新')
-  const minutes = Math.max(1, Math.ceil((props.usage.resetsAt - now.value) / 60_000))
-  const days = Math.floor(minutes / 1440),
-    hours = Math.floor((minutes % 1440) / 60),
-    rest = minutes % 60
-  const duration = days
-    ? label(`${days}d ${hours}h`, `${days} 天 ${hours} 小时`)
-    : hours
-      ? label(`${hours}h ${rest}m`, `${hours} 小时 ${rest} 分`)
-      : label(`${rest}m`, `${rest} 分钟`)
-  return label(`Resets in ${duration}`, `${duration}后重置`)
-})
+const reset = computed(() => quotaResetText(props.usage, now.value, label))
+const tooltip = computed(() => quotaWindowTooltip(props.usage, label, currentLang.value))
+const title = computed(() => quotaWindowTitle(props.usage, label))
 </script>
 
 <template>
-  <LiquidQuota
-    class="quota-window"
-    :class="{ 'quota-window--compact': compact }"
-    :height="compact ? 100 : 124"
-    :percent="remainingPercent"
-    :unlimited="usage.available && usage.unlimited"
-    :label="`${title} · ${label('Remaining', '剩余')}`"
-    :title="detailText"
-  >
+  <div class="quota-window" :title="tooltip">
     <div class="quota-window__heading">
-      <RollingText :text="title" />
+      <RollingText :text="period" />
+      <span v-if="unit" class="quota-window__unit">{{ unit }}</span>
     </div>
-    <div class="quota-window__value">
-      <span class="visually-hidden">{{ label('Remaining', '剩余') }}</span>
-      <span v-if="usage.available && usage.unlimited" :aria-label="label('Unlimited', '不限量')">
-        ∞
-      </span>
-      <AnimatedNumber v-else :value="numericValue" :format="numberFormat" />
-    </div>
-    <div
-      class="quota-window__reset"
-      :title="
-        resetDate
-          ? label('Reset time in this reading: ', '这条读数记录的重置时间：') + resetDate
-          : resetText
-      "
+    <LiquidQuota
+      :height="76"
+      :percent="remainingPercent"
+      :unlimited="unlimited"
+      :label="`${title} · ${label('Remaining', '剩余')}`"
     >
-      {{ resetText }}
+      <div class="quota-window__value">
+        <span v-if="unlimited" :aria-label="label('Unlimited', '不限量')">∞</span>
+        <template v-else-if="usage.available && remainingPercent !== null">
+          <AnimatedNumber :value="remainingPercent" />
+          <small>%</small>
+        </template>
+        <AnimatedNumber
+          v-else
+          :value="usage.available ? remainingCount : null"
+          :format="countFormat"
+        />
+      </div>
+    </LiquidQuota>
+    <div class="quota-window__reset">
+      <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+      <span class="quota-window__reset-text">{{ reset }}</span>
+      <span class="visually-hidden">{{ tooltip }}</span>
     </div>
-    <span class="visually-hidden">{{ detailText }}</span>
-    <span v-if="usage.details.length" class="visually-hidden">
-      {{ label('Used by tool:', '工具已用：') }}
-      <span v-for="detail in usage.details" :key="detail.name">
-        {{ detail.name }} {{ formatNumber(detail.used) }}
-      </span>
-    </span>
-  </LiquidQuota>
+  </div>
 </template>
 
 <style scoped>
+.quota-window {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
 .quota-window__heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
+  gap: 4px;
+  min-width: 0;
+  height: 18px;
+  color: var(--text-soft);
   font-size: 12px;
   line-height: 18px;
-  color: var(--text-muted);
+  white-space: nowrap;
 }
 .quota-window__heading > span:first-child {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+.quota-window__unit {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--surface-container);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
 }
 .quota-window__value {
+  display: flex;
+  align-items: baseline;
   color: var(--text);
   font-family: var(--font-number);
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -1px;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 26px;
+  letter-spacing: -0.4px;
   white-space: nowrap;
+}
+.quota-window__value small {
+  margin-left: 1px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.quota-window :deep(.liquid-readout) {
+  padding: 8px 10px;
 }
 .quota-window__reset {
-  margin-top: auto;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
-  font-size: 12px;
-  line-height: 18px;
-}
-.quota-window--compact {
-  container: compact-quota / inline-size;
-}
-.quota-window--compact .quota-window__value {
-  font-size: clamp(14px, 24cqi, 28px);
-  line-height: 36px;
-  letter-spacing: -0.6px;
-}
-.quota-window--compact :deep(.liquid-readout) {
-  padding: 8px clamp(4px, 6cqi, 10px);
-}
-.quota-window--compact .quota-window__heading,
-.quota-window--compact .quota-window__reset {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  color: var(--text-muted);
+  font-family: var(--font-number);
   font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
 }
-@container compact-quota (max-width: 120px) {
-  .quota-window__heading {
-    gap: 4px;
-  }
-  .quota-window--compact .quota-window__heading,
-  .quota-window--compact .quota-window__reset {
-    font-size: 10px;
-    line-height: 14px;
-  }
-  .quota-window__reset {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-    text-wrap: balance;
-  }
+.quota-window__reset .material-symbols-outlined {
+  font-size: 13px;
 }
 .visually-hidden {
   position: absolute;

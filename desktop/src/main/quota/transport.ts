@@ -2,6 +2,7 @@ import type { DiscoveredConnection, JsonObject } from './types'
 import { object, textValue } from './types'
 import { isQuotaRegionError, QuotaQueryError } from './query-error'
 import { assertQuotaRegionAllowed, withQuotaRegionCheck } from './region-guard'
+import { fetchAntigravityQuota } from './antigravity-fetch'
 
 export { QuotaQueryError } from './query-error'
 
@@ -16,6 +17,8 @@ const HOSTS = new Set([
   'api.anthropic.com',
   'api.kimi.com',
   'api.kimi.ai',
+  'api.deepseek.com',
+  'platform.deepseek.com',
   'cloudcode-pa.googleapis.com',
   'cli-chat-proxy.grok.com',
 ])
@@ -27,17 +30,63 @@ export async function requestQuotaJson(
   fetcher: typeof fetch = fetch,
   timeoutMs = 15_000,
 ): Promise<JsonObject> {
+  return requestJson(url, headers, body, fetcher, timeoutMs)
+}
+
+export async function requestAntigravityToken(
+  fields: Record<string, string>,
+  fetcher: typeof fetch,
+): Promise<JsonObject> {
+  return requestJson(
+    'https://oauth2.googleapis.com/token',
+    {},
+    new URLSearchParams(fields).toString(),
+    fetcher,
+    15_000,
+    true,
+  )
+}
+
+export async function requestAntigravityIdentity(
+  token: string,
+  fetcher: typeof fetch,
+): Promise<JsonObject> {
+  return requestJson(
+    'https://www.googleapis.com/oauth2/v2/userinfo',
+    { Authorization: `Bearer ${token}` },
+    undefined,
+    fetcher,
+    15_000,
+    true,
+  )
+}
+
+async function requestJson(
+  url: string,
+  headers: Record<string, string>,
+  body: JsonObject | string | undefined,
+  fetcher: typeof fetch,
+  timeoutMs: number,
+  googleAuth = false,
+): Promise<JsonObject> {
   const address = new URL(url)
+  const permitted = googleAuth
+    ? url === 'https://oauth2.googleapis.com/token' ||
+      url === 'https://www.googleapis.com/oauth2/v2/userinfo'
+    : HOSTS.has(address.hostname)
   if (
     address.protocol !== 'https:' ||
-    !HOSTS.has(address.hostname) ||
+    !permitted ||
     address.port ||
     address.username ||
     address.password
   ) {
     throw new QuotaQueryError('unsupported')
   }
-  await assertQuotaRegionAllowed(address.hostname, fetcher)
+  await assertQuotaRegionAllowed(
+    googleAuth ? 'cloudcode-pa.googleapis.com' : address.hostname,
+    fetcher,
+  )
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -47,14 +96,20 @@ export async function requestQuotaJson(
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(body
+          ? {
+              'Content-Type':
+                typeof body === 'string' ? 'application/x-www-form-urlencoded' : 'application/json',
+            }
+          : {}),
         ...headers,
       },
-      body: body ? JSON.stringify(body) : undefined,
+      body: typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined,
     })
     if (!response.ok) {
       await response.body?.cancel()
       if (response.status === 401) throw new QuotaQueryError('expired')
+      if (googleAuth && response.status === 400) throw new QuotaQueryError('invalid_credential')
       if (response.status === 403) throw new QuotaQueryError('permission_denied')
       if (response.status === 429) {
         const retry = response.headers.get('retry-after')
@@ -116,6 +171,13 @@ async function fetchQuota(
   fetcher: typeof fetch,
 ): Promise<JsonObject> {
   if (connection.public.state === 'unsupported') throw new QuotaQueryError('unsupported')
+  if (connection.public.providerId === 'antigravity') {
+    return fetchAntigravityQuota(connection, fetcher, {
+      quota: requestQuotaJson,
+      token: requestAntigravityToken,
+      identity: requestAntigravityIdentity,
+    })
+  }
   if (connection.expiresAt && connection.expiresAt <= Date.now())
     throw new QuotaQueryError('expired')
   const headers: Record<string, string> = { Authorization: `Bearer ${connection.token}` }
@@ -150,6 +212,18 @@ async function fetchQuota(
     case 'anthropic':
       headers['anthropic-beta'] = 'oauth-2025-04-20'
       return request('https://api.anthropic.com/api/oauth/usage')
+    case 'deepseek': {
+      if (connection.public.authType === 'api-key')
+        return request('https://api.deepseek.com/user/balance')
+      const response = await requestQuotaJson(
+        'https://platform.deepseek.com/api/v0/users/get_user_summary',
+        { 'x-dsh-auth-token': connection.token },
+        undefined,
+        fetcher,
+      )
+      if (response.code === 40003) throw new QuotaQueryError('expired')
+      return response
+    }
     case 'kimi': {
       const base = `https://api.kimi.${cn ? 'com' : 'ai'}/coding/v1`
       const [usage, profile] = await Promise.allSettled([

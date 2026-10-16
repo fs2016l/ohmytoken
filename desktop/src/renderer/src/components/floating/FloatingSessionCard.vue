@@ -137,6 +137,8 @@ const relativeActivity = computed(() => {
       :sample="session.latestGeneration"
       :turn-first-token="session.latestTurnFirstToken"
       :agent="session.agent"
+      :token-delta="delta"
+      :motion-available="!unavailable && !dragging"
       floating
     />
     <CollapseRegion :id="detailsId" :open="expanded">

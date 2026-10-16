@@ -59,12 +59,28 @@ export const TOKEN_PLAN_PROVIDERS: TokenPlanProviderMeta[] = [
     docsUrl: 'https://geminicli.com/docs/quota-and-pricing/',
   },
   {
+    id: 'deepseek',
+    nameEn: 'DeepSeek',
+    nameZh: 'DeepSeek',
+    mark: 'D',
+    brandColor: '#4d6bfe',
+    docsUrl: 'https://api-docs.deepseek.com/api/get-user-balance/',
+  },
+  {
     id: 'xai',
     nameEn: 'xAI',
     nameZh: 'xAI',
     mark: 'X',
     brandColor: '#64748b',
     docsUrl: 'https://grok.com/',
+  },
+  {
+    id: 'antigravity',
+    nameEn: 'Antigravity',
+    nameZh: 'Antigravity',
+    mark: 'A',
+    brandColor: '#4285f4',
+    docsUrl: 'https://antigravity.google/docs/plans/',
   },
 ]
 

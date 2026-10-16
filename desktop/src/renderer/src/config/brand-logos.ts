@@ -120,6 +120,8 @@ export function modelLogoUrl(modelName: string): string | undefined {
 }
 
 export function vendorLogoUrl(providerId: string): string | undefined {
+  if (providerId === 'antigravity') return agentLogos.antigravity
+  if (providerId === 'deepseek') return agentLogos['deepseek-harness']
   return vendorLogos[providerId]
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onDeactivated, onUnmounted, ref, watch } from 'vue'
+import { computed, onDeactivated, onUnmounted, ref, shallowRef, watch } from 'vue'
+import { format as chartFormat } from 'echarts/core'
 import type { TooltipComponentOption } from 'echarts/components'
 import WorkspaceChart from '../base/WorkspaceChart.vue'
 import { useChartTokens } from '../../composables/useChartTokens'
@@ -10,10 +11,18 @@ import { createChartTooltip, chartTooltipPosition } from '../../utils/chart-tool
 import { modelSeriesColor } from '../../utils/model-series-color'
 import { useChartColorMode } from '../../composables/useChartColorMode'
 import { useUsageBarHover } from '../../composables/useUsageBarHover'
+import { selectChartLabelIndices } from '../../utils/chart-label-layout'
+import { modelLogoUrl } from '../../config/brand-logos'
 import '../../styles/chart-tooltip.css'
 const props = withDefaults(
-  defineProps<{ points: TokenBarPoint[]; label: string; mini?: boolean; weekday?: boolean }>(),
-  { mini: false, weekday: false },
+  defineProps<{
+    points: TokenBarPoint[]
+    label: string
+    mini?: boolean
+    weekday?: boolean
+    labelsVisible?: boolean
+  }>(),
+  { mini: false, weekday: false, labelsVisible: false },
 )
 const tokens = useChartTokens()
 const { mode } = useChartColorMode()
@@ -22,11 +31,7 @@ const hoverOwner = Symbol('usage-bars')
 function changeHover(seriesId?: string): void {
   hover?.set(hoverOwner, mode.value === 'categorical' ? seriesId : undefined)
 }
-watch(mode, () => hover?.clear())
-watch(
-  () => props.points,
-  () => hover?.clear(),
-)
+watch([mode, () => props.points], () => hover?.clear())
 onDeactivated(() => changeHover())
 onUnmounted(() => changeHover())
 const seriesColor = (id: string): string =>
@@ -47,8 +52,40 @@ function weekdayLabel(key: string): string {
   return weekdayNames.value[day] ?? key
 }
 const plot = ref<InstanceType<typeof WorkspaceChart> | null>(null)
+const labelIndices = shallowRef<number[]>([])
+function updateLabelLayout(): void {
+  const width = (plot.value?.$el as HTMLElement | undefined)?.clientWidth
+  if (!width) return
+  const family = getComputedStyle(document.documentElement).getPropertyValue('--font-number').trim()
+  const font = `600 ${props.mini ? 10 : 11}px ${family || 'sans-serif'}`
+  const candidates = props.points.flatMap((point, index) => {
+    const center = plot.value?.getCategoryPosition(index)
+    if (center === undefined || point.value <= 0) return []
+    return [
+      {
+        index,
+        value: point.value,
+        center,
+        width: chartFormat.getTextRect(formatNumber(point.value, { compact: true }), font).width,
+      },
+    ]
+  })
+  const next = selectChartLabelIndices(candidates, width, props.mini ? 16 : 12)
+  if (
+    next.length !== labelIndices.value.length ||
+    next.some((index, position) => index !== labelIndices.value[position])
+  )
+    labelIndices.value = next
+}
 const tooltip = computed<TooltipComponentOption>(() => {
   void currentLang.value
+  const modelIcons = new Map(
+    props.points.flatMap((point) =>
+      point.models.map(
+        (model) => [model.id, modelLogoUrl(model.name) ?? modelLogoUrl(model.id)] as const,
+      ),
+    ),
+  )
   return {
     trigger: mode.value === 'categorical' ? 'item' : 'axis',
     renderMode: 'html',
@@ -88,6 +125,7 @@ const tooltip = computed<TooltipComponentOption>(() => {
             label: model.name || localize('Unknown model', '未知模型'),
             value: formatNumber(model.value, { compact: true }),
             color: seriesColor(model.id),
+            iconUrl: modelIcons.get(model.id),
           })),
           ...(other
             ? [
@@ -113,6 +151,7 @@ const tooltip = computed<TooltipComponentOption>(() => {
   }
 })
 const series = computed(() => {
+  const visibleLabels = new Set(props.labelsVisible ? labelIndices.value : [])
   const models = new Map(
     props.points.flatMap((point) => point.models.map((model) => [model.id, model.name] as const)),
   )
@@ -164,7 +203,11 @@ const series = computed(() => {
       id: 'tonal-total',
       name: localize('Total tokens', 'Token 总量'),
       type: 'bar',
-      data: props.points.map((point) => ({ id: point.key, value: point.value })),
+      data: props.points.map((point, index) => ({
+        id: point.key,
+        value: point.value,
+        label: { show: visibleLabels.has(index) },
+      })),
       barMaxWidth: props.mini ? 20 : 28,
       barGap: '-100%',
       z: 3,
@@ -172,6 +215,36 @@ const series = computed(() => {
       itemStyle: {
         color: tokens.value[props.mini ? '--chart-quaternary' : '--chart-primary'],
         opacity: mode.value === 'tonal' ? 1 : 0,
+      },
+      label: {
+        show: false,
+        silent: true,
+        position: 'top',
+        distance: 5,
+        color: tokens.value['--text'],
+        opacity: 1,
+        fontSize: props.mini ? 10 : 11,
+        fontWeight: 600,
+        minMargin: 6,
+        formatter: ({ value }: { value?: unknown }) =>
+          typeof value === 'number' && value > 0 ? formatNumber(value, { compact: true }) : '',
+      },
+      labelLayout: ({
+        rect,
+        labelRect,
+      }: {
+        rect: { x: number; width: number }
+        labelRect: { width: number }
+      }) => {
+        const width = (plot.value?.$el as HTMLElement | undefined)?.clientWidth
+        if (!width) return { hideOverlap: true }
+        // Use the bar's center so repeated layouts never reuse a shifted label position.
+        const center = rect.x + rect.width / 2
+        const half = labelRect.width / 2
+        return {
+          hideOverlap: true,
+          dx: Math.max(half, Math.min(width - half, center)) - center,
+        }
       },
       emphasis: { disabled: true },
       tooltip: { show: false },
@@ -182,7 +255,7 @@ const option = computed(() => ({
   grid: {
     left: props.mini ? 0 : 4,
     right: 0,
-    top: props.mini ? 8 : 10,
+    top: props.mini ? 22 : 24,
     bottom: 0,
     containLabel: true,
   },
@@ -221,5 +294,6 @@ const option = computed(() => ({
     :label="label"
     :highlight="mode === 'categorical' ? hover?.series.value : undefined"
     @hover="changeHover"
+    @layout="updateLabelLayout"
   />
 </template>

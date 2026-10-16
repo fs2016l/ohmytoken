@@ -1,0 +1,169 @@
+.floating-quota-windows {
+  display: flex;
+  flex-direction: column;
+}
+.floating-quota-scope {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+.floating-quota-window {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 34px 64px;
+  align-items: center;
+  column-gap: 8px;
+  height: 24px;
+}
+.floating-quota-period {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.floating-quota-period > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floating-quota-unit {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--surface-container);
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+.floating-quota-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  color: var(--text);
+  font-family: var(--font-number);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.floating-quota-value small {
+  margin-left: 1px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 400;
+}
+.floating-quota-reset {
+  display: flex;
+  align-items: center;
+  /* 左对齐让时钟图标在各行同一位置，长短不一的时长不再推动图标。 */
+  justify-content: flex-start;
+  gap: 3px;
+  color: var(--text-muted);
+  font-family: var(--font-number);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.floating-quota-reset .material-symbols-outlined {
+  font-size: 12px;
+}
+
+/* 圆球样式：范围组横向排列，放不下时换行；组底部对齐，带范围名的组不会把圆球顶高。 */
+.floating-quota-orbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  padding-top: 2px;
+}
+.floating-quota-orb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.floating-quota-orb-scope {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.floating-quota-orb-scope::before,
+.floating-quota-orb-scope::after {
+  content: '';
+  flex: 1;
+  min-width: 8px;
+  height: 1px;
+  background: var(--border);
+}
+.floating-quota-orb-cells {
+  display: flex;
+  gap: 4px;
+}
+.floating-quota-orb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 64px;
+}
+.floating-quota-orb .floating-quota-orb-liquid {
+  flex: none;
+  width: 46px;
+  margin-bottom: 2px;
+  border-radius: 50%;
+}
+.floating-quota-orb .floating-quota-orb-liquid :deep(.liquid-readout) {
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+}
+.floating-quota-orb strong {
+  color: var(--text);
+  font-family: var(--font-number);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.floating-quota-orb strong::after {
+  content: attr(data-suffix);
+  margin-left: 1px;
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 400;
+}
+.floating-quota-orb-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  max-width: 100%;
+  color: var(--text-soft);
+  font-size: 11px;
+  line-height: 15px;
+  white-space: nowrap;
+}
+.floating-quota-orb-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.floating-quota-orb-reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: var(--text-muted);
+  font-family: var(--font-number);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.floating-quota-orb-reset .material-symbols-outlined {
+  font-size: 11px;
+}

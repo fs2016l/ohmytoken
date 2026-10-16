@@ -1,4 +1,4 @@
-import { persistSessionScan } from './session-scan-storage'
+import { persistSessionScan, readStoredSessionCallKeys } from './session-scan-storage'
 import { storeLatestGenerationCalls } from './session-generation-storage'
 import { storeLatestTurnFirstTokens } from './session-turn-timing-storage'
 import type {
@@ -148,7 +148,7 @@ export function persistAgentScan(
     } else {
       inheritStoredRootRelations(agent, details)
       const sinceMs = context.sinceMs ?? 1
-      const oldRows = context.preserveHistory
+      let oldRows = context.preserveHistory
         ? []
         : (db
             .prepare(
@@ -157,6 +157,9 @@ export function persistAgentScan(
            WHERE agent = ? AND event_timestamp_ms >= ?`,
             )
             .all(agent, sinceMs) as Array<{ session_id: string; date: string; model: string }>)
+
+      const complete = new Set(details.completeSessionIds ?? [])
+      if (complete.size) oldRows = oldRows.concat(readStoredSessionCallKeys(db, agent, complete))
 
       // api_call_id 是 (agent, api_call_id) 主键。同一个来源事件被修正后，可能从
       // 窗口外的旧 session/date/model 移动到本批新键；窗口 DELETE 不会碰到那条旧行。
@@ -177,6 +180,12 @@ export function persistAgentScan(
         recordKeys.add(recordKey(row.date, row.model))
       }
       collectStoredMetadata(agent, oldRows, oldMetadata)
+      if (complete.size) {
+        const removeSession = db.prepare(
+          'DELETE FROM usage_api_calls WHERE agent = ? AND session_id = ?',
+        )
+        for (const id of complete) removeSession.run(agent, id)
+      }
       if (!context.preserveHistory) {
         db.prepare('DELETE FROM usage_api_calls WHERE agent = ? AND event_timestamp_ms >= ?').run(
           agent,

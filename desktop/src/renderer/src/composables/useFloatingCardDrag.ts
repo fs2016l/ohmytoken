@@ -8,6 +8,13 @@ interface Options {
   previewClass: string
   draggingClass: string
   handle?: string
+  /**
+   * list（默认）按目标上下半区决定插入位置；grid 用于多列网格，悬停到哪张卡片就占据它的位置，
+   * 不必再瞄准上下半区。
+   */
+  layout?: 'list' | 'grid'
+  /** 拖到边缘时自动滚动的容器选择器。 */
+  scroll?: string
   dropMotion?: { duration: number; easing: string }
   onStart: (key: string) => void
   onOver: (key: string | null, position: Position | null) => void
@@ -41,9 +48,9 @@ export function useFloatingCardDrag(options: Options) {
   }
   function target(): void {
     if (!card) return
+    const cards = options.cards(card)
     // Hit-test final slots; an animating neighbor must not immediately undo the reorder.
-    const match = options
-      .cards(card)
+    const match = cards
       .map((node) => {
         const rect = node.getBoundingClientRect()
         const transform = new DOMMatrix(getComputedStyle(node).transform)
@@ -64,6 +71,12 @@ export function useFloatingCardDrag(options: Options) {
       )
     if (!match || match.node === card) {
       options.onOver(null, null)
+      return
+    }
+    if (options.layout === 'grid') {
+      // 网格中向后拖放到目标之后、向前拖放到目标之前，拖动卡片恰好占据目标原来的格子。
+      const forward = cards.indexOf(card) < cards.indexOf(match.node)
+      options.onOver(options.key(match.node), forward ? 'after' : 'before')
       return
     }
     options.onOver(options.key(match.node), y < match.top + match.height / 2 ? 'before' : 'after')
@@ -212,7 +225,7 @@ export function useFloatingCardDrag(options: Options) {
     if (target?.closest('button, a, input, select, textarea, [contenteditable="true"]') && !handle)
       return
     card = event.currentTarget as HTMLElement
-    scroll = card.closest<HTMLElement>('.floating-scroll, .dialog-content')
+    scroll = card.closest<HTMLElement>(options.scroll ?? '.floating-scroll, .dialog-content')
     const bounds = card.getBoundingClientRect()
     x = startX = event.clientX
     y = startY = event.clientY

@@ -13,6 +13,7 @@ import { KimiWorkScanner } from './kimiwork.scanner'
 import { KimiCodeScanner } from './kimi-code.scanner'
 import { WorkBuddyScanner } from './workbuddy.scanner'
 import { GeminiScanner } from './gemini.scanner'
+import { AntigravityScanner } from './antigravity.scanner'
 import { QwenScanner } from './qwen.scanner'
 import { OpenClawScanner } from './openclaw.scanner'
 import { GrokScanner } from './grok.scanner'
@@ -30,6 +31,7 @@ export { KimiWorkScanner } from './kimiwork.scanner'
 export { KimiCodeScanner } from './kimi-code.scanner'
 export { WorkBuddyScanner } from './workbuddy.scanner'
 export { GeminiScanner } from './gemini.scanner'
+export { AntigravityScanner } from './antigravity.scanner'
 export { QwenScanner } from './qwen.scanner'
 export { OpenClawScanner } from './openclaw.scanner'
 export { GrokScanner } from './grok.scanner'
@@ -50,6 +52,7 @@ export const allScanners: AgentScanner[] = [
   new KimiCodeScanner(),
   new WorkBuddyScanner(),
   new GeminiScanner(),
+  new AntigravityScanner(),
   new QwenScanner(),
   new OpenClawScanner(),
   new GrokScanner(),

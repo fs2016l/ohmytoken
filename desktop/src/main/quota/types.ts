@@ -2,6 +2,18 @@ import type { TokenPlanConnection, TokenPlanDiscoveryIssue } from '../../shared/
 
 export type JsonObject = Record<string, unknown>
 
+export interface AntigravityOAuthGrant {
+  accessToken: string
+  refreshToken?: string
+  expiresAt?: number
+  clientId?: string
+  clientSecret?: string
+  clientVersion?: string
+  accountId?: string
+  accountIdentityVerified?: boolean
+  projectId?: string
+}
+
 export interface DiscoveredConnection {
   public: TokenPlanConnection
   token: string
@@ -13,6 +25,7 @@ export interface DiscoveredConnection {
   tierHint?: string
   quotaIdentity?: string
   credentials?: DiscoveredConnection[]
+  antigravityOAuth?: AntigravityOAuthGrant
 }
 
 export interface DiscoveryResult {
@@ -36,6 +49,18 @@ export function numberValue(value: unknown): number | null {
   if (typeof value === 'string' && !value.trim()) return null
   const number = Number(value)
   return Number.isFinite(number) && number >= 0 ? number : null
+}
+
+/** Monetary balances may be negative; accept decimal amounts without coercing empty or hex values. */
+export function balanceValue(value: unknown): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (
+    typeof value === 'string' &&
+    (value.length > 150 || !/^-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value))
+  )
+    return null
+  const amount = Number(value)
+  return Number.isFinite(amount) ? amount : null
 }
 
 export function timestamp(value: unknown): number | null {

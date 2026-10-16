@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onDeactivated, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { UsageAnalytics } from '@shared/analytics'
 import type { Overview } from '@shared/models'
@@ -24,6 +24,12 @@ import { calendarDays, tokenBars } from '../utils/analytics-display'
 const { label } = useI18n(),
   router = useRouter()
 provideUsageBarHover()
+const rhythmLabelsVisible = ref(false)
+const projectLabelsVisible = ref(false)
+onDeactivated(() => {
+  rhythmLabelsVisible.value = false
+  projectLabelsVisible.value = false
+})
 const state = usePageState('overview', {
   range: presetRange('today'),
   activeDimension: 'models' as 'models' | 'agents',
@@ -205,7 +211,11 @@ async function retry(): Promise<void> {
           </template>
         </CardStatsFooter>
       </section>
-      <section class="overview-rhythm workspace-panel">
+      <section
+        class="overview-rhythm workspace-panel"
+        @mouseenter="rhythmLabelsVisible = true"
+        @mouseleave="rhythmLabelsVisible = false"
+      >
         <header>
           <div>
             <h2>{{ label('Usage rhythm', '用量节奏') }}</h2>
@@ -221,12 +231,17 @@ async function retry(): Promise<void> {
         <div class="rhythm-plot">
           <UsageBars
             :points="tokenBars(data)"
+            :labels-visible="rhythmLabelsVisible"
             :weekday="state.range.preset === 'week'"
             :label="label('Tokens over the selected period', '选定区间 Token 用量趋势')"
           />
         </div>
       </section>
-      <section class="overview-projects workspace-panel">
+      <section
+        class="overview-projects workspace-panel"
+        @mouseenter="projectLabelsVisible = true"
+        @mouseleave="projectLabelsVisible = false"
+      >
         <header>
           <h2>{{ label('Project usage', '项目用量') }}</h2>
           <button type="button" class="workspace-link" @click="projects()">
@@ -235,6 +250,7 @@ async function retry(): Promise<void> {
         </header>
         <ProjectButterfly
           :projects="data?.projects || []"
+          :labels-visible="projectLabelsVisible"
           :model-usage="data?.projectModels || {}"
           :total-tokens="data?.summary.totalTokens"
           :cost-summary="data?.summary.costSummary"

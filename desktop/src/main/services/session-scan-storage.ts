@@ -17,6 +17,19 @@ import {
 } from './session-usage-storage'
 import { usageCallTime } from './usage-call-time'
 
+export function readStoredSessionCallKeys(
+  db: Database.Database,
+  agent: string,
+  sessionIds: Iterable<string>,
+): Array<Pick<CostRow, 'session_id' | 'date' | 'model'>> {
+  const read = db.prepare(
+    'SELECT session_id, date, model FROM usage_api_calls WHERE agent = ? AND session_id = ?',
+  )
+  return [...sessionIds].flatMap(
+    (id) => read.all(agent, id) as Array<Pick<CostRow, 'session_id' | 'date' | 'model'>>,
+  )
+}
+
 /** 来源事件主键仍参与对账；窗口外被更正的旧归属也一起撤销。 */
 export function persistSessionScan(
   db: Database.Database,
@@ -31,6 +44,7 @@ export function persistSessionScan(
     details.sessions.map((row) => [sessionUsageKey(row.sessionId, row.date, row.model), row]),
   )
   const incoming = new Set(details.apiCalls.map((call) => call.apiCallId))
+  const complete = new Set(details.completeSessionIds ?? [])
   const changed = new Map<string, TokenUsageApiCall[]>()
   const keyOf = (call: TokenUsageApiCall): string =>
     sessionUsageKey(call.sessionId, usageCallTime(call).date, call.model)
@@ -53,7 +67,10 @@ export function persistSessionScan(
     for (const row of rows) {
       const calls = decodeMeterData(row)
       const kept = calls.filter(
-        (call) => !incoming.has(call.apiCallId) && !(scanWindow && eventTimestampMs(call) >= since),
+        (call) =>
+          !complete.has(call.sessionId) &&
+          !incoming.has(call.apiCallId) &&
+          !(scanWindow && eventTimestampMs(call) >= since),
       )
       if (kept.length !== calls.length)
         changed.set(sessionUsageKey(row.session_id, row.date, row.model), kept)

@@ -8,7 +8,10 @@ import type {
 import { TOKEN_PLAN_PROVIDER_BY_ID } from '../../config/token-plan-providers'
 import { useI18n } from '../../i18n/useI18n'
 import { formatNumber } from '../../utils/number-format'
+import { groupQuotaWindows, quotaBalanceView } from '../../utils/quota-window-display'
+import { deepSeekAmounts, deepSeekMoney, deepSeekReadings } from '../../utils/deepseek-display'
 import QuotaWindowTile from './QuotaWindowTile.vue'
+import QuotaBalanceTile from './QuotaBalanceTile.vue'
 import QuotaUpdatedAt from './QuotaUpdatedAt.vue'
 import QuotaStatusBadge from './QuotaStatusBadge.vue'
 import RollingText from '../base/RollingText.vue'
@@ -50,6 +53,10 @@ const error = computed(() => {
     permission_denied: label(
       'This account cannot read quota. Check the account and subscription permissions in the source Agent, then refresh.',
       '当前账号没有读取额度的权限，请在原 Agent 中确认账号及订阅权限后再刷新。',
+    ),
+    scope_missing: label(
+      'The account has no available quota project. Sign in to Antigravity and complete account setup, then refresh quota.',
+      '当前账号尚未提供可查询额度的项目。请在 Antigravity 中登录并完成账号初始化后再刷新额度。',
     ),
     rate_limited: label(
       'The provider has limited the request rate. Wait before refreshing quota again.',
@@ -100,6 +107,83 @@ const status = computed(() => {
   if (!props.snapshot?.observedAt) return label('Connection discovered', '已发现连接')
   return props.snapshot.stale ? label('Previous result', '上次结果') : label('Updated', '已更新')
 })
+// 正常状态只留更新时间；失败、沿用旧值或停止刷新时图标后写明状态，原因放在悬停说明里。
+const statusIcon = computed(() => {
+  if (props.loading) return ''
+  if (regionPaused.value) return 'pause_circle'
+  if (props.snapshot?.errorCode || props.snapshot?.status === 'error') return 'warning'
+  return props.snapshot?.stale ? 'history' : ''
+})
+const layout = computed(() =>
+  groupQuotaWindows(props.snapshot?.windows ?? [], props.connection.providerId, label),
+)
+const isDeepSeek = computed(() => props.connection.providerId === 'deepseek')
+// 分组名并入磁贴标题，不再单独占一行，同一排卡片的磁贴保持对齐。
+const windowTiles = computed(() =>
+  layout.value.groups.flatMap((group) =>
+    group.windows.map((usage) => ({ usage, scope: group.scope })),
+  ),
+)
+interface BalanceTile {
+  id: string
+  caption: string
+  value: string
+  title: string
+  note?: string
+  muted?: boolean
+  rowStart?: boolean
+}
+/** 余额与额度窗口同排平铺；DeepSeek 按币种拆成充值、赠送（或可用）与累计消费，每个币种另起一行，底注写币种。 */
+const balanceTiles = computed<BalanceTile[]>(() => {
+  if (isDeepSeek.value) {
+    const names = {
+      total: label('Available balance', '可用余额'),
+      recharge: label('Recharge balance', '充值余额'),
+      granted: label('Granted balance', '赠送余额'),
+    }
+    const spent = label('Total spending', '累计消费')
+    return deepSeekAmounts(props.snapshot?.windows ?? []).flatMap((row, index) => [
+      ...deepSeekReadings(row).map((item, position) => ({
+        id: `${row.currency}:${item.key}`,
+        rowStart: index > 0 && position === 0,
+        caption: names[item.key],
+        value: deepSeekMoney(item.value, row.currency),
+        note: row.currency,
+        title: `${names[item.key]} · ${row.currency} ${item.value ?? label('Not provided', '未提供')}`,
+      })),
+      {
+        id: `${row.currency}:spent`,
+        caption: spent,
+        value: deepSeekMoney(row.spent, row.currency),
+        note: row.currency,
+        muted: true,
+        title:
+          row.spent === null
+            ? label('The provider did not return cumulative spending.', '厂商未返回累计消费数据。')
+            : `${spent} · ${row.currency} ${row.spent}`,
+      },
+    ])
+  }
+  return layout.value.balances.map((row) => {
+    const view = quotaBalanceView(row, label)
+    return {
+      id: view.id,
+      caption:
+        view.caption ??
+        (row.label === 'Credits' ? label('Credits balance', '积分余额') : view.title),
+      value: view.value,
+      title: view.title,
+    }
+  })
+})
+const showPlan = computed(() =>
+  Boolean(props.snapshot?.windows.length || (!props.snapshot && props.loading)),
+)
+const planText = computed(
+  () =>
+    [props.snapshot?.plan.product, props.snapshot?.plan.tier].filter(Boolean).join(' · ') ||
+    label('Plan not provided', '厂商未返回套餐'),
+)
 const canShowHint = computed(
   () => !props.loading && Boolean(props.snapshot?.errorCode || props.snapshot?.status === 'error'),
 )
@@ -122,89 +206,107 @@ const sourceNames = computed(() =>
 </script>
 
 <template>
-  <article
-    class="quota-card"
-    :class="{ 'quota-card--empty': !snapshot?.windows.length }"
-    :aria-busy="loading"
-  >
-    <div class="quota-card__row">
-      <header class="quota-card__identity">
+  <article class="quota-card" :class="{ 'quota-card--deepseek': isDeepSeek }" :aria-busy="loading">
+    <header class="quota-card__header" :title="label('Drag to reorder', '拖动调整顺序')">
+      <div class="quota-card__identity">
         <h2 class="quota-card__name">
           <VendorMark :provider="connection.providerId" :size="22" />
           {{ name }}
         </h2>
-        <p v-if="snapshot?.windows.length || (!snapshot && loading)" class="quota-card__plan">
-          <RollingText
-            :text="
-              [snapshot?.plan.product, snapshot?.plan.tier].filter(Boolean).join(' · ') ||
-              label('Plan not provided', '厂商未返回套餐')
-            "
-            wrap
-          />
-        </p>
-        <div v-if="snapshot?.windows.length" class="quota-card__status">
-          <QuotaStatusBadge
-            :status="status"
-            :stale="snapshot.stale || Boolean(error)"
-            :hint="canShowHint ? hintText : undefined"
-            :retry-at="snapshot.retryAt"
-            :observed-at="snapshot.observedAt"
-          />
-          <QuotaUpdatedAt :observed-at="snapshot.observedAt" />
-        </div>
-        <div class="quota-card__actions">
-          <button
-            type="button"
-            class="workspace-link"
-            :aria-expanded="expanded"
-            @click="emit('update:expanded', !expanded)"
-          >
-            {{ label('Connection details', '连接信息') }}
-          </button>
-          <button
-            v-if="snapshot?.windows.length"
-            type="button"
-            class="workspace-link"
-            @click="emit('details')"
-          >
-            {{ label('Usage details', '用量详情') }}
-          </button>
-          <button
-            v-if="snapshot?.windows.length"
-            type="button"
-            class="quota-card__refresh workspace-link"
-            :disabled="loading"
-            :aria-label="label('Refresh quota', '刷新额度')"
-            @click="emit('refresh')"
-          >
-            <span class="material-symbols-outlined" :class="{ 'is-spinning': loading }">
-              refresh
+        <p v-if="showPlan || snapshot?.windows.length" class="quota-card__meta">
+          <span v-if="showPlan" class="quota-card__plan"><RollingText :text="planText" /></span>
+          <span v-if="snapshot?.windows.length" class="quota-card__status">
+            <QuotaStatusBadge
+              v-if="statusIcon"
+              :status="status"
+              :stale="snapshot.stale || Boolean(error)"
+              :hint="canShowHint ? hintText : undefined"
+              :retry-at="snapshot.retryAt"
+              :observed-at="snapshot.observedAt"
+              :icon="statusIcon"
+            />
+            <span
+              v-if="statusIcon && snapshot.observedAt"
+              class="quota-card__separator"
+              aria-hidden="true"
+            >
+              ·
             </span>
-          </button>
-        </div>
-      </header>
-      <div v-if="snapshot?.windows.length" class="quota-card__windows">
-        <QuotaWindowTile v-for="window in snapshot.windows" :key="window.id" :usage="window" />
+            <QuotaUpdatedAt :observed-at="snapshot.observedAt" />
+          </span>
+        </p>
       </div>
-      <div v-else class="quota-card__unavailable">
-        <span :title="error">
-          {{
-            loading
-              ? label('Reading quota…', '查询中…')
-              : regionPaused
-                ? label('Refresh paused', '已停止刷新')
-                : error
-                  ? label('Quota unavailable', '识别失败')
-                  : label('No verified quota reading yet', '暂无可确认的额度读数')
-          }}
-        </span>
-        <button class="workspace-button" type="button" :disabled="loading" @click="emit('refresh')">
-          {{ label('Retry', '重新识别') }}
+      <div class="quota-card__actions">
+        <button
+          type="button"
+          class="quota-card__icon workspace-link"
+          :aria-expanded="expanded"
+          :aria-label="label('Connection details', '连接信息')"
+          :title="label('Connection details', '连接信息')"
+          @click="emit('update:expanded', !expanded)"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">info</span>
+        </button>
+        <button
+          v-if="snapshot?.windows.length"
+          type="button"
+          class="quota-card__icon workspace-link"
+          :aria-label="label('Usage details', '用量详情')"
+          :title="label('Usage details', '用量详情')"
+          @click="emit('details')"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">query_stats</span>
+        </button>
+        <button
+          v-if="snapshot?.windows.length"
+          type="button"
+          class="quota-card__refresh quota-card__icon workspace-link"
+          :disabled="loading"
+          :aria-label="label('Refresh quota', '刷新额度')"
+          :title="label('Refresh quota', '刷新额度')"
+          @click="emit('refresh')"
+        >
+          <span class="material-symbols-outlined" :class="{ 'is-spinning': loading }">refresh</span>
         </button>
       </div>
+    </header>
+    <div v-if="windowTiles.length || balanceTiles.length" class="quota-card__tiles">
+      <QuotaWindowTile
+        v-for="tile in windowTiles"
+        :key="tile.usage.id"
+        :usage="tile.usage"
+        :scope="tile.scope"
+      />
+      <QuotaBalanceTile
+        v-for="tile in balanceTiles"
+        :key="tile.id"
+        :class="{ 'quota-card__row-start': tile.rowStart }"
+        :caption="tile.caption"
+        :value="tile.value"
+        :note="tile.note"
+        :muted="tile.muted"
+        :title="tile.title"
+      />
+    </div>
+    <div v-else class="quota-card__unavailable">
+      <span :title="error">
+        {{
+          loading
+            ? label('Reading quota…', '查询中…')
+            : regionPaused
+              ? label('Refresh paused', '已停止刷新')
+              : error
+                ? label('Quota unavailable', '识别失败')
+                : label('No verified quota reading yet', '暂无可确认的额度读数')
+        }}
+      </span>
+      <button class="workspace-button" type="button" :disabled="loading" @click="emit('refresh')">
+        {{ label('Retry', '重新识别') }}
+      </button>
     </div>
     <p v-if="regionPaused" class="quota-card__error" role="status">{{ error }}</p>
-    <div v-show="expanded" class="quota-card__information">
+    <!-- 展开信息里的文字可以选择复制，不作为拖动起点。 -->
+    <div v-show="expanded" class="quota-card__information" @pointerdown.stop>
       <p class="quota-card__source">
         {{ label('Detected from', '自动发现于') }} {{ sourceNames }}
         <span v-if="connection.accountLabel">· {{ connection.accountLabel }}</span>
@@ -294,157 +396,4 @@ const sourceNames = computed(() =>
   </article>
 </template>
 
-<style scoped>
-.quota-card {
-  min-width: 0;
-  padding: 20px 24px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-low);
-}
-.quota-card__row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  min-height: 124px;
-}
-.quota-card--empty .quota-card__row {
-  min-height: 48px;
-}
-.quota-card__identity {
-  flex: 0 0 236px;
-  min-width: 0;
-}
-.quota-card h2 {
-  margin: 0;
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: 24px;
-  overflow-wrap: anywhere;
-}
-.quota-card__name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.quota-card__plan {
-  margin: 6px 0;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-}
-.quota-card__status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: var(--text-soft);
-}
-.quota-card__actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-  min-height: 20px;
-}
-.quota-card__actions .workspace-link {
-  color: var(--text-soft);
-}
-.quota-card__actions .workspace-link:hover {
-  color: var(--accent);
-}
-.quota-card__refresh {
-  display: inline-flex;
-  margin-left: auto;
-}
-.quota-card__refresh .material-symbols-outlined {
-  font-size: 16px;
-}
-.quota-card__refresh:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.quota-card__windows {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 24px;
-}
-.quota-card__unavailable {
-  flex: 1;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 24px;
-  font-size: 13px;
-  color: var(--text-soft);
-}
-.quota-card__information {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-.quota-card__information p {
-  margin: 0 0 12px;
-}
-.quota-card__facts {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin: 16px 0;
-}
-.quota-card__facts dt {
-  color: var(--text-soft);
-}
-.quota-card__facts dd {
-  margin: 4px 0 0;
-  color: var(--text);
-}
-.quota-card__facts small {
-  color: var(--text-soft);
-}
-.quota-card__error {
-  color: var(--error);
-}
-.quota-card__breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  margin: 8px 0;
-}
-.quota-card__breakdown strong {
-  min-width: 100px;
-  font-weight: 500;
-}
-.quota-card footer {
-  margin-top: 16px;
-  color: var(--text-soft);
-}
-@media (max-width: 1350px) {
-  .quota-card__identity {
-    flex-basis: 196px;
-  }
-  .quota-card__windows {
-    gap: 16px;
-  }
-}
-@media (max-width: 1050px) {
-  .quota-card__row {
-    flex-wrap: wrap;
-  }
-  .quota-card__identity {
-    flex: 1 1 100%;
-  }
-  .quota-card__facts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-</style>
+<style scoped src="./provider-quota-card.css"></style>

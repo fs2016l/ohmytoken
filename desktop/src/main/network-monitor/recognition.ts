@@ -12,6 +12,7 @@ const definitions = [
   ['kimi-code', 'Kimi Code', ['kimi', 'kimi-cli'], ['kimi_cli']],
   ['workbuddy', 'WorkBuddy', ['workbuddy'], []],
   ['gemini', 'Gemini', ['gemini'], ['@google/gemini-cli']],
+  ['antigravity', 'Antigravity', ['antigravity', 'agy'], []],
   ['qwen', 'Qwen', ['qwen'], ['@qwen-code/qwen-code']],
   ['openclaw', 'OpenClaw', ['openclaw'], ['openclaw']],
   ['grok', 'Grok', ['grok'], ['@vibe-kit/grok-cli']],
@@ -52,6 +53,12 @@ function builtinMatch(rule: MonitorRule, process: MonitorProcess): boolean {
     .toLowerCase()
   const names: readonly string[] = definition[2]
   if (!isSharedRuntime(process.path) && basename && names.includes(basename)) return true
+  if (rule.id === 'builtin:antigravity' && basename?.startsWith('language_server')) {
+    const parts = process.path.replaceAll('\\', '/').toLowerCase().split('/')
+    return parts.some((part) =>
+      ['antigravity', 'antigravity.app', 'antigravity ide.app'].includes(part),
+    )
+  }
   const entry = process.entryPoint?.replaceAll('\\', '/').toLowerCase()
   if (!entry) return false
   // Python console scripts are usually extensionless bin/kimi or bin/hermes.

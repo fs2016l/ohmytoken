@@ -7,6 +7,10 @@ type ResponseRecord = {
   model: string
   anchorMs?: number
   turn?: number
+  /** 首个内容块为 thinking 时推导的首输出时刻；其他首块无法得知开始时间。 */
+  firstOutputAtMs?: number
+  /** 已读到该响应的内容块记录；只有第一条记录能提供首输出边界。 */
+  recorded: boolean
   completedAtMs?: number
   outputTokens: number
   completed: boolean
@@ -31,8 +35,10 @@ const completedReasons = new Set([
 ])
 
 /**
- * JSONL 只记录内容块落盘时间，不能恢复首 Token 或原生流时长。
- * 这里只估算可观察响应区间；同一 message.id 的内容块共用起点。
+ * JSONL 每个内容块在 content_block_stop 时生成一条记录，没有原生首 Token 或流时长。
+ * 新版在仅含 thinking 块的记录写入 `thinkingDurationMs`（该块开始至结束的单调时钟），
+ * 首块为 thinking 时可推导首输出时刻，估算首字与首输出至完成的流区间；
+ * 否则只估算可观察响应区间。同一 message.id 的内容块共用起点。
  */
 export class ClaudeResponseEstimator {
   private readonly sessions = new Map<string, SessionState>()
@@ -81,6 +87,7 @@ export class ClaudeResponseEstimator {
         model: typeof message.model === 'string' ? message.model : 'unknown',
         anchorMs: state.nextAnchorMs ?? previousEnd,
         turn: state.turn,
+        recorded: false,
         outputTokens: 0,
         completed: false,
         invalid: false,
@@ -88,6 +95,21 @@ export class ClaudeResponseEstimator {
       state.responses.set(id, response)
       state.nextAnchorMs = undefined
       state.previous = response
+    }
+    if (!response.recorded) {
+      response.recorded = true
+      const thinking = row.thinkingDurationMs
+      const content = message.content
+      if (
+        timestamp !== undefined &&
+        Number.isSafeInteger(thinking) &&
+        (thinking as number) >= 1 &&
+        (row.apiBlockIndex === undefined || row.apiBlockIndex === 0) &&
+        Array.isArray(content) &&
+        content.length === 1 &&
+        object(content[0])?.type === 'thinking'
+      )
+        response.firstOutputAtMs = timestamp - (thinking as number)
     }
     if (
       row.isApiErrorMessage === true ||
@@ -123,6 +145,22 @@ export class ClaudeResponseEstimator {
       response.outputTokens <= 0
     )
       return undefined
+    const firstOutputAtMs = response.firstOutputAtMs
+    // 首输出须落在起点与完成之间；推导值仍是记录时间估算，含客户端写入开销。
+    if (
+      firstOutputAtMs !== undefined &&
+      firstOutputAtMs >= response.anchorMs &&
+      firstOutputAtMs < response.completedAtMs
+    )
+      return {
+        completedAtMs: response.completedAtMs,
+        timeSource: 'recorded',
+        speedKind: 'stream-estimate',
+        responseDurationMs: response.completedAtMs - firstOutputAtMs,
+        generatedTokens: response.outputTokens,
+        timeToFirstTokenMs: firstOutputAtMs - response.anchorMs,
+        ttftKind: 'estimate',
+      }
     return {
       completedAtMs: response.completedAtMs,
       timeSource: 'recorded',

@@ -14,7 +14,11 @@ import { getAgentName } from '../../config/agents'
 import { agentLogoUrl, modelLogoUrl } from '../../config/brand-logos'
 import { formatNumber } from '../../utils/number-format'
 import { modelSeriesColor } from '../../utils/model-series-color'
-import { createChartTooltip } from '../../utils/chart-tooltip'
+import {
+  createChartTooltip,
+  createChartComparisonTooltip,
+  type ChartTooltipData,
+} from '../../utils/chart-tooltip'
 import '../../styles/chart-tooltip.css'
 import {
   comparisonDay,
@@ -126,10 +130,10 @@ const comparisonKeys = computed(() => {
       : (previous.value[index]?.key ?? null),
   )
 })
-function tooltipDate(key: string | null | undefined, fullYear: boolean): string {
+function tooltipDate(key: string | null | undefined): string {
   if (!key) return '—'
   if (key.length === 7) return key.replace('-', '/')
-  const date = key.slice(fullYear ? 0 : 5, 10).replaceAll('-', '/')
+  const date = key.slice(0, 10).replaceAll('-', '/')
   return key.includes('T') ? `${date} ${key.slice(-2)}:00` : date
 }
 const format = (value: unknown): string =>
@@ -137,42 +141,99 @@ const format = (value: unknown): string =>
     compact: true,
     ...(metric.value === 'cost' ? { currency: currency.value } : {}),
   })
-const tooltip = computed<TooltipComponentOption>(() => ({
-  trigger: 'axis',
-  renderMode: 'html',
-  confine: true,
-  padding: 0,
-  borderWidth: 0,
-  backgroundColor: 'transparent',
-  extraCssText: 'box-shadow:none;',
-  transitionDuration: 0,
-  hideDelay: 0,
-  formatter: (params) => {
-    const items = Array.isArray(params) ? params : [params]
-    const index = items[0]?.dataIndex,
-      key = current.value[index]?.key,
-      comparisonKey = comparisonKeys.value[index]
-    if (!key) return ''
-    const fullYear =
-      (!!comparisonKey && key.slice(0, 4) !== comparisonKey.slice(0, 4)) ||
-      props.data?.from.slice(0, 4) !== props.data?.to.slice(0, 4)
-    const element = createChartTooltip({
-      rows: items.map((item) => {
-        const id = String(item.seriesId),
-          prior = id.endsWith(':previous'),
-          name = legends.value.find((legend) => legend.id === id.replace(/:previous$/, ''))?.name
-        const date = tooltipDate(prior ? comparisonKey : key, fullYear)
+const tooltip = computed<TooltipComponentOption>(() => {
+  const valuesFor = (points: typeof current.value, id: string) =>
+    trendSeriesValues(
+      points,
+      dimension.value,
+      id,
+      named.value,
+      metric.value,
+      currency.value,
+      exchange.value.snapshot,
+    )
+  const currentTotals = valuesFor(current.value, 'total')
+  const previousTotals = valuesFor(previous.value, 'total')
+  const previousByDate = (values: Array<number | null>) =>
+    new Map(previous.value.map((point, index) => [point.key, values[index]]))
+  const comparisonTotals = previousByDate(previousTotals)
+  const rows = legends.value
+    .filter((legend) => legend.id !== 'total' && shown(legend.id))
+    .map((legend) => ({
+      ...legend,
+      current: valuesFor(current.value, legend.id),
+      comparison: previousByDate(valuesFor(previous.value, legend.id)),
+    }))
+  const summaryLabel =
+    metric.value === 'tokens'
+      ? label('Total tokens', 'Token 总量')
+      : metric.value === 'cost'
+        ? `${label('Est. cost', '预估花费')} · ${currency.value}`
+        : metric.value === 'calls'
+          ? label('API calls', 'API 调用')
+          : label('Turns', '对话次数')
+  return {
+    trigger: 'axis',
+    renderMode: 'html',
+    confine: true,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    extraCssText: 'box-shadow:none;',
+    transitionDuration: 0,
+    hideDelay: 0,
+    formatter: (params) => {
+      const items = Array.isArray(params) ? params : [params]
+      const index = items[0]?.dataIndex,
+        key = current.value[index]?.key,
+        comparisonKey = comparisonKeys.value[index]
+      if (!key) return ''
+      const visibleRows = rows.filter((row) => {
+        const currentValue = row.current[index]
+        if (!props.comparison) return currentValue !== 0
+        const comparisonValue = comparisonKey ? row.comparison.get(comparisonKey) : null
+        return currentValue !== 0 || comparisonValue !== 0
+      })
+      function column(prior: boolean): ChartTooltipData {
         return {
-          label: dimension.value === 'total' || !name ? date : `${name} · ${date}`,
-          value: format(item.value),
-          color: typeof item.color === 'string' ? item.color : undefined,
+          title: tooltipDate(prior ? comparisonKey : key),
+          subtitle: props.comparison
+            ? prior
+              ? label('Comparison period', '对比时段')
+              : label('Current period', '当前时段')
+            : undefined,
+          summary: {
+            label: summaryLabel,
+            value: format(
+              prior
+                ? comparisonKey
+                  ? comparisonTotals.get(comparisonKey)
+                  : null
+                : currentTotals[index],
+            ),
+          },
+          rows: visibleRows.map((row) => ({
+            label: row.name,
+            value: format(
+              prior
+                ? comparisonKey
+                  ? row.comparison.get(comparisonKey)
+                  : null
+                : row.current[index],
+            ),
+            color: row.color,
+            iconUrl: row.logo,
+          })),
         }
-      }),
-    })
-    element.classList.add('analytics-trend-tooltip')
-    return element
-  },
-}))
+      }
+      const element = props.comparison
+        ? createChartComparisonTooltip(column(false), column(true))
+        : createChartTooltip(column(false))
+      element.classList.add('analytics-trend-tooltip')
+      return element
+    },
+  }
+})
 const option = computed(() => {
   const series = legends.value
     .filter((item) => shown(item.id))
@@ -397,15 +458,6 @@ h2 {
 .trend-plot :deep(.workspace-chart) {
   position: absolute;
   inset: 0;
-}
-:deep(.analytics-trend-tooltip) {
-  min-width: 0;
-  padding: 6px 10px;
-  border-color: var(--border);
-  border-radius: 4px;
-}
-:deep(.analytics-trend-tooltip .chart-tooltip-value) {
-  font-weight: 600;
 }
 @media (max-width: 1350px) {
   .trend-controls {

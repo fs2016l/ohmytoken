@@ -56,6 +56,8 @@ html[data-theme='dark'] .floating-window {
 .floating-drag-title .floating-brand {
   width: 20px;
   height: 20px;
+  min-height: 20px;
+  padding: 0;
   flex: 0 0 auto;
 }
 :where(.floating-window, .floating-menu, .floating-follow-dialog) button {

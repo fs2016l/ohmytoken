@@ -1,6 +1,6 @@
 {
   "name": "ohmytoken",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "本地 AI Agent Token 用量观测桌面应用",
   "main": "./out/main/index.js",
   "author": "fs2016l",
@@ -43,7 +43,8 @@
     "proper-lockfile": "^4.1.2",
     "re2js": "^2.8.6",
     "smol-toml": "1.9.0",
-    "vue-router": "^4.6.4"
+    "vue-router": "^4.6.4",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^1.0.1",

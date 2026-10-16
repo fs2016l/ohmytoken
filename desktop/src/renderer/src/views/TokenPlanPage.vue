@@ -10,6 +10,8 @@ import QuotaDetailsModal from '../components/token-plan/QuotaDetailsModal.vue'
 import { TOKEN_PLAN_PROVIDERS } from '../config/token-plan-providers'
 import { useTokenPlanUsage } from '../composables/useTokenPlanUsage'
 import { usePageState } from '../composables/usePageState'
+import { useFloatingCardDrag } from '../composables/useFloatingCardDrag'
+import { motion } from '../config/motion'
 import { useI18n } from '../i18n/useI18n'
 import type { TokenPlanConnection } from '../../../shared/token-plan'
 
@@ -78,6 +80,71 @@ function expand(id: string, expanded: boolean): void {
     ? [...new Set([...state.expanded, id])]
     : state.expanded.filter((value) => value !== id)
 }
+// 卡片可拖动排序，顺序只保存在本机；新发现的连接排在已排序卡片之后。
+const orderKey = 'quota-page-order'
+function readOrder(): string[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(orderKey) ?? '[]')
+    return Array.isArray(stored)
+      ? [
+          ...new Set(
+            stored.filter((id): id is string => typeof id === 'string' && id.length <= 256),
+          ),
+        ]
+      : []
+  } catch {
+    return []
+  }
+}
+const order = ref(readOrder())
+const dragging = ref('')
+const orderFailed = ref(false)
+let orderBeforeDrag: string[] = []
+const ordered = computed(() => {
+  const rank = new Map(order.value.map((id, index) => [id, index]))
+  return [...matching.value].sort(
+    (a, b) => (rank.get(a.id) ?? order.value.length) - (rank.get(b.id) ?? order.value.length),
+  )
+})
+function moveCard(target: string | null, position: 'before' | 'after' | null): void {
+  const source = dragging.value
+  if (!source || !target || source === target || !position) return
+  const ids = [...new Set([...order.value, ...detected.value.map((row) => row.id)])]
+  const sourceIndex = ids.indexOf(source)
+  if (sourceIndex < 0 || !ids.includes(target)) return
+  ids.splice(sourceIndex, 1)
+  ids.splice(ids.indexOf(target) + (position === 'after' ? 1 : 0), 0, source)
+  if (ids.some((id, index) => id !== order.value[index])) order.value = ids
+}
+const { start: startDrag } = useFloatingCardDrag({
+  layout: 'grid',
+  scroll: '.page-surface',
+  key: (card) => card.dataset.connection ?? '',
+  cards: (card) => [
+    ...(card.closest('.quota-list')?.querySelectorAll<HTMLElement>('[data-connection]') ?? []),
+  ],
+  previewClass: 'quota-card-drag-preview',
+  draggingClass: 'quota-card--dragging',
+  onStart: (id) => {
+    orderBeforeDrag = [...order.value]
+    dragging.value = id
+  },
+  onOver: moveCard,
+  onEnd: () => {
+    dragging.value = ''
+    try {
+      localStorage.setItem(orderKey, JSON.stringify(order.value))
+      orderFailed.value = false
+    } catch {
+      orderFailed.value = true
+    }
+  },
+  // Esc 或窗口失去焦点时放弃本次拖动，恢复拖动前的顺序。
+  onCancel: () => {
+    order.value = orderBeforeDrag
+    dragging.value = ''
+  },
+})
 function issueText(reason: string): string {
   if (reason === 'unreadable') return label('Configuration could not be read', '配置暂时无法读取')
   if (reason === 'invalid_config')
@@ -130,6 +197,11 @@ function issueText(reason: string): string {
         )
       }}
     </div>
+    <p v-if="orderFailed" class="workspace-error quota-notice" role="alert">
+      {{
+        label('Could not save the order. Drag again to retry.', '顺序未能保存，请重新拖动重试。')
+      }}
+    </p>
     <div v-if="initializing && !detected.length" class="workspace-empty" role="status">
       {{ label('Detecting existing connections…', '正在自动发现已有连接…') }}
     </div>
@@ -148,10 +220,19 @@ function issueText(reason: string): string {
     <div v-else-if="!matching.length" class="workspace-empty">
       {{ label('No matching connections', '没有匹配的连接') }}
     </div>
-    <section v-else class="quota-list" :aria-label="label('Account quotas', '账户额度')">
+    <TransitionGroup
+      v-else
+      tag="section"
+      name="quota-reorder"
+      class="quota-list"
+      :aria-label="label('Account quotas', '账户额度')"
+      :style="{ '--quota-reorder-duration': `${motion.reorder}ms` }"
+    >
       <ProviderQuotaCard
-        v-for="connection in matching"
+        v-for="connection in ordered"
         :key="connection.id"
+        :class="{ 'quota-card--dragging': dragging === connection.id }"
+        :data-connection="connection.id"
         :connection="connection"
         :snapshot="snapshots[connection.id]"
         :loading="refreshing.has(connection.id)"
@@ -159,8 +240,9 @@ function issueText(reason: string): string {
         @update:expanded="expand(connection.id, $event)"
         @refresh="refreshConnection(connection.id)"
         @details="state.detailId = connection.id"
+        @pointerdown="startDrag"
       />
-    </section>
+    </TransitionGroup>
     <QuotaDetailsModal
       v-if="detailConnection"
       :key="detailConnection.id"
@@ -202,10 +284,19 @@ function issueText(reason: string): string {
 .quota-toolbar .select-control {
   max-width: 150px;
 }
+/* 卡片至少 460px：宽窗口两列，窄窗口单列；同一排卡片等高。 */
 .quota-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
   gap: 16px;
+}
+.quota-reorder-move {
+  transition: transform var(--quota-reorder-duration) var(--motion-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .quota-reorder-move {
+    transition: none;
+  }
 }
 .quota-notice {
   margin-bottom: 16px;

@@ -40,7 +40,7 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 ### 查看额度，留意重置时间
 
-自动发现本机已有的受支持厂商连接，查询套餐余量与重置窗口。工作时，也可以通过桌面浮窗查看 Token、会话和额度，按需置顶或调整会话排序。
+自动发现本机已有的受支持厂商连接，查询套餐余量、余额与重置窗口。支持读取 DeepSeek Harness 已有登录和 DeepSeek API Key，按币种展示账户余额。工作时，也可以通过桌面浮窗查看 Token、会话和额度，按需置顶或调整会话排序。
 
 [![套餐额度：厂商连接、剩余额度与重置窗口](docs/screenshots/readme/quota-zh.gif)](docs/screenshots/readme/quota-zh.png)
 
@@ -82,6 +82,8 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 [![DeepSeek Harness、Codex、MiniMax Code、OpenCode、Z Code、WorkBuddy、KimiWork、Kimi Code、Gemini CLI、Qwen Code、OpenClaw、Grok、Hermes、Claude Code](docs/screenshots/readme/supported-agents.gif)](docs/screenshots/readme/supported-agents.png)
 
 可查看的明细以各 Agent 的本地记录为准。Token 分类与生成指标因数据源而异，部分数据源提供的是估算均速。
+
+Antigravity 桌面端读取本地会话数据库，支持用量、会话、项目以及原生首 Token 和模型生成流速。套餐额度通过 Google 云端 HTTPS 查询，Windows 使用系统凭据管理器，macOS 使用登录钥匙串；应用无需保持运行。查询结果以账号实际开放的额度窗口为准，缺失的数据不会填成零或满额。
 
 ## 开始使用
 

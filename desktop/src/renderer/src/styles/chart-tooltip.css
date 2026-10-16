@@ -52,6 +52,13 @@
   height: 8px;
   border-radius: 50%;
 }
+.chart-tooltip-model-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+}
 .chart-tooltip-value {
   flex: none;
   font-family: var(--font-number);
@@ -76,4 +83,24 @@
 .chart-tooltip-note {
   margin-top: 6px;
   max-width: 360px;
+}
+.chart-tooltip-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: min(440px, calc(100vw - 24px));
+  max-width: min(760px, calc(100vw - 24px));
+}
+.chart-tooltip-comparison-column {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 0 14px 0 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.chart-tooltip-comparison-column + .chart-tooltip-comparison-column {
+  padding: 0 0 0 14px;
+  border-left: 1px solid var(--border);
 }

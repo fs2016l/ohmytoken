@@ -1,0 +1,178 @@
+/* 上下结构：名称、套餐与状态在上，操作统一在右上角；磁贴按卡片宽度平分。 */
+.quota-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-low);
+  cursor: grab;
+}
+.quota-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.quota-card__identity {
+  flex: 1;
+  min-width: 0;
+}
+.quota-card h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}
+.quota-card__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.quota-card__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.quota-card__plan {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.quota-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 10px;
+  white-space: nowrap;
+}
+.quota-card__separator {
+  color: var(--text-soft);
+}
+.quota-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* 26px 按钮与 24px 名称行同中线。 */
+  margin-top: -1px;
+}
+.quota-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  /* 全局按钮的最小高度会把图标顶低，图标按钮需重置。 */
+  min-height: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+.quota-card__icon:hover {
+  background: var(--surface-container);
+  color: var(--text);
+}
+.quota-card__icon[aria-expanded='true'] {
+  color: var(--primary);
+}
+.quota-card__icon .material-symbols-outlined {
+  font-size: 17px;
+}
+.quota-card__refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* 磁贴至少 120px，放得下时平分整行，放不下时换行；同一排卡片的磁贴结构一致，因此等高对齐。 */
+.quota-card__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+/* DeepSeek 每个币种另起一行；空出的列由 auto-fit 折叠，各行仍按同一列宽对齐。 */
+.quota-card__row-start {
+  grid-column-start: 1;
+}
+.quota-card__unavailable {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+.quota-card__information {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  cursor: auto;
+}
+.quota-card__information p {
+  margin: 0 0 12px;
+}
+.quota-card__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+.quota-card__facts dt {
+  color: var(--text-soft);
+}
+.quota-card__facts dd {
+  margin: 4px 0 0;
+  color: var(--text);
+}
+.quota-card__facts small {
+  color: var(--text-soft);
+}
+.quota-card__error {
+  margin: 0;
+  color: var(--error);
+}
+.quota-card__breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 8px 0;
+}
+.quota-card__breakdown strong {
+  min-width: 100px;
+  font-weight: 500;
+}
+.quota-card footer {
+  margin-top: 16px;
+  color: var(--text-soft);
+}
+/* 拖动排序：原位置留出占位，跟随指针的是克隆的预览卡片。 */
+.quota-card--dragging {
+  background: var(--primary-soft);
+  transform: none !important;
+  transition: none;
+}
+.quota-card--dragging > * {
+  visibility: hidden;
+}
+.quota-card-drag-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 4000;
+  margin: 0;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 16%, transparent);
+  transition: none;
+  pointer-events: none;
+}
+.quota-card-drag-preview * {
+  pointer-events: none !important;
+}

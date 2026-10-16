@@ -4,17 +4,21 @@ import DesignIcon from '../base/DesignIcon.vue'
 import RollingText from '../base/RollingText.vue'
 import VendorMark from '../base/VendorMark.vue'
 import WorkspaceDialog from '../base/WorkspaceDialog.vue'
-import QuotaWindowTile from '../token-plan/QuotaWindowTile.vue'
 import QuotaUpdatedAt from '../token-plan/QuotaUpdatedAt.vue'
+import DeepSeekBalances from '../token-plan/DeepSeekBalances.vue'
 import QuotaRefreshInterval from '../token-plan/QuotaRefreshInterval.vue'
 import NetworkRefreshButton from '../network/NetworkRefreshButton.vue'
 import FloatingQuotaSummary from './FloatingQuotaSummary.vue'
+import FloatingQuotaWindows from './FloatingQuotaWindows.vue'
 import { useTokenPlanUsage } from '../../composables/useTokenPlanUsage'
 import { useFloatingScroll } from '../../composables/useFloatingScroll'
 import { useFloatingCardDrag } from '../../composables/useFloatingCardDrag'
+import { useFloatingQuotaStyle } from '../../composables/useFloatingQuotaStyle'
 import { motion } from '../../config/motion'
 import { TOKEN_PLAN_PROVIDER_BY_ID } from '../../config/token-plan-providers'
 import { quotaRemainingPercent } from '../../utils/quota-display'
+import { groupQuotaWindows, quotaBalanceView } from '../../utils/quota-window-display'
+import { useVisibleNow } from '../../composables/useVisibleNow'
 import { useI18n } from '../../i18n/useI18n'
 import type { FloatingWorkspace } from '@shared/floating-window'
 import type { TokenPlanConnection } from '@shared/token-plan'
@@ -26,6 +30,7 @@ const emit = defineEmits<{
   expand: []
 }>()
 const { label, currentLang } = useI18n()
+const { style: quotaStyle } = useFloatingQuotaStyle()
 const {
   inventory,
   snapshots,
@@ -130,13 +135,26 @@ function providerName(row: TokenPlanConnection): string {
   const provider = TOKEN_PLAN_PROVIDER_BY_ID[row.providerId]
   return currentLang.value === 'zh' ? provider.nameZh : provider.nameEn
 }
-function riskText(id: string): string {
-  const risk = risks.value[id]
-  if (risk === null || risk === undefined || risk > 20) return ''
-  if (risk <= 0) return label('Exhausted', '额度耗尽')
-  if (risk <= 10) return label('Very low', '额度极低')
-  return label('Low quota', '额度偏低')
-}
+const now = useVisibleNow()
+// 每个账号的窗口按范围分组；颜色已表示紧张程度，不再额外显示文字提示。
+const layouts = computed(() =>
+  Object.fromEntries(
+    followed.value.map((row) => {
+      const layout = groupQuotaWindows(
+        snapshots.value[row.id]?.windows ?? [],
+        row.providerId,
+        label,
+      )
+      return [
+        row.id,
+        {
+          groups: layout.groups,
+          balances: layout.balances.map((item) => quotaBalanceView(item, label)),
+        },
+      ]
+    }),
+  ),
+)
 function toggle(id: string): void {
   const ids = selected.value ?? connections.value.map((row) => row.id)
   selected.value = ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]
@@ -237,35 +255,63 @@ watch(
               <span v-if="snapshots[row.id]?.plan.tier" class="floating-quota-tier">
                 <RollingText :text="snapshots[row.id].plan.tier!" />
               </span>
-              <QuotaUpdatedAt
-                class="floating-quota-updated"
-                :observed-at="snapshots[row.id]?.observedAt"
-              />
+              <span
+                v-else-if="row.providerId === 'deepseek' && snapshots[row.id]?.plan.product"
+                class="floating-quota-tier"
+              >
+                <RollingText :text="snapshots[row.id].plan.product" />
+              </span>
+              <span
+                v-if="snapshots[row.id]?.stale && !issueText(row)"
+                class="floating-quota-stale"
+                :title="label('Showing the previous reading', '显示的是上次读数')"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">history</span>
+                <QuotaUpdatedAt
+                  class="floating-quota-updated floating-visually-hidden"
+                  :observed-at="snapshots[row.id]?.observedAt"
+                />
+              </span>
+              <button
+                v-if="issueText(row)"
+                class="floating-quota-error"
+                :title="`${issueText(row)}\n${label('Click to retry', '点击重试')}`"
+                :aria-label="`${issueText(row)} ${label('Retry', '重试')}`"
+                :disabled="refreshing.has(row.id)"
+                @click="refreshConnection(row.id)"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+              </button>
             </div>
             <span
-              v-if="riskText(row.id)"
-              class="floating-quota-risk"
-              :class="{ critical: risks[row.id] !== null && risks[row.id]! <= 10 }"
+              v-if="row.providerId !== 'deepseek' && layouts[row.id]?.balances.length"
+              class="floating-quota-balances"
             >
-              {{ riskText(row.id) }}
+              <span
+                v-for="balance in layouts[row.id].balances"
+                :key="balance.id"
+                class="floating-quota-balance"
+                :title="balance.title"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">{{ balance.icon }}</span>
+                <span v-if="balance.caption">{{ balance.caption }}</span>
+                <span v-else class="floating-visually-hidden">{{ balance.title }}</span>
+                {{ balance.value }}
+              </span>
             </span>
-            <button
-              class="floating-link"
-              :aria-label="label('Open quota page', '打开额度页面')"
-              @click="emit('open', 'quota')"
-            >
-              <DesignIcon name="floatingArrow" :size="16" />
-            </button>
           </header>
-          <div v-if="snapshots[row.id]?.windows.length" class="floating-quota-grid">
-            <QuotaWindowTile
-              v-for="usage in snapshots[row.id].windows"
-              :key="usage.id"
-              :usage="usage"
-              compact
-            />
-          </div>
-          <div v-else class="floating-empty">
+          <DeepSeekBalances
+            v-if="row.providerId === 'deepseek' && layouts[row.id]?.balances.length"
+            :windows="snapshots[row.id]?.windows ?? []"
+            variant="floating"
+          />
+          <FloatingQuotaWindows
+            v-else-if="layouts[row.id]?.groups.length"
+            :groups="layouts[row.id]?.groups ?? []"
+            :variant="quotaStyle"
+            :now="now"
+          />
+          <div v-else-if="!layouts[row.id]?.balances.length" class="floating-empty">
             <strong>—</strong>
             <p>
               {{
@@ -274,16 +320,6 @@ watch(
                   : label('No verified quota returned', '尚未返回可确认的额度')
               }}
             </p>
-          </div>
-          <div v-if="issueText(row)" class="floating-quota-error" role="status">
-            <span>{{ issueText(row) }}</span>
-            <button
-              class="floating-link"
-              :disabled="refreshing.has(row.id)"
-              @click="refreshConnection(row.id)"
-            >
-              {{ label('Retry', '重试') }}
-            </button>
           </div>
         </article>
       </TransitionGroup>

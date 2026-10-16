@@ -487,3 +487,11 @@
     width: 100%;
   }
 }
+
+/* 额度卡片拖动排序：拖动中整页保持抓手光标，并禁止选中文字。 */
+html.floating-reorder-active,
+html.floating-reorder-active body,
+html.floating-reorder-active body * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}

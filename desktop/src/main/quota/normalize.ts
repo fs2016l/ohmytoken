@@ -1,6 +1,7 @@
 import type { TokenPlanInformation, TokenPlanWindowUsage } from '../../shared/token-plan'
 import type { DiscoveredConnection, JsonObject } from './types'
-import { numberValue, object, percentage, textValue, timestamp } from './types'
+import { balanceValue, numberValue, object, percentage, textValue, timestamp } from './types'
+import { deepSeekBalances } from './deepseek-balance'
 
 export interface ParsedQuota {
   plan: TokenPlanInformation
@@ -17,7 +18,10 @@ export function quotaWindow(
   let remainingPercent = percentage(values.remainingPercent)
   const limit = numberValue(values.limit)
   const used = numberValue(values.used)
-  const remaining = numberValue(values.remaining)
+  const remaining =
+    values.kind === 'balance' && (values.unit === 'CNY' || values.unit === 'USD')
+      ? balanceValue(values.remaining)
+      : numberValue(values.remaining)
   if (usedPercent === null && remainingPercent !== null) usedPercent = 100 - remainingPercent
   if (usedPercent === null && limit !== null && limit > 0 && used !== null)
     usedPercent = (used / limit) * 100
@@ -51,6 +55,8 @@ export function initialPlan(connection: DiscoveredConnection): TokenPlanInformat
     anthropic: 'Claude',
     kimi: 'Kimi Code',
     google: 'Gemini Code Assist',
+    antigravity: 'Antigravity',
+    deepseek: connection.public.authType === 'api-key' ? 'DeepSeek API' : 'DeepSeek Harness',
     xai: 'Grok',
   }
   return {
@@ -106,20 +112,30 @@ function parseMiniMax(body: JsonObject, plan: TokenPlanInformation): TokenPlanWi
   if (!groups.length) throw new Error('invalid_response')
   returnedTier(plan, data.plan_name ?? body.plan_name)
   const general = groups.find((row) => row.model_name === 'general')
+  // 状态 1 正常、2 已耗尽、3 不限量；两个窗口都不限量且总量为 0 的通道不属于当前套餐。
+  const counts = (row: JsonObject, prefix: string): Partial<TokenPlanWindowUsage> => {
+    const status = row[`${prefix}_status`]
+    if (status === 3) return { unlimited: true }
+    const values = minimaxCounts(row, prefix)
+    return status === 2 && values.remainingPercent === null ? { remainingPercent: 0 } : values
+  }
+  const absent = (row: JsonObject, prefix: string): boolean =>
+    row[`${prefix}_status`] === 3 && !numberValue(row[`${prefix}_total_count`])
   return (general ? [general] : groups).flatMap((row, index) => {
+    if (!general && absent(row, 'current_interval') && absent(row, 'current_weekly')) return []
     const name = general ? '' : (textValue(row.model_name) ?? `Group ${index + 1}`)
     const windows = [
       quotaWindow(`${index}:interval`, name || '5h', {
-        ...minimaxCounts(row, 'current_interval'),
+        ...counts(row, 'current_interval'),
         windowMinutes: 300,
         startsAt: timestamp(row.start_time),
         resetsAt: timestamp(row.end_time),
       }),
     ]
-    if (row.current_weekly_status === 1)
+    if ([1, 2, 3].includes(row.current_weekly_status as number))
       windows.push(
         quotaWindow(`${index}:weekly`, name ? `${name} · 7d` : '7d', {
-          ...minimaxCounts(row, 'current_weekly'),
+          ...counts(row, 'current_weekly'),
           windowMinutes: 10080,
           startsAt: timestamp(row.weekly_start_time),
           resetsAt: timestamp(row.weekly_end_time),
@@ -135,7 +151,7 @@ function parseZhipu(body: JsonObject, plan: TokenPlanInformation): TokenPlanWind
   if (!Array.isArray(data.limits)) throw new Error('invalid_response')
   returnedTier(plan, data.level)
   return rows(data.limits)
-    .filter((row) => row.type === 'TIME_LIMIT' || row.type === 'TOKENS_LIMIT')
+    .filter((row) => ['TIME_LIMIT', 'TOKENS_LIMIT', 'CREDIT_LIMIT'].includes(row.type as string))
     .map((row, index) => {
       const count = numberValue(row.number)
       const minutes = row.unit === 3 ? 60 : row.unit === 4 ? 1440 : row.unit === 6 ? 10080 : null
@@ -149,14 +165,16 @@ function parseZhipu(body: JsonObject, plan: TokenPlanInformation): TokenPlanWind
               ? 'monthly'
               : 'quota'
       const tool = row.type === 'TIME_LIMIT'
+      // 积分套餐的 5 小时/每周窗口带总量与已用积分；旧版 Token 窗口只有百分比。
+      const counted = tool || row.type === 'CREDIT_LIMIT'
       return quotaWindow(`zhipu:${index}`, tool ? `MCP · ${label}` : label, {
         kind: tool ? 'tool' : 'model',
         windowMinutes: duration,
         usedPercent: percentage(row.percentage),
-        used: tool ? numberValue(row.currentValue) : null,
-        limit: tool ? numberValue(row.usage) : null,
-        remaining: tool ? numberValue(row.remaining) : null,
-        unit: tool ? 'requests' : null,
+        used: counted ? numberValue(row.currentValue) : null,
+        limit: counted ? numberValue(row.usage) : null,
+        remaining: counted ? numberValue(row.remaining) : null,
+        unit: tool ? 'requests' : counted ? 'credits' : null,
         resetsAt: timestamp(row.nextResetTime),
         details: tool
           ? rows(row.usageDetails).flatMap((detail) => {
@@ -226,13 +244,23 @@ function parseClaude(body: JsonObject): TokenPlanWindowUsage[] {
     )
   }
   // 未知的新额度桶保留接口标签，不把任意桶强行标成五小时或每周。
-  for (const [index, row] of rows(body.limits).entries())
+  for (const [index, row] of rows(body.limits).entries()) {
+    const weekly = row.group === 'weekly' || /^weekly/.test(textValue(row.kind) ?? '')
     windows.push(
-      quotaWindow(`limit:${index}`, textValue(row.name) ?? textValue(row.model) ?? 'quota', {
-        usedPercent: percentage(row.utilization),
-        resetsAt: timestamp(row.resets_at),
-      }),
+      quotaWindow(
+        `limit:${index}`,
+        textValue(object(object(row.scope).model).display_name) ??
+          textValue(row.name) ??
+          textValue(row.model) ??
+          'quota',
+        {
+          usedPercent: percentage(row.utilization ?? row.percent),
+          windowMinutes: weekly ? 10080 : null,
+          resetsAt: timestamp(row.resets_at),
+        },
+      ),
     )
+  }
   const extra = object(body.extra_usage)
   if (extra.is_enabled === true)
     windows.push(
@@ -268,6 +296,25 @@ function parseKimi(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindo
     const minutes = units[String(row.timeUnit)]
     return count !== null && count > 0 && minutes ? count * minutes : null
   }
+  const pools = object(body.usages)
+  const poolKeys: Array<[string, string, number]> = [
+    ['limit_5h', 'Kimi Code', 300],
+    ['limit_7d', 'Kimi Code', 10080],
+    ['limit_month_code', 'Kimi Code', 43200],
+    ['limit_month_total', 'Kimi shared quota', 43200],
+  ]
+  // 新版按比例返回 5 小时、每周、每月 Code 与每月共享额度；有比例池时以它为准，不与旧计数窗口重复。
+  const present = poolKeys.filter(([key]) => pools[key])
+  if (present.length)
+    return present.map(([key, label, minutes]) => {
+      const row = object(pools[key])
+      const ratio = numberValue(row.used_ratio)
+      return quotaWindow(`kimi:${key}`, label, {
+        usedPercent: ratio === null ? null : Math.min(100, ratio * 100),
+        windowMinutes: minutes,
+        resetsAt: timestamp(row.reset_time ?? row.resetTime),
+      })
+    })
   const entries: Array<[string, JsonObject, number | null]> = []
   if (body.usage)
     entries.push(['Kimi Code', object(body.usage), duration(object(body.usage).window) ?? 10080])
@@ -303,11 +350,87 @@ function parseGemini(body: JsonObject, plan: TokenPlanInformation): TokenPlanWin
     const fraction = numberValue(row.remainingFraction)
     return quotaWindow(`google:${index}`, textValue(row.modelId) ?? 'quota', {
       remainingPercent: fraction !== null && fraction <= 1 ? fraction * 100 : null,
+      windowMinutes: 1440,
       remaining: numberValue(row.remainingAmount),
       resetsAt: timestamp(row.resetTime),
       unit: row.tokenType === 'REQUESTS' ? 'requests' : null,
     })
   })
+}
+
+function parseAntigravity(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindowUsage[] {
+  if (
+    (body.code !== undefined && ![0, 200, '0', '200'].includes(body.code as string | number)) ||
+    body.error
+  )
+    throw new Error('invalid_response')
+  const tier = object(body.accountTier)
+  returnedTier(plan, tier.name ?? tier.id ?? body.planType)
+  const summary = object(body.response ?? body.summary ?? body)
+  if (!Array.isArray(summary.groups)) throw new Error('invalid_response')
+  const found = new Map<string, Partial<TokenPlanWindowUsage>>()
+  const conflicts = new Set<string>()
+  for (const group of rows(summary.groups)) {
+    if (!Array.isArray(group.buckets)) continue
+    const name = (textValue(group.displayName ?? group.name) ?? '').toLowerCase()
+    for (const bucket of rows(group.buckets)) {
+      const id = (textValue(bucket.bucketId ?? bucket.id) ?? '').toLowerCase()
+      const bucketFamily = /^gemini[-_]/.test(id)
+        ? 'gemini'
+        : /^3p[-_]/.test(id)
+          ? 'third-party'
+          : null
+      const groupFamily = name.includes('gemini')
+        ? 'gemini'
+        : /claude|gpt/.test(name)
+          ? 'third-party'
+          : null
+      if (bucketFamily && groupFamily && bucketFamily !== groupFamily) continue
+      const family = bucketFamily ?? groupFamily
+      const cadence = (
+        textValue(bucket.window) ??
+        textValue(bucket.displayName ?? bucket.name) ??
+        id
+      )
+        .toLowerCase()
+        .replace(/_/g, '-')
+        .replace(/\s+limit$/, '')
+      const kind = /(?:^|[- ])weekly$/.test(cadence)
+        ? 'weekly'
+        : /(?:^|[- ])(?:session|5h|5-hour|five hour|five-hour)$/.test(cadence)
+          ? 'session'
+          : null
+      if (!family || !kind || !id) continue
+      const remaining = object(bucket.remaining)
+      const fraction = numberValue(
+        bucket.remainingFraction ??
+          remaining.remainingFraction ??
+          (remaining.case === 'remainingFraction' ? remaining.value : undefined),
+      )
+      const values = {
+        remainingPercent:
+          bucket.disabled !== true && fraction !== null && fraction <= 1 ? fraction * 100 : null,
+        resetsAt: timestamp(bucket.resetTime),
+      }
+      const key = `${family}:${kind}`
+      const previous = found.get(key)
+      if (previous && JSON.stringify(previous) !== JSON.stringify(values)) conflicts.add(key)
+      else found.set(key, values)
+    }
+  }
+  const starter = /(?:^|[ _-])starter(?:$|[ _-])/i.test(plan.tier ?? '')
+  return [
+    ['gemini', 'Gemini'],
+    ['third-party', 'Claude + GPT'],
+  ].flatMap(([family, label]) =>
+    (starter ? ['weekly'] : ['session', 'weekly']).map((kind) => {
+      const key = `${family}:${kind}`
+      return quotaWindow(`antigravity:${key}`, `${label} ${kind}`, {
+        ...(conflicts.has(key) ? {} : found.get(key)),
+        windowMinutes: kind === 'session' ? 300 : 10080,
+      })
+    }),
+  )
 }
 
 function parseGrok(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindowUsage[] {
@@ -318,7 +441,15 @@ function parseGrok(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindo
   function dollars(value: unknown): number | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null
     const amount = object(value)
-    const cents = numberValue(Object.keys(amount).length === 0 ? 0 : amount.val)
+    const raw = Object.keys(amount).length === 0 ? 0 : amount.val
+    // 余额可能以负数分值保存，展示取绝对值。
+    const cents = numberValue(
+      typeof raw === 'string'
+        ? raw.trim().replace(/^-/, '')
+        : typeof raw === 'number'
+          ? Math.abs(raw)
+          : raw,
+    )
     return cents === null ? null : cents / 100
   }
   const windows = [
@@ -361,6 +492,11 @@ export function parseQuota(connection: DiscoveredConnection, value: unknown): Pa
     anthropic: () => parseClaude(body),
     kimi: () => parseKimi(body, plan),
     google: () => parseGemini(body, plan),
+    antigravity: () => parseAntigravity(body, plan),
+    deepseek: () =>
+      deepSeekBalances(connection, body).map(({ id, label, ...values }) =>
+        quotaWindow(id, label, { ...values, kind: 'balance' }),
+      ),
     xai: () => parseGrok(body, plan),
   }
   const windows = parsers[connection.public.providerId]()

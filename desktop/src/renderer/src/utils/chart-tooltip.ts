@@ -1,8 +1,15 @@
+export interface ChartTooltipRow {
+  label: string
+  value: string
+  color?: string
+  iconUrl?: string
+}
+
 export interface ChartTooltipData {
   title?: string
   subtitle?: string
   summary?: { label: string; value: string }
-  rows: Array<{ label: string; value: string; color?: string }>
+  rows: ChartTooltipRow[]
   note?: string
 }
 
@@ -20,16 +27,39 @@ export function createChartTooltip(data: ChartTooltipData): HTMLElement {
   }
   if (data.title) text(element, 'div', 'chart-tooltip-title', data.title)
   if (data.subtitle) text(element, 'div', 'chart-tooltip-subtitle', data.subtitle)
-  function row(item: { label: string; value: string; color?: string }, summary = false): void {
+  function row(item: ChartTooltipRow, summary = false): void {
     const row = document.createElement('div')
     row.className = `chart-tooltip-row${summary ? ' chart-tooltip-summary' : ''}`
     const name = document.createElement('span')
     name.className = 'chart-tooltip-name'
-    if (item.color) {
+    function dot(): HTMLElement | undefined {
+      if (!item.color) return undefined
       const dot = document.createElement('i')
       dot.className = 'chart-tooltip-dot'
       dot.style.backgroundColor = item.color
-      name.appendChild(dot)
+      dot.setAttribute('aria-hidden', 'true')
+      return dot
+    }
+    if (item.iconUrl) {
+      const icon = document.createElement('img')
+      icon.className = 'chart-tooltip-model-icon'
+      icon.width = icon.height = 16
+      icon.alt = ''
+      icon.setAttribute('aria-hidden', 'true')
+      icon.addEventListener(
+        'error',
+        () => {
+          const fallback = dot()
+          if (fallback) icon.replaceWith(fallback)
+          else icon.remove()
+        },
+        { once: true },
+      )
+      icon.src = item.iconUrl
+      name.appendChild(icon)
+    } else {
+      const marker = dot()
+      if (marker) name.appendChild(marker)
     }
     text(name, 'span', 'chart-tooltip-label', item.label)
     row.appendChild(name)
@@ -39,6 +69,23 @@ export function createChartTooltip(data: ChartTooltipData): HTMLElement {
   if (data.summary) row(data.summary, true)
   data.rows.forEach((item) => row(item))
   if (data.note) text(element, 'div', 'chart-tooltip-note', data.note)
+  return element
+}
+
+/** Each period keeps its own date and total, with matching detail rows alongside it. */
+export function createChartComparisonTooltip(
+  current: ChartTooltipData,
+  comparison: ChartTooltipData,
+): HTMLElement {
+  const element = document.createElement('div')
+  element.className = 'chart-tooltip-content chart-tooltip-comparison'
+  element.setAttribute('role', 'tooltip')
+  for (const data of [current, comparison]) {
+    const column = createChartTooltip(data)
+    column.classList.add('chart-tooltip-comparison-column')
+    column.removeAttribute('role')
+    element.appendChild(column)
+  }
   return element
 }
 

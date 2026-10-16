@@ -34,6 +34,29 @@ export function getClaudeProjectsDir(): string {
   return join(homedir(), '.claude', 'projects')
 }
 
+/** Claude 桌面端为 Code 会话保存标题与派生关系的目录；MSIX 安装可能重定向到包目录。 */
+export function getClaudeDesktopSessionRoots(): string[] {
+  const home = homedir()
+  if (isMacos())
+    return [join(home, 'Library', 'Application Support', 'Claude', 'claude-code-sessions')]
+  if (!isWindows())
+    return [
+      join(process.env.XDG_CONFIG_HOME || join(home, '.config'), 'Claude', 'claude-code-sessions'),
+    ]
+  const roots = [join(getAppData(), 'Claude', 'claude-code-sessions')]
+  const packages = join(getLocalAppData(), 'Packages')
+  try {
+    for (const entry of readdirSync(packages, { withFileTypes: true }))
+      if (entry.isDirectory() && /^Claude_/i.test(entry.name))
+        roots.push(
+          join(packages, entry.name, 'LocalCache', 'Roaming', 'Claude', 'claude-code-sessions'),
+        )
+  } catch {
+    // 没有 MSIX 包目录时只使用默认位置。
+  }
+  return roots
+}
+
 /** Codex 状态根目录：优先使用官方 CODEX_HOME，默认 ~/.codex。 */
 export function getCodexHomeDir(): string {
   return resolveUserPath(process.env.CODEX_HOME || join(homedir(), '.codex'))
@@ -353,6 +376,11 @@ export function getGeminiTmpDir(): string {
   const configured = process.env.GEMINI_CLI_HOME?.trim()
   const root = configured ? resolveUserPath(configured) : join(homedir(), '.gemini')
   return join(root, 'tmp')
+}
+
+/** Antigravity 桌面端的本地会话与摘要目录。 */
+export function getAntigravityDataDir(): string {
+  return join(homedir(), '.gemini', 'antigravity')
 }
 
 /** Qwen Code 会话目录。 */

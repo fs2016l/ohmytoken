@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "applicationVersion": "2.0.1",
-  "lockfileSha256": "a17d35bf08b8f2732020cc44ec50956abba4ab363bf91fddf84bb6260a990c91",
+  "applicationVersion": "2.0.2",
+  "lockfileSha256": "0a503ab441213d37b28fdf9b6a1bec00ff3c7dd67a32d4b89d9800217c12f1a0",
   "fontAssets": {
     "material-symbols-outlined.woff2": "ccc0bf9cc6263ea82935c9519bde26e2f39da1642bf0db7df246b0053ac06aa0",
     "ui/ibm-plex-mono/IBMPlexMono-Medium.woff2": "33faf307fa6031fb4062276d7320a6d632de890cbb347576fd80cfa01077bc25",
@@ -2781,6 +2781,24 @@
           "file": "documents/4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b.txt",
           "sha256": "4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
           "source": "https://registry.npmjs.org/wrappy/-/wrappy-1.0.2.tgz"
+        }
+      ]
+    },
+    {
+      "id": "yaml@2.9.1",
+      "name": "yaml",
+      "version": "2.9.1",
+      "license": "ISC",
+      "category": "package",
+      "project": "https://eemeli.org/yaml/",
+      "source": "https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz",
+      "packagePath": "node_modules/yaml",
+      "documents": [
+        {
+          "name": "LICENSE",
+          "file": "documents/5bba27375d93e9119f76c1015f7672cf9ad5f70952296e0842fb2243d6376869.txt",
+          "sha256": "5bba27375d93e9119f76c1015f7672cf9ad5f70952296e0842fb2243d6376869",
+          "source": "https://registry.npmjs.org/yaml/-/yaml-2.9.1.tgz"
         }
       ]
     },

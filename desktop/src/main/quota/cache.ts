@@ -5,7 +5,7 @@ import {
 } from '../../shared/token-plan'
 import type { DiscoveredConnection } from './types'
 import { initialPlan, parseQuota, quotaWindow } from './normalize'
-import { numberValue, object, textValue } from './types'
+import { balanceValue, numberValue, object, textValue } from './types'
 import { QuotaQueryError } from './transport'
 import { isQuotaRegionError } from './query-error'
 
@@ -85,7 +85,7 @@ export class QuotaCache {
             remainingPercent: numberValue(item.remainingPercent),
             used: numberValue(item.used),
             limit: numberValue(item.limit),
-            remaining: numberValue(item.remaining),
+            remaining: balanceValue(item.remaining),
             startsAt: numberValue(item.startsAt),
             resetsAt: numberValue(item.resetsAt),
             unit: units.find((unit) => unit === item.unit) ?? null,
@@ -93,7 +93,10 @@ export class QuotaCache {
               ? item.details.slice(0, 150).flatMap((value) => {
                   const detail = object(value)
                   const name = textValue(detail.name)
-                  const used = numberValue(detail.used)
+                  const used =
+                    item.kind === 'balance' && (item.unit === 'CNY' || item.unit === 'USD')
+                      ? balanceValue(detail.used)
+                      : numberValue(detail.used)
                   return name && used !== null ? [{ name: name.slice(0, 150), used }] : []
                 })
               : [],

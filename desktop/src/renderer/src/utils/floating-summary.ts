@@ -1,18 +1,14 @@
 import type { UsageTrendStats } from '@shared/models'
-import type { TokenPlanWindowUsage } from '@shared/token-plan'
-import { quotaRemainingPercent } from './quota-display'
+import type { TokenPlanProviderId, TokenPlanWindowUsage } from '@shared/token-plan'
+import { groupQuotaWindows } from './quota-window-display'
 
-/** Show the most constrained model window, with its own period label beside it. */
-export function compactQuotaWindow(windows: TokenPlanWindowUsage[]): TokenPlanWindowUsage | null {
-  const model = windows.filter((row) => row.kind === 'model')
-  const candidates = model.length ? model : windows
-  return (
-    [...candidates].sort((a, b) => {
-      const left = quotaRemainingPercent(a)
-      const right = quotaRemainingPercent(b)
-      return (left ?? Infinity) - (right ?? Infinity)
-    })[0] ?? null
-  )
+/** 收起状态显示展开列表中排在最前面的额度：主额度里周期最短的窗口。 */
+export function compactQuotaWindow(
+  windows: TokenPlanWindowUsage[],
+  providerId: TokenPlanProviderId,
+): TokenPlanWindowUsage | null {
+  const { groups } = groupQuotaWindows(windows, providerId, (en) => en)
+  return groups[0]?.windows[0] ?? windows[0] ?? null
 }
 
 /** Time-based bins retain idle gaps and bound rendering work even for second-level histories. */

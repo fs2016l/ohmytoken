@@ -5,6 +5,8 @@ export const TOKEN_PLAN_PROVIDER_IDS = [
   'anthropic',
   'kimi',
   'google',
+  'antigravity',
+  'deepseek',
   'xai',
 ] as const
 
@@ -21,6 +23,7 @@ export type TokenPlanErrorCode =
   | 'region_restricted'
   | 'region_unknown'
   | 'unsupported'
+  | 'scope_missing'
 
 export interface TokenPlanConnection {
   id: string

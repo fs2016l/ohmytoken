@@ -49,6 +49,8 @@ import floatingMore from '../../assets/design/floating-more.svg'
 import floatingClose from '../../assets/design/floating-close.svg'
 import floatingArrow from '../../assets/design/floating-arrow.svg'
 import floatingRefresh from '../../assets/design/floating-refresh.svg'
+import generationSpeed from '../../assets/design/generation-speed.svg'
+import generationTimer from '../../assets/design/generation-timer.svg'
 const icons = {
   overview,
   sessions,
@@ -99,6 +101,8 @@ const icons = {
   floatingClose,
   floatingArrow,
   floatingRefresh,
+  generationSpeed,
+  generationTimer,
 }
 const props = withDefaults(defineProps<{ name: keyof typeof icons; size?: number }>(), { size: 20 })
 const mask = computed(() => `url("${icons[props.name]}")`)

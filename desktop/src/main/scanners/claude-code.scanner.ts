@@ -16,7 +16,7 @@ import type {
   ScannerScanContext,
 } from './types'
 import { readUtf8Lines } from '../lib/line-reader'
-import { getClaudeProjectsDir } from '../lib/paths'
+import { getClaudeDesktopSessionRoots, getClaudeProjectsDir } from '../lib/paths'
 import { extractDate } from '../lib/date-utils'
 import {
   applySessionTitles,
@@ -24,6 +24,7 @@ import {
   buildSessionsFromApiCalls,
   dateFromTimestamp,
   hourFromTimestamp,
+  resolveRootSessionId,
   timestampsFromValue,
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
@@ -32,15 +33,21 @@ import { tokenBuckets } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
 import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
 import { ClaudeResponseEstimator } from './claude-generation-timing'
+import { readClaudeDesktopSessions } from './claude-desktop-sessions'
 import { latestGeneration } from '../../shared/generation-timing'
 import type { LatestGeneration } from '../../shared/models'
 
 export class ClaudeCodeScanner implements AgentScanner {
   readonly agentName = 'claude-code'
   private readonly projectsDir?: string
+  private readonly desktopSessionRoots: () => readonly string[]
 
-  constructor(projectsDir?: string) {
+  constructor(
+    projectsDir?: string,
+    desktopSessionRoots: () => readonly string[] = getClaudeDesktopSessionRoots,
+  ) {
     this.projectsDir = projectsDir
+    this.desktopSessionRoots = desktopSessionRoots
   }
 
   isAvailable(): boolean {
@@ -78,9 +85,14 @@ export class ClaudeCodeScanner implements AgentScanner {
 
     const seenIds = new Map<string, TokenUsageApiCall>()
     const titleBySessionId = new Map<string, string>()
+    // 客户端显示的标题：/rename 或桌面端生成的 custom-title 优先于 agent-name，同类取最后一次。
+    const customTitleBySessionId = new Map<string, string>()
+    const agentNameBySessionId = new Map<string, string>()
     const generationBySessionId = new Map<string, LatestGeneration>()
 
     for (const file of jsonlFiles) {
+      // 子代理转录可能带自己的名称，不能覆盖主会话标题。
+      const subagentFile = relative(projectsDir, file).split(sep).includes('subagents')
       const estimator = new ClaudeResponseEstimator()
       const fileApiCalls = new Set<TokenUsageApiCall>()
       let turn: ConversationTurn | undefined
@@ -106,6 +118,10 @@ export class ClaudeCodeScanner implements AgentScanner {
           const sessionId = sessionIdFromObject(obj, file, projectsDir)
           estimator.observe(sessionId, obj)
           if (hasExplicitSessionId(obj) && !explicitSessionId) explicitSessionId = sessionId
+          if (!subagentFile && obj.type === 'custom-title' && readString(obj.customTitle))
+            customTitleBySessionId.set(sessionId, readString(obj.customTitle))
+          if (!subagentFile && obj.type === 'agent-name' && readString(obj.agentName))
+            agentNameBySessionId.set(sessionId, readString(obj.agentName))
           const title = extractClaudeTitle(obj)
           if (title) {
             if (hasExplicitSessionId(obj)) {
@@ -226,6 +242,21 @@ export class ClaudeCodeScanner implements AgentScanner {
       }
     }
 
+    // 桌面端侧边会话有独立 JSONL，父会话关系与侧栏标题只保存在桌面端元数据中。
+    const desktopSessions = readClaudeDesktopSessions(this.desktopSessionRoots())
+    const parentBySessionId = new Map<string, string>()
+    for (const [sessionId, info] of desktopSessions)
+      if (info.parentSessionId) parentBySessionId.set(sessionId, info.parentSessionId)
+    for (const call of apiCalls) {
+      const parentSessionId = parentBySessionId.get(call.sessionId)
+      if (!parentSessionId) continue
+      call.parentSessionId = parentSessionId
+      call.rootSessionId = resolveRootSessionId(call.sessionId, parentBySessionId)
+    }
+    for (const [sessionId, title] of agentNameBySessionId) titleBySessionId.set(sessionId, title)
+    for (const [sessionId, title] of customTitleBySessionId) titleBySessionId.set(sessionId, title)
+    for (const [sessionId, info] of desktopSessions)
+      if (info.title) titleBySessionId.set(sessionId, info.title)
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(sessions, titleBySessionId)
     for (const session of sessions)
@@ -291,7 +322,9 @@ function mayContainSessionTitle(line: string): boolean {
     line.includes('"type":"user"') ||
     line.includes('"type": "user"') ||
     line.includes('"type":"last-prompt"') ||
-    line.includes('"type": "last-prompt"')
+    line.includes('"type": "last-prompt"') ||
+    line.includes('"customTitle"') ||
+    line.includes('"agentName"')
   )
 }
 

@@ -10,7 +10,7 @@ import { useChartTokens } from '../../composables/useChartTokens'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
 import { chartMotion } from '../../config/motion'
 import { TOTAL_SERIES_KEY, TOTAL_SERIES_LINE_TYPE } from '../../config/chart'
-import { useChartTheme, escapeHtml } from '../../composables/useChartTheme'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useI18n } from '../../i18n/useI18n'
 import type { LegendVisibilityState } from '../../composables/useLegendSelection'
 import LegendVisibilityButton from '../base/LegendVisibilityButton.vue'
@@ -18,7 +18,12 @@ import ChartColorControl from '../base/ChartColorControl.vue'
 import PointerTooltip from '../base/PointerTooltip.vue'
 import { formatTokens } from '../../utils/format'
 import { modelSeriesColor } from '../../utils/model-series-color'
-import { chartTooltipPosition } from '../../utils/chart-tooltip'
+import {
+  createChartTooltip,
+  chartTooltipPosition,
+  type ChartTooltipRow,
+} from '../../utils/chart-tooltip'
+import '../../styles/chart-tooltip.css'
 
 interface Props {
   stats: UsageTrendStats
@@ -157,6 +162,9 @@ const seriesItems = computed<TrendSeriesItem[]>(() => {
     })
   return items
 })
+const seriesIconURLs = computed(
+  () => new Map(seriesItems.value.map((item) => [item.key, seriesLogo(item.key)])),
+)
 
 const seriesVisibilityState = computed<LegendVisibilityState>(() => {
   const itemCount = seriesItems.value.length
@@ -265,33 +273,51 @@ function axisLabel(value: number): string {
   }).format(value)
 }
 
-function tooltipFormatter(rawParams: unknown): string {
+function tooltipTitle(value: number): string {
+  const date = new Date(value)
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${formatTime(value)}`
+}
+
+function tooltipFormatter(rawParams: unknown): HTMLElement {
   const params = Array.isArray(rawParams) ? rawParams : []
   const first = params[0] as Record<string, unknown> | undefined
   const firstValue = Array.isArray(first?.value) ? first.value : []
   const timestamp = Number(firstValue[0] ?? props.stats.from)
-  const cc = getChartColors()
-  let total = 0
-  let html = `<div style="font-weight: var(--weight-semibold);margin-bottom:7px">${escapeHtml(formatTime(timestamp, true))}</div>`
-  let totalSeriesRow = ''
+  let visibleTotal = 0
+  let totalSeriesValue: number | undefined
+  const rows: ChartTooltipRow[] = []
 
   for (const rawItem of params) {
     if (!rawItem || typeof rawItem !== 'object') continue
     const item = rawItem as Record<string, unknown>
     const value = Array.isArray(item.value) ? Number(item.value[1]) || 0 : 0
-    const isTotalSeries = item.seriesId === TOTAL_SERIES_KEY
-    if (!isTotalSeries) {
-      if (value <= 0) continue
-      total += value
+    if (item.seriesId === TOTAL_SERIES_KEY) {
+      totalSeriesValue = value
+      continue
     }
-    const row = `<div style="display:flex;justify-content:space-between;gap:16px;margin:3px 0"><span>${String(item.marker || '')} ${escapeHtml(String(item.seriesName || ''))}</span><b>${formatTokens(value)}</b></div>`
-    if (isTotalSeries) totalSeriesRow += row
-    else html += row
+    if (value <= 0) continue
+    visibleTotal += value
+    const key = typeof item.seriesId === 'string' ? item.seriesId : ''
+    const series = seriesItems.value.find((series) => series.key === key)
+    rows.push({
+      label: String(item.seriesName || series?.label || ''),
+      value: formatTokens(value),
+      color: series?.color,
+      iconUrl: seriesIconURLs.value.get(key),
+    })
   }
 
-  html += totalSeriesRow
-  html += `<div style="border-top:1px solid ${cc.tooltipDivider};margin-top:7px;padding-top:7px;display:flex;justify-content:space-between;gap:16px"><span>${label('Total', '合计')}</span><b style="color:${cc.tooltipTotal}">${formatTokens(total)}</b></div>`
-  return html
+  // Legend visibility changes the detail rows, not the bucket's recorded total.
+  const point = aggregateTrendPoints(props.stats.points, renderedBucketMinutes).find(
+    (point) => point.timestamp === timestamp,
+  )
+  const total = point?.totalTokens ?? totalSeriesValue ?? visibleTotal
+  return createChartTooltip({
+    title: tooltipTitle(timestamp),
+    summary: { label: label('Total tokens', 'Token 总量'), value: formatTokens(total) },
+    rows,
+  })
 }
 
 function minimumZoomPercent(): number {
@@ -432,12 +458,10 @@ function renderChart(): void {
         enterable: false,
         transitionDuration: 0,
         hideDelay: 0,
-        extraCssText:
-          'max-width:calc(100vw - 24px);box-sizing:border-box;white-space:normal;overflow-wrap:anywhere;pointer-events:none;z-index:1100;',
-        backgroundColor: colors.tooltipBg,
-        borderColor: colors.tooltipBorder,
-        textStyle: { ...chartText, color: colors.tooltipText, fontSize: 12 },
-        padding: [8, 10],
+        extraCssText: 'box-shadow:none;pointer-events:none;z-index:1100;',
+        backgroundColor: 'transparent',
+        borderWidth: 0,
+        padding: 0,
         formatter: tooltipFormatter,
         position: (point, _params, _element, _rect, size) => {
           const bounds = chartRef.value?.getBoundingClientRect()
@@ -604,6 +628,7 @@ watch(
     currentInterfaceFont.value,
     currentNumberFont.value,
     hiddenSeries.value,
+    seriesIconURLs.value,
     tokens.value,
     chartControls.value,
   ],

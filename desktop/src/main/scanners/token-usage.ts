@@ -100,6 +100,16 @@ export function tokenBucketSum(
 
 /** 扫描提交前的最后一道统计闸门，阻止负数、重叠总量和不稳定主键落库。 */
 export function validateScannerUsageDetails(agent: string, details: ScannerUsageDetails): void {
+  if (details.completeSessionIds !== undefined) {
+    if (
+      !Array.isArray(details.completeSessionIds) ||
+      details.completeSessionIds.some(
+        (id) => typeof id !== 'string' || !id.trim() || id.length > 1024,
+      ) ||
+      new Set(details.completeSessionIds).size !== details.completeSessionIds.length
+    )
+      throw new Error(`${agent} 完整会话快照身份无效`)
+  }
   const ids = new Set<string>()
   for (const call of details.apiCalls) {
     validateIdentity(agent, call, 'API 调用')
