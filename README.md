@@ -18,11 +18,11 @@
   <a href="#界面预览">界面预览</a>
 </p>
 
-Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量，把消耗按 Agent、模型、会话和项目整理清楚。你可以查看用量趋势、API 参考费用、厂商额度与账户余额，再把用量变化生成可分享的回顾。
+Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量，把消耗按 Agent、模型、会话和项目整理清楚。你可以查看用量趋势、API 参考费用、厂商额度与账户余额，再把用量变化生成可分享的回顾。发现区还提供赛博鸡蛋活动日历、套餐与 API 比价、AI 信息差和 Agent 下载。
 
 ## 界面预览
 
-以下画面使用演示数据，金额、额度、价格和文章内容仅用于展示界面。点击动图可查看高清静态图。
+用量、金额、额度、价格和活动信息使用演示数据；AI 信息差截图取自正式安装版加载的线上内容。点击动图可查看高清静态图。
 
 [![按模型、Agent 和项目分析用量](docs/screenshots/readme/analytics-zh.gif)](docs/screenshots/readme/analytics-zh.png)
 
@@ -70,7 +70,20 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 ### 发现信息与工具
 
-发现区提供套餐与 API 比价、AI 信息差和 Agent 下载，需要联网加载。
+发现区提供赛博鸡蛋、套餐与 API 比价、AI 信息差和 Agent 下载，需要联网加载。
+
+#### 赛博鸡蛋
+
+汇总厂商的额度重置、重置卡、限时免费和 Token 赠送等活动。首页可浏览近期活动、按厂商筛选；进入厂商活动日历后，按月查看活动日期，点击有标记的日期查看详情和可用的来源链接，也可切换显示时区。活动时间与适用条件以厂商官方信息和账户规则为准。
+
+![赛博鸡蛋首页：厂商入口、近期活动信息流与厂商筛选](docs/screenshots/readme/cyber-eggs-home-zh.png)
+
+<details>
+<summary>查看厂商活动日历</summary>
+
+![GPT 活动日历：月份翻页、每日活动标记与时区切换](docs/screenshots/readme/cyber-eggs-calendar-zh.png)
+
+</details>
 
 #### 套餐与 API 比价
 

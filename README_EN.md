@@ -18,11 +18,11 @@
   <a href="#product-preview">Product preview</a>
 </p>
 
-Oh My Token is a desktop app for understanding usage across multiple AI agents. It reads local usage records from [multiple supported agents](#supported-agents) and brings tokens, reference API costs, sessions, and projects into one workspace. Check provider quotas and account balances while you work, then turn your usage into a visual recap to share.
+Oh My Token is a desktop app for understanding usage across multiple AI agents. It reads local usage records from [multiple supported agents](#supported-agents) and brings tokens, reference API costs, sessions, and projects into one workspace. Check provider quotas and account balances while you work, then turn your usage into a visual recap to share. Discover also includes Cyber Eggs activity calendars, plan and API price comparison, AI insights, and agent downloads.
 
 ## Product preview
 
-The previews use demo data. Amounts, quotas, prices, and articles illustrate the interface. Click an animation to open its full-resolution still image.
+Usage, amounts, quotas, prices, and activity entries use demo data. The AI insights screenshots show online content loaded in the installed production app. Click an animation to open its full-resolution still image.
 
 [![Usage analytics by model, agent, and project](docs/screenshots/readme/analytics-en.gif)](docs/screenshots/readme/analytics-en.png)
 
@@ -70,7 +70,20 @@ Turn local usage into animated rankings, trends, and changing shares, or a still
 
 ### Discover insights and tools
 
-Discover brings together plan and API price comparison, AI insights, and agent downloads. These features require an internet connection.
+Discover brings together Cyber Eggs, plan and API price comparison, AI insights, and agent downloads. These features require an internet connection.
+
+#### Cyber Eggs
+
+Browse provider updates on quota resets, reset cards, limited-time free offers, and token grants. Filter recent activities by provider on the home page, then open a provider's monthly calendar to inspect dates, details, and available source links. Switch display time zones as needed. Dates and eligibility follow the provider's official information and account terms.
+
+![Cyber Eggs home with provider entries, a recent activity feed, and provider filters](docs/screenshots/readme/cyber-eggs-home-en.png)
+
+<details>
+<summary>View the provider activity calendar</summary>
+
+![GPT activity calendar with monthly browsing, daily activity markers, and time zone switching](docs/screenshots/readme/cyber-eggs-calendar-en.png)
+
+</details>
 
 #### Plan and API price comparison
 
