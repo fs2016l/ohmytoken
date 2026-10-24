@@ -3,6 +3,7 @@ import { useI18n } from '../i18n/useI18n'
 import { useTheme, type Theme } from './useTheme'
 import { getTheme } from '../config/themes'
 import { useTypography } from './useTypography'
+import { UI_FONT_WEIGHT } from '../config/typography'
 import { formatTokens } from '../utils/format'
 
 export interface ChartColors {
@@ -114,13 +115,14 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
     return getChartColors(activeTheme.value)
   }
 
-  function getChartText(): { color: string; fontFamily: string } {
+  function getChartText(): { color: string; fontFamily: string; fontWeight: number } {
     // Reading the ref makes ECharts options recompute immediately after a font switch.
     void currentInterfaceFont.value
     void currentNumberFont.value
     const rootStyle = getComputedStyle(document.documentElement)
     return {
       color: chartColors().text,
+      fontWeight: UI_FONT_WEIGHT,
       fontFamily:
         rootStyle.getPropertyValue('--font-number').trim() ||
         rootStyle.getPropertyValue('--font-sans').trim(),
@@ -146,7 +148,7 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
   ): string {
     const cc = chartColors()
     const items = normalizeTooltipItems(rawItems)
-    let html = `<div style="font-weight:600;margin-bottom:8px">${escapeHtml(title)}</div>`
+    let html = `<div style="font-weight:${UI_FONT_WEIGHT};margin-bottom:8px">${escapeHtml(title)}</div>`
     let total = 0
     let totalSeriesRow = ''
 

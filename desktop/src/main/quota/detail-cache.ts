@@ -1,8 +1,9 @@
-import type {
-  QuotaDetailQuery,
-  QuotaDetails,
-  QuotaDetailSource,
-  QuotaDetailSourceId,
+import {
+  QUOTA_DETAIL_SOURCES,
+  type QuotaDetailQuery,
+  type QuotaDetails,
+  type QuotaDetailSource,
+  type QuotaDetailSourceId,
 } from '../../shared/quota-details'
 import { detailSource, digest, validateDetailQuery } from './detail-common'
 import { detailSources, fetchAccountDetail } from './detail-fetch'
@@ -57,7 +58,8 @@ export class QuotaDetailCache {
           typeof entry.account !== 'string' ||
           !/^[a-f0-9]{32}$/.test(entry.account) ||
           typeof entry.fingerprint !== 'string' ||
-          entry.fingerprint.length > 128
+          entry.fingerprint.length > 128 ||
+          !QUOTA_DETAIL_SOURCES.includes(source.id as QuotaDetailSourceId)
         )
           continue
         const query = validateDetailQuery(entry.query)

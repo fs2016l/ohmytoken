@@ -24,7 +24,9 @@ interface Session {
 
 const sessions = new Map<string, Session>()
 const renewing = new Map<string, Promise<Session>>()
-const base = 'https://cloudcode-pa.googleapis.com/v1internal:'
+// Match the Hub's cloud_code_endpoint; the legacy host can return different Gemini quota pools.
+const host = 'daily-cloudcode-pa.googleapis.com'
+const base = `https://${host}/v1internal:`
 
 function secret(value: unknown): string | undefined {
   const text = textValue(value)
@@ -116,7 +118,7 @@ export async function fetchAntigravityQuota(
 ): Promise<JsonObject> {
   const source = connection.antigravityOAuth
   if (!source || !secret(source.accessToken)) throw new QuotaQueryError('not_connected')
-  await assertQuotaRegionAllowed('cloudcode-pa.googleapis.com', fetcher)
+  await assertQuotaRegionAllowed(host, fetcher)
   const key = sessionKey(connection, source)
   const cached = sessions.get(key)
   let session: Session =

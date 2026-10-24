@@ -5,8 +5,9 @@ import type {
   QuotaMetric,
 } from '../../shared/quota-details'
 import { detailSource, digest, metric, records, safeText } from './detail-common'
-import { numberValue, object, timestamp, type JsonObject } from './types'
+import { numberValue, object, type JsonObject } from './types'
 import { QuotaQueryError } from './transport'
+import { grokCreditUsagePercent } from './grok-billing'
 
 export function parseGlmDetail(id: QuotaDetailSourceId, body: JsonObject): QuotaDetailSource {
   if (body.success === false || (body.code !== undefined && body.code !== 200))
@@ -143,31 +144,6 @@ export function parseAccountMetadata(id: QuotaDetailSourceId, body: JsonObject):
       ...metric('usage', extra.utilization, 'percent'),
     ]
     result.notes.push('claudeCreditUnits')
-  } else if (id === 'gemini-account') {
-    result.notes = ['geminiNoHistory']
-    result.rows = records(body.buckets).map((row, index) => ({
-      id: String(index),
-      time: timestamp(row.resetTime) ? new Date(timestamp(row.resetTime)!).toISOString() : null,
-      label: safeText(row.modelId) ?? '',
-      category: safeText(row.tokenType),
-      metrics: [
-        ...metric(
-          'remaining',
-          row.remainingAmount,
-          row.tokenType === 'REQUESTS' ? 'requests' : 'unknown',
-        ),
-        ...metric('remainingRatio', row.remainingFraction, 'ratio'),
-      ],
-    }))
-    const tier = object(body.accountTier)
-    if (safeText(tier.name ?? tier.id))
-      result.rows.unshift({
-        id: 'tier',
-        time: null,
-        label: safeText(tier.name ?? tier.id)!,
-        category: 'tier',
-        metrics: [],
-      })
   } else if (id === 'grok-settings') {
     const tier = safeText(body.subscription_tier_display ?? body.subscription_tier)
     result.rows = tier
@@ -189,7 +165,7 @@ export function parseAccountMetadata(id: QuotaDetailSourceId, body: JsonObject):
       return metric(key, n === null ? null : n / 100, 'USD')
     }
     result.metrics = [
-      ...metric('usage', config.creditUsagePercent, 'percent'),
+      ...metric('usage', grokCreditUsagePercent(config), 'percent'),
       ...metric(
         'unifiedBilling',
         typeof config.isUnifiedBillingUser === 'boolean'

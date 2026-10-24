@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import type { UsageAnalytics } from '@shared/analytics'
 import PageSurface from '../components/base/PageSurface.vue'
 import AnimatedNumber from '../components/base/AnimatedNumber.vue'
+import TokenShare from '../components/base/TokenShare.vue'
 import IdentityMotion from '../components/base/IdentityMotion.vue'
 import SessionListPanel from '../components/agent/SessionListPanel.vue'
 import { useI18n } from '../i18n/useI18n'
@@ -30,12 +31,22 @@ const resource = usePageResource(
 )
 const data = computed(() => resource.data.value.modelData)
 const columns = computed(() => [
-  { key: 'inputTokens' as const, name: label('Input', '输入') },
-  { key: 'outputTokens' as const, name: label('Output', '输出') },
-  { key: 'cache' as const, name: label('Cache', '缓存') },
-  { key: 'reasoningTokens' as const, name: label('Reasoning', '推理') },
-  { key: 'totalTokens' as const, name: label('Total tokens', '总词元数') },
+  { key: 'inputTokens' as const, bucket: 'input' as const, name: label('Input', '输入') },
+  { key: 'outputTokens' as const, bucket: 'output' as const, name: label('Output', '输出') },
+  { key: 'cache' as const, bucket: 'cache' as const, name: label('Cache', '缓存') },
+  {
+    key: 'reasoningTokens' as const,
+    bucket: 'reasoning' as const,
+    name: label('Reasoning', '推理'),
+  },
+  { key: 'totalTokens' as const, bucket: null, name: label('Total tokens', '总词元数') },
 ])
+type ColumnKey = (typeof columns.value)[number]['key']
+function columnValue(key: ColumnKey): number | null {
+  const summary = data.value?.summary
+  if (!summary) return null
+  return key === 'cache' ? summary.cacheReadTokens + summary.cacheWriteTokens : summary[key]
+}
 </script>
 <template>
   <PageSurface :page-key="pageKey" fixed class="model-detail-page">
@@ -110,16 +121,8 @@ const columns = computed(() => [
                 :key="column.key"
                 :class="{ cache: column.key === 'cache' }"
               >
-                <AnimatedNumber
-                  :value="
-                    data
-                      ? column.key === 'cache'
-                        ? data.summary.cacheReadTokens + data.summary.cacheWriteTokens
-                        : data.summary[column.key]
-                      : null
-                  "
-                  :format="{ compact: true }"
-                />
+                <AnimatedNumber :value="columnValue(column.key)" :format="{ compact: true }" />
+                <TokenShare v-if="column.bucket" :usage="data?.summary" :bucket="column.bucket" />
               </td>
             </tr>
           </tbody>
@@ -196,6 +199,7 @@ const columns = computed(() => [
 .model-composition th,
 .model-composition td {
   text-align: center;
+  white-space: nowrap;
   background: transparent;
   border: 0;
 }

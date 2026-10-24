@@ -132,8 +132,7 @@ const comparisonKeys = computed(() => {
 })
 function tooltipDate(key: string | null | undefined): string {
   if (!key) return '—'
-  if (key.length === 7) return key.replace('-', '/')
-  const date = key.slice(0, 10).replaceAll('-', '/')
+  const date = key.slice(0, 10)
   return key.includes('T') ? `${date} ${key.slice(-2)}:00` : date
 }
 const format = (value: unknown): string =>

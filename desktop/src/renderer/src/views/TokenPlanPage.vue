@@ -7,6 +7,7 @@ import DropdownChevron from '../components/base/DropdownChevron.vue'
 import ProviderQuotaCard from '../components/token-plan/ProviderQuotaCard.vue'
 import QuotaRefreshInterval from '../components/token-plan/QuotaRefreshInterval.vue'
 import QuotaDetailsModal from '../components/token-plan/QuotaDetailsModal.vue'
+import PlanRenewalManager from '../components/token-plan/PlanRenewalManager.vue'
 import { TOKEN_PLAN_PROVIDERS } from '../config/token-plan-providers'
 import { useTokenPlanUsage } from '../composables/useTokenPlanUsage'
 import { usePageState } from '../composables/usePageState'
@@ -63,6 +64,7 @@ const statusOptions = computed(() => [
       ' ' +
       detected.value.filter((row) => availability(row) === 'failed').length,
   },
+  { value: 'renewals', label: label('Cycles', '周期') },
 ])
 const matching = computed(() =>
   detected.value.filter(
@@ -156,126 +158,151 @@ function issueText(reason: string): string {
 </script>
 
 <template>
-  <PageSurface ref="surface" page-key="quota">
+  <PageSurface
+    ref="surface"
+    page-key="quota"
+    class="quota-page-surface"
+    :fixed="state.status === 'renewals'"
+    :class="{ 'quota-renewals-surface': state.status === 'renewals' }"
+  >
     <header class="workspace-heading">
       <div>
         <h1>{{ label('Quota', '额度') }}</h1>
-        <p>{{ label('Remaining now, and when it resets.', '当前还剩多少，下一次何时恢复。') }}</p>
+        <p>
+          {{ label('Check quotas and subscription renewal dates.', '查看额度与套餐续费时间。') }}
+        </p>
       </div>
     </header>
     <div class="quota-toolbar">
       <SegmentedControl
         v-model="state.status"
         :options="statusOptions"
-        :label="label('Account status', '账号状态')"
+        :label="label('Quota view', '额度视图')"
       />
-      <SelectControl
-        v-model="state.provider"
-        :label="label('Provider', '厂商')"
-        :options="[
-          { value: 'all', label: label('All providers', '全部厂商') },
-          ...TOKEN_PLAN_PROVIDERS.map((provider) => ({
-            value: provider.id,
-            label: currentLang === 'zh' ? provider.nameZh : provider.nameEn,
-          })),
-        ]"
-      />
-      <QuotaRefreshInterval
-        :model-value="refreshInterval"
-        @update:model-value="setRefreshInterval"
-      />
-      <button class="workspace-button" type="button" :disabled="busy" @click="refreshAll()">
-        <span v-if="busy" class="material-symbols-outlined is-spinning">refresh</span>
-        {{ label('Refresh quota', '刷新额度') }}
-      </button>
+      <template v-if="state.status !== 'renewals'">
+        <SelectControl
+          v-model="state.provider"
+          :label="label('Provider', '厂商')"
+          :options="[
+            { value: 'all', label: label('All providers', '全部厂商') },
+            ...TOKEN_PLAN_PROVIDERS.map((provider) => ({
+              value: provider.id,
+              label: currentLang === 'zh' ? provider.nameZh : provider.nameEn,
+            })),
+          ]"
+        />
+        <QuotaRefreshInterval
+          :model-value="refreshInterval"
+          @update:model-value="setRefreshInterval"
+        />
+        <button class="workspace-button" type="button" :disabled="busy" @click="refreshAll()">
+          <span v-if="busy" class="material-symbols-outlined is-spinning">refresh</span>
+          {{ label('Refresh quota', '刷新额度') }}
+        </button>
+      </template>
     </div>
-    <div v-if="loadFailed" class="workspace-error quota-notice" role="status">
-      {{
-        label(
-          'Some connections could not be refreshed. Existing results remain available.',
-          '部分连接暂时未能刷新，已有结果仍可查看。',
-        )
-      }}
-    </div>
-    <p v-if="orderFailed" class="workspace-error quota-notice" role="alert">
-      {{
-        label('Could not save the order. Drag again to retry.', '顺序未能保存，请重新拖动重试。')
-      }}
-    </p>
-    <div v-if="initializing && !detected.length" class="workspace-empty" role="status">
-      {{ label('Detecting existing connections…', '正在自动发现已有连接…') }}
-    </div>
-    <div v-else-if="!detected.length" class="workspace-empty">
-      <span class="material-symbols-outlined">account_balance_wallet</span>
-      <strong>{{ label('No supported connection found yet', '暂未发现可识别的连接') }}</strong>
-      <p>
+    <PlanRenewalManager v-if="state.status === 'renewals'" />
+    <template v-else>
+      <div v-if="loadFailed" class="workspace-error quota-notice" role="status">
         {{
           label(
-            'Sign in or configure a provider in your Agent and complete one conversation, then refresh quota here.',
-            '在 Agent 中登录或配置厂商，并完成一次对话后，再点击刷新额度。',
+            'Some connections could not be refreshed. Existing results remain available.',
+            '部分连接暂时未能刷新，已有结果仍可查看。',
           )
         }}
+      </div>
+      <p v-if="orderFailed" class="workspace-error quota-notice" role="alert">
+        {{
+          label('Could not save the order. Drag again to retry.', '顺序未能保存，请重新拖动重试。')
+        }}
       </p>
-    </div>
-    <div v-else-if="!matching.length" class="workspace-empty">
-      {{ label('No matching connections', '没有匹配的连接') }}
-    </div>
-    <TransitionGroup
-      v-else
-      tag="section"
-      name="quota-reorder"
-      class="quota-list"
-      :aria-label="label('Account quotas', '账户额度')"
-      :style="{ '--quota-reorder-duration': `${motion.reorder}ms` }"
-    >
-      <ProviderQuotaCard
-        v-for="connection in ordered"
-        :key="connection.id"
-        :class="{ 'quota-card--dragging': dragging === connection.id }"
-        :data-connection="connection.id"
-        :connection="connection"
-        :snapshot="snapshots[connection.id]"
-        :loading="refreshing.has(connection.id)"
-        :expanded="state.expanded.includes(connection.id)"
-        @update:expanded="expand(connection.id, $event)"
-        @refresh="refreshConnection(connection.id)"
-        @details="state.detailId = connection.id"
-        @pointerdown="startDrag"
+      <div v-if="initializing && !detected.length" class="workspace-empty" role="status">
+        {{ label('Detecting existing connections…', '正在自动发现已有连接…') }}
+      </div>
+      <div v-else-if="!detected.length" class="workspace-empty">
+        <span class="material-symbols-outlined">account_balance_wallet</span>
+        <strong>{{ label('No supported connection found yet', '暂未发现可识别的连接') }}</strong>
+        <p>
+          {{
+            label(
+              'Sign in or configure a provider in your Agent and complete one conversation, then refresh quota here.',
+              '在 Agent 中登录或配置厂商，并完成一次对话后，再点击刷新额度。',
+            )
+          }}
+        </p>
+      </div>
+      <div v-else-if="!matching.length" class="workspace-empty">
+        {{ label('No matching connections', '没有匹配的连接') }}
+      </div>
+      <TransitionGroup
+        v-else
+        tag="section"
+        name="quota-reorder"
+        class="quota-list"
+        :aria-label="label('Account quotas', '账户额度')"
+        :style="{ '--quota-reorder-duration': `${motion.reorder}ms` }"
+      >
+        <ProviderQuotaCard
+          v-for="connection in ordered"
+          :key="connection.id"
+          :class="{ 'quota-card--dragging': dragging === connection.id }"
+          :data-connection="connection.id"
+          :connection="connection"
+          :snapshot="snapshots[connection.id]"
+          :loading="refreshing.has(connection.id)"
+          :expanded="state.expanded.includes(connection.id)"
+          @update:expanded="expand(connection.id, $event)"
+          @refresh="refreshConnection(connection.id)"
+          @details="state.detailId = connection.id"
+          @pointerdown="startDrag"
+        />
+      </TransitionGroup>
+      <QuotaDetailsModal
+        v-if="detailConnection"
+        :key="detailConnection.id"
+        :connection="detailConnection"
+        @close="state.detailId = ''"
       />
-    </TransitionGroup>
-    <QuotaDetailsModal
-      v-if="detailConnection"
-      :key="detailConnection.id"
-      :connection="detailConnection"
-      @close="state.detailId = ''"
-    />
-    <details
-      class="quota-diagnostics"
-      :open="state.diagnostics"
-      @toggle="state.diagnostics = ($event.target as HTMLDetailsElement).open"
-    >
-      <summary class="disclosure-summary">
-        <DropdownChevron disclosure direction="right" />
-        {{ label('Connection detection', '连接检测') }}
-      </summary>
-      <template v-if="state.diagnostics">
-        <div v-if="inventory">
-          <p>
-            {{ label('Checked sources', '已检查来源') }} ·
-            {{ inventory.checkedSources.join(' · ') }}
-          </p>
-          <p v-for="issue in inventory.issues" :key="issue.source + ':' + issue.reason">
-            {{ issue.source }}：{{ issueText(issue.reason) }}
-          </p>
-        </div>
-      </template>
-    </details>
+      <details
+        class="quota-diagnostics"
+        :open="state.diagnostics"
+        @toggle="state.diagnostics = ($event.target as HTMLDetailsElement).open"
+      >
+        <summary class="disclosure-summary">
+          <DropdownChevron disclosure direction="right" />
+          {{ label('Connection detection', '连接检测') }}
+        </summary>
+        <template v-if="state.diagnostics">
+          <div v-if="inventory">
+            <p>
+              {{ label('Checked sources', '已检查来源') }} ·
+              {{ inventory.checkedSources.join(' · ') }}
+            </p>
+            <p v-for="issue in inventory.issues" :key="issue.source + ':' + issue.reason">
+              {{ issue.source }}：{{ issueText(issue.reason) }}
+            </p>
+          </div>
+        </template>
+      </details>
+    </template>
   </PageSurface>
 </template>
 
 <style scoped>
+.quota-page-surface {
+  scrollbar-gutter: stable;
+}
+@media (max-width: 1160px) {
+  .quota-renewals-surface {
+    overflow: auto;
+  }
+  .quota-renewals-surface :deep(.page-surface-content) {
+    flex: none;
+  }
+}
 .quota-toolbar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 12px;
   margin-bottom: 24px;

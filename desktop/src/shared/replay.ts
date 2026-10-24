@@ -114,7 +114,7 @@ export const REPLAY_ANIMATION_MAX_FPS = 30
 export function replayTitle(options: Pick<ReplayOptions, 'title' | 'language'>): string {
   return (
     options.title?.replace(/\s+/g, ' ').trim() ||
-    (options.language === 'zh' ? '我的 AI 使用回顾' : 'My AI usage recap')
+    (options.language === 'zh' ? 'AI 使用历程' : 'AI usage journey')
   )
 }
 

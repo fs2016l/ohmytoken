@@ -55,19 +55,24 @@ export function parseDateInput(value: string): string | null {
 
 export function displayTimestamp(value: string): string {
   if (!value) return '—'
+  if (validDate(value)) return value
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return value
-  return `${localDate(date).replaceAll('-', '/')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return `${localDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 /** Recent activity uses the user's local day/year, not the timestamp's UTC date. */
 export function displayRecentActivity(value: string, now = new Date()): string {
   if (!value) return '—'
+  // Daily history has no clock time and must not shift when parsed as UTC midnight.
+  if (validDate(value)) {
+    return value.startsWith(`${now.getFullYear()}-`) ? value.slice(5) : value
+  }
   const date = new Date(value)
   if (!Number.isFinite(date.getTime())) return '—'
   if (localDate(date) === localDate(now)) {
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
   }
-  const day = localDate(date).replaceAll('-', '/')
+  const day = localDate(date)
   return date.getFullYear() === now.getFullYear() ? day.slice(5) : day
 }

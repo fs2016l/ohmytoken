@@ -9,7 +9,6 @@ const names: Record<string, [string, string]> = {
   'glm-tools': ['GLM tool usage', 'GLM 工具用量'],
   'minimax-billing': ['MiniMax billing records', 'MiniMax 账单记录'],
   'claude-extra': ['Claude extra usage', 'Claude 额外用量'],
-  'gemini-account': ['Gemini model quotas', 'Gemini 模型额度详情'],
   'grok-billing': ['Grok billing periods', 'Grok 历史账期'],
   'grok-settings': ['Grok subscription', 'Grok 订阅信息'],
   total: ['Tokens', 'Token 总量'],
@@ -114,10 +113,6 @@ const notes: Record<string, [string, string]> = {
   claudeCreditUnits: [
     'Credit fields are kept in the provider’s original units.',
     '积分字段保留厂商返回的原始单位。',
-  ],
-  geminiNoHistory: [
-    'Remaining model quotas and reset times; daily account history is not provided.',
-    '展示各模型剩余额度与重置时间，未提供账户每日历史。',
   ],
   grokBillingOnly: [
     'Returned historical billing periods, independent of the date filter; these amounts are not token counts.',

@@ -3,7 +3,16 @@ import { computed } from 'vue'
 import SelectControl from './SelectControl.vue'
 import { useI18n } from '../../i18n/useI18n'
 import { formatNumber } from '../../utils/number-format'
-const props = defineProps<{ page: number; pageSize: number; total: number; busy?: boolean }>()
+const props = withDefaults(
+  defineProps<{
+    page: number
+    pageSize: number
+    total: number
+    busy?: boolean
+    pageSizes?: number[]
+  }>(),
+  { pageSizes: () => [10, 20, 50, 100] },
+)
 const emit = defineEmits<{ 'update:page': [value: number]; 'update:pageSize': [value: number] }>()
 const { label } = useI18n()
 const count = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
@@ -63,7 +72,7 @@ function setSize(value: number): void {
         :disabled="busy"
         :label="label('Per page', '每页条数')"
         :options="
-          [10, 20, 50, 100].map((value) => ({
+          pageSizes.map((value) => ({
             value,
             label: label(`${value}`, `${value} 条`),
           }))

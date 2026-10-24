@@ -276,7 +276,7 @@ function axisLabel(value: number): string {
 function tooltipTitle(value: number): string {
   const date = new Date(value)
   const pad = (part: number): string => String(part).padStart(2, '0')
-  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${formatTime(value)}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatTime(value)}`
 }
 
 function tooltipFormatter(rawParams: unknown): HTMLElement {

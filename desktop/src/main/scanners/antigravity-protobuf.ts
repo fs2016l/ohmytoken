@@ -33,9 +33,13 @@ export interface AntigravityStepMetadata {
   completedAtMs?: number
   usage?: AntigravityUsage
   modelEnum?: number
+  /** step 来源枚举：本机数据中 2 为模型、4 为用户明确输入、5 为系统，与 transcript 的 source 一一对应。 */
+  source?: number
   /** step 带工具调用；其参数整块下发，原生流窗口不覆盖这部分输出生成。 */
   toolCall?: true
 }
+
+export const ANTIGRAVITY_USER_EXPLICIT_SOURCE = 4
 
 type Field = { number: number; wire: number; value?: bigint; bytes?: Uint8Array }
 
@@ -257,6 +261,8 @@ export function decodeAntigravityStepMetadata(data: Uint8Array): AntigravityStep
       if (field.number === 9) result.usage = decodeAntigravityUsage(field.bytes)
     }
     if (field.number === 11) result.modelEnum = scalar(field)
+    // 来源字段是由本机数据核对得到的，类型不符时只放弃轮次依据，不让整段用量不可读。
+    if (field.number === 3 && field.wire === 0) result.source = scalar(field)
   }
   return result
 }

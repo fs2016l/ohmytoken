@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
+import TokenShare from '../base/TokenShare.vue'
 import DesignIcon from '../base/DesignIcon.vue'
 import SelectControl from '../base/SelectControl.vue'
 import DropdownChevron from '../base/DropdownChevron.vue'
@@ -69,6 +70,20 @@ const {
   lastUpdatedAt,
   refresh: refreshTrend,
 } = useFloatingTokenTrend()
+const breakdown = computed(() => [
+  { id: 'input' as const, name: label('Input', '输入'), value: stats.value.inputTokens },
+  { id: 'output' as const, name: label('Output', '输出'), value: stats.value.outputTokens },
+  {
+    id: 'cache' as const,
+    name: label('Cache', '缓存'),
+    value: stats.value.cacheReadTokens + stats.value.cacheWriteTokens,
+  },
+  {
+    id: 'reasoning' as const,
+    name: label('Reasoning', '推理'),
+    value: stats.value.reasoningTokens,
+  },
+])
 const refreshing = ref(false)
 const scanFailed = ref(false)
 const dataUpdatedAt = ref(0)
@@ -238,21 +253,10 @@ onUnmounted(() => {
         </template>
       </FloatingTokenTrend>
       <div class="floating-token-breakdown floating-card">
-        <div>
-          <span>{{ label('Input', '输入') }}</span>
-          <AnimatedNumber :value="stats.inputTokens" :format="{ compact: true }" :replay="false" />
-        </div>
-        <div>
-          <span>{{ label('Output', '输出') }}</span>
-          <AnimatedNumber :value="stats.outputTokens" :format="{ compact: true }" :replay="false" />
-        </div>
-        <div>
-          <span>{{ label('Cache', '缓存') }}</span>
-          <AnimatedNumber
-            :value="stats.cacheReadTokens + stats.cacheWriteTokens"
-            :format="{ compact: true }"
-            :replay="false"
-          />
+        <div v-for="item in breakdown" :key="item.id">
+          <span>{{ item.name }}</span>
+          <AnimatedNumber :value="item.value" :format="{ compact: true }" :replay="false" />
+          <TokenShare :usage="stats" :bucket="item.id" plain />
         </div>
       </div>
       <p v-if="failed" class="floating-error" role="alert">
@@ -386,7 +390,7 @@ onUnmounted(() => {
 }
 .floating-token-breakdown {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: 8px;
   padding: 6px 8px;
   border-radius: 8px;
@@ -407,6 +411,10 @@ onUnmounted(() => {
 .floating-token-breakdown .animated-number {
   font-size: 14px;
   font-weight: 500;
+}
+.floating-token-breakdown .token-share {
+  font-size: 11px;
+  line-height: 14px;
 }
 .floating-session-heading {
   border-top: 1px solid var(--border);

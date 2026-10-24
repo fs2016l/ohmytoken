@@ -84,6 +84,14 @@ function select(row: (typeof rows.value)[number]): void {
         <th class="favorite-cell">
           <span class="table-saved-label">{{ label('Saved', '收藏') }}</span>
         </th>
+        <th class="expand-cell" :aria-label="label('Expand', '展开')" />
+        <WorkspaceSortHeader
+          class="recent-column"
+          :options="[{ key: 'recent', label: label('Time', '时间') }]"
+          :sort="sortBy"
+          :direction="direction"
+          @sort="emit('sort', $event)"
+        />
         <WorkspaceSortHeader
           class="title-column"
           :options="[{ key: 'title', label: label('Session', '会话') }]"
@@ -121,14 +129,7 @@ function select(row: (typeof rows.value)[number]): void {
           :direction="direction"
           @sort="emit('sort', $event)"
         />
-        <th class="generation-column">{{ label('Latest generation', '最近生成') }}</th>
-        <WorkspaceSortHeader
-          class="recent-column"
-          :options="[{ key: 'recent', label: label('Recent activity', '最近活动') }]"
-          :sort="sortBy"
-          :direction="direction"
-          @sort="emit('sort', $event)"
-        />
+        <th class="generation-column">{{ label('Speed', '速度') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -147,21 +148,23 @@ function select(row: (typeof rows.value)[number]): void {
             :target="{ type: 'session', agent: row.parent.agent, id: row.parent.rootSessionId }"
           />
         </td>
+        <td class="expand-cell">
+          <button
+            v-if="!row.child && row.children.length"
+            type="button"
+            class="workspace-expand expand-session"
+            :aria-expanded="expanded.includes(row.key)"
+            :aria-label="label('Toggle child sessions', '展开或收起子会话')"
+            @click.stop="emit('toggle', row.key)"
+          >
+            <DropdownChevron :open="expanded.includes(row.key)" direction="right" />
+          </button>
+        </td>
+        <td class="recent-cell" :title="displayTimestamp(row.session.endedAt)">
+          {{ displayRecentActivity(row.session.endedAt, new Date(now)) }}
+        </td>
         <td class="session-title-cell">
           <div class="workspace-title-wrap">
-            <template v-if="!row.child">
-              <button
-                v-if="row.children.length"
-                type="button"
-                class="workspace-expand expand-session"
-                :aria-expanded="expanded.includes(row.key)"
-                :aria-label="label('Toggle child sessions', '展开或收起子会话')"
-                @click.stop="emit('toggle', row.key)"
-              >
-                <DropdownChevron :open="expanded.includes(row.key)" direction="right" />
-              </button>
-              <span v-else class="workspace-expand-spacer" />
-            </template>
             <button
               type="button"
               class="workspace-row-title session-title"
@@ -215,9 +218,6 @@ function select(row: (typeof rows.value)[number]): void {
             :agent="row.session.agent"
             stacked
           />
-        </td>
-        <td class="recent-cell" :title="displayTimestamp(row.session.endedAt)">
-          {{ displayRecentActivity(row.session.endedAt, new Date(now)) }}
         </td>
       </tr>
     </tbody>

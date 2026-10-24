@@ -468,7 +468,9 @@ function commitScanState(
   const db = openDatabase()
   const oldState = getAgentScanState(agent)
   if (context.mode === 'full') completeEvidenceRecovery(db, agent, context.scanStartedAtMs)
-
+  // 完整替换后，已不在本轮来源中的旧检查点也失效，避免来源恢复时被错误跳过。
+  if (context.mode === 'full' && !context.preserveHistory)
+    db.prepare('DELETE FROM scan_source_state WHERE agent = ?').run(agent)
   for (const state of sourceStateUpdates) {
     if (state.agent !== agent) {
       throw new Error(`来源状态 Agent 不匹配: ${state.agent} != ${agent}`)
@@ -481,7 +483,6 @@ function commitScanState(
       db,
     )
   }
-
   const previousEventWatermark = oldState?.event_watermark_ms ?? 0
   const batchEventWatermark = details.apiCalls.reduce(
     (max, call) => Math.max(max, eventTimestampMs(call)),

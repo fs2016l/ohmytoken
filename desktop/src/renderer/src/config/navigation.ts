@@ -18,6 +18,7 @@ export const navigationGroups = [
       { to: '/insight', title: ['AI insights', 'AI 信息差'], icon: 'insight' },
       { to: '/codingplan', title: ['Plan comparison', '套餐比价'], icon: 'plans' },
       { to: '/agent-download', title: ['Agent tools', 'Agent 下载'], icon: 'agents' },
+      { to: '/cyber-eggs', title: ['Cyber eggs', '赛博鸡蛋'], icon: 'rocket' },
     ],
   },
   {

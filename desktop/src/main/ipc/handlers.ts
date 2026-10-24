@@ -25,11 +25,13 @@ import type { DesktopFeedbackSubmitParams } from '../../shared/desktop-api'
 import { IPC } from './channels'
 import { usageTrendRange } from '../services/usage-trend-query'
 import { registerReplayHandlers } from './replay-handlers'
+import { registerPlanRenewalHandlers } from './plan-renewals-handlers'
 import { registerThirdPartyNoticesHandlers } from './third-party-notices-handlers'
 import { registerScanRefreshHandlers } from './scan-refresh-handlers'
 import { registerNetworkMonitorHandlers } from './network-monitor-handlers'
 import { registerDiscoveryUiHandlers } from './discovery-ui-handlers'
 import { registerWindowMaterialIpc } from '../services/window-material.service'
+import { registerWindowStateIpc } from '../services/window-state.service'
 import { createBrowsingStateStore } from '../services/browsing-state.service'
 import { createRuntimeAccountFavorites } from '../services/account-favorites.runtime'
 import {
@@ -251,9 +253,11 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   registerDiscoveryUiHandlers(windowGetter)
   registerScanRefreshHandlers()
   registerReplayHandlers(windowGetter)
+  registerPlanRenewalHandlers(windowGetter)
   registerThirdPartyNoticesHandlers(windowGetter)
   registerNetworkMonitorHandlers(windowGetter)
   registerWindowMaterialIpc()
+  registerWindowStateIpc(windowGetter)
   const quotaMonitor = createTokenPlanMonitor((state) => {
     for (const window of BrowserWindow.getAllWindows())
       if (!window.isDestroyed() && !window.webContents.isDestroyed())

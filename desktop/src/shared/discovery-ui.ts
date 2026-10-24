@@ -7,7 +7,7 @@ import type { BrowsingPageSnapshot, BrowsingSnapshot } from './browsing-state'
 import type { ExchangeRateState } from './cost-currency'
 
 export const DISCOVERY_BRIDGE_CHANNEL = 'ohmytoken-discovery-v1'
-export const DISCOVERY_PAGE_KEYS = ['insights', 'comparison', 'agents'] as const
+export const DISCOVERY_PAGE_KEYS = ['insights', 'comparison', 'agents', 'cyber-eggs'] as const
 export type DiscoveryPageKey = (typeof DISCOVERY_PAGE_KEYS)[number]
 
 export interface DiscoveryUiAsset {
@@ -61,6 +61,9 @@ export interface DiscoveryHostContext {
 }
 export const DISCOVERY_CATALOG_KEYS = [
   'discoveryConfig',
+  'cyberEggProviders',
+  'cyberEggCalendar',
+  'cyberEggActivities',
   'plans',
   'planTier',
   'apiModels',
@@ -135,5 +138,6 @@ export function discoveryPageKey(route: string): DiscoveryPageKey | null {
   if (/^\/insight(?:\/(?:favorites|\d+))?$/.test(path)) return 'insights'
   if (/^\/codingplan(?:\/favorites)?$/.test(path)) return 'comparison'
   if (/^\/agent-download(?:\/(?:favorites|\d+))?$/.test(path)) return 'agents'
+  if (/^\/cyber-eggs(?:\/[a-z0-9][a-z0-9-]{1,47})?$/.test(path)) return 'cyber-eggs'
   return null
 }

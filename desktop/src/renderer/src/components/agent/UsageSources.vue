@@ -90,7 +90,9 @@ const rows = computed(() => {
           :format="{ percent: true }"
         />
       </span>
-      <span class="numeric"><AnimatedCost :summary="row.costSummary" :note="false" /></span>
+      <span class="numeric">
+        <AnimatedCost :summary="row.costSummary" :note="false" :estimate-mark="false" />
+      </span>
     </div>
   </section>
 </template>

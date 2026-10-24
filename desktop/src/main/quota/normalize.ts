@@ -2,6 +2,7 @@ import type { TokenPlanInformation, TokenPlanWindowUsage } from '../../shared/to
 import type { DiscoveredConnection, JsonObject } from './types'
 import { balanceValue, numberValue, object, percentage, textValue, timestamp } from './types'
 import { deepSeekBalances } from './deepseek-balance'
+import { grokCreditUsagePercent } from './grok-billing'
 
 export interface ParsedQuota {
   plan: TokenPlanInformation
@@ -54,7 +55,6 @@ export function initialPlan(connection: DiscoveredConnection): TokenPlanInformat
     openai: 'Codex',
     anthropic: 'Claude',
     kimi: 'Kimi Code',
-    google: 'Gemini Code Assist',
     antigravity: 'Antigravity',
     deepseek: connection.public.authType === 'api-key' ? 'DeepSeek API' : 'DeepSeek Harness',
     xai: 'Grok',
@@ -342,22 +342,6 @@ function parseKimi(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindo
   })
 }
 
-function parseGemini(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindowUsage[] {
-  const tier = object(body.accountTier)
-  returnedTier(plan, tier.name ?? tier.id)
-  if (!Array.isArray(body.buckets)) throw new Error('invalid_response')
-  return rows(body.buckets).map((row, index) => {
-    const fraction = numberValue(row.remainingFraction)
-    return quotaWindow(`google:${index}`, textValue(row.modelId) ?? 'quota', {
-      remainingPercent: fraction !== null && fraction <= 1 ? fraction * 100 : null,
-      windowMinutes: 1440,
-      remaining: numberValue(row.remainingAmount),
-      resetsAt: timestamp(row.resetTime),
-      unit: row.tokenType === 'REQUESTS' ? 'requests' : null,
-    })
-  })
-}
-
 function parseAntigravity(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindowUsage[] {
   if (
     (body.code !== undefined && ![0, 200, '0', '200'].includes(body.code as string | number)) ||
@@ -410,7 +394,9 @@ function parseAntigravity(body: JsonObject, plan: TokenPlanInformation): TokenPl
       const values = {
         remainingPercent:
           bucket.disabled !== true && fraction !== null && fraction <= 1 ? fraction * 100 : null,
-        resetsAt: timestamp(bucket.resetTime),
+        // Hub omits the reset description for unused windows; their resetTime moves on each fetch.
+        resetsAt:
+          fraction === 1 && !textValue(bucket.description) ? null : timestamp(bucket.resetTime),
       }
       const key = `${family}:${kind}`
       const previous = found.get(key)
@@ -452,12 +438,14 @@ function parseGrok(body: JsonObject, plan: TokenPlanInformation): TokenPlanWindo
     )
     return cents === null ? null : cents / 100
   }
+  const limit = dollars(row.monthlyLimit)
+  const used = dollars(row.used)
   const windows = [
     quotaWindow('grok:credits', textValue(period.type) ?? 'Credits', {
-      usedPercent: percentage(row.creditUsagePercent),
-      limit: dollars(row.monthlyLimit),
-      used: dollars(row.used),
-      unit: 'USD',
+      usedPercent: grokCreditUsagePercent(row),
+      limit,
+      used,
+      unit: limit !== null || used !== null ? 'USD' : null,
       startsAt: timestamp(period.start ?? row.billingPeriodStart),
       resetsAt: timestamp(period.end ?? row.billingPeriodEnd),
     }),
@@ -491,7 +479,6 @@ export function parseQuota(connection: DiscoveredConnection, value: unknown): Pa
     openai: () => parseCodex(body, plan),
     anthropic: () => parseClaude(body),
     kimi: () => parseKimi(body, plan),
-    google: () => parseGemini(body, plan),
     antigravity: () => parseAntigravity(body, plan),
     deepseek: () =>
       deepSeekBalances(connection, body).map(({ id, label, ...values }) =>
@@ -504,9 +491,6 @@ export function parseQuota(connection: DiscoveredConnection, value: unknown): Pa
   return {
     plan,
     windows,
-    models:
-      connection.public.providerId === 'google'
-        ? rows(body.buckets).flatMap((row) => (textValue(row.modelId) ? [String(row.modelId)] : []))
-        : [],
+    models: [],
   }
 }

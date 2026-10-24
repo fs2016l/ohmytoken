@@ -1,3 +1,5 @@
+export const UI_FONT_WEIGHT = 500
+
 export const INTERFACE_FONT_IDS = [
   'system',
   'inter',
@@ -49,10 +51,10 @@ export interface FontOption<Id extends string> {
 }
 
 const STANDARD_WEIGHTS: FontWeightProfile = {
-  regular: 400,
-  medium: 500,
-  semibold: 600,
-  display: 600,
+  regular: UI_FONT_WEIGHT,
+  medium: UI_FONT_WEIGHT,
+  semibold: UI_FONT_WEIGHT,
+  display: UI_FONT_WEIGHT,
 }
 
 export const DEFAULT_INTERFACE_FONT: InterfaceFont = 'source-han-sans'
@@ -68,7 +70,7 @@ export const interfaceFontOptions: readonly FontOption<InterfaceFont>[] = [
   {
     id: 'inter',
     name: { en: 'Inter', zh: 'Inter' },
-    weights: { ...STANDARD_WEIGHTS, display: 650 },
+    weights: STANDARD_WEIGHTS,
   },
   {
     id: 'noto-sans-sc',

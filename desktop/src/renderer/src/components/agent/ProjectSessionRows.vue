@@ -67,6 +67,10 @@ watch(
     @click="emit('select', session)"
   >
     <td />
+    <td class="expand-cell" />
+    <td class="recent-cell" :title="displayTimestamp(session.endedAt)">
+      {{ displayRecentActivity(session.endedAt, new Date(now)) }}
+    </td>
     <td>
       <button
         type="button"
@@ -96,13 +100,10 @@ watch(
         :turns="session.turns"
       />
     </td>
-    <td class="recent-cell" :title="displayTimestamp(session.endedAt)">
-      {{ displayRecentActivity(session.endedAt, new Date(now)) }}
-    </td>
   </tr>
   <tr v-if="resource.error.value" class="project-session-row">
-    <td />
-    <td colspan="5">
+    <td colspan="3" />
+    <td colspan="4">
       <div class="workspace-error" role="alert">
         {{ resource.error.value }}
         <button type="button" class="workspace-link" @click="resource.refresh()">
@@ -112,8 +113,8 @@ watch(
     </td>
   </tr>
   <tr v-else-if="!resource.data.value.items.length" class="project-session-row">
-    <td />
-    <td colspan="5" class="project-sessions-empty">
+    <td colspan="3" />
+    <td colspan="4" class="project-sessions-empty">
       {{
         resource.busy.value
           ? label('Loading sessions…', '正在读取会话…')
@@ -122,8 +123,8 @@ watch(
     </td>
   </tr>
   <tr class="project-session-row">
-    <td />
-    <td colspan="5">
+    <td colspan="3" />
+    <td colspan="4">
       <div class="project-sessions-footer">
         <button type="button" class="workspace-link" @click="emit('collapse')">
           {{ label('Collapse sessions', '收起会话') }}

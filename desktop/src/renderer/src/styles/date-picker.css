@@ -1,5 +1,48 @@
 @import '@vuepic/vue-datepicker/dist/main.css';
 
+/* Shared by the existing range picker and single-date editors, including modal popovers. */
+.workspace-calendar {
+  --dp-background-color: var(--surface-low);
+  --dp-text-color: var(--text);
+  --dp-hover-color: var(--bg-hover);
+  --dp-hover-text-color: var(--text);
+  --dp-primary-color: var(--primary);
+  --dp-primary-text-color: var(--primary-on);
+  --dp-menu-border-color: var(--border);
+  --dp-icon-color: var(--text-muted);
+  --dp-border-color-hover: var(--accent);
+  --dp-cell-in-range-bg: var(--primary-soft);
+  --dp-border-color: var(--border);
+  --dp-border-radius: 12px;
+  --dp-font-family: var(--font-ui, var(--font-sans));
+  --dp-disabled-color: var(--bg-hover);
+  --dp-disabled-color-text: var(--text-soft);
+  --dp-secondary-color: var(--text-soft);
+  --dp-border-color-focus: var(--accent);
+  --dp-common-transition: background var(--motion-hover) var(--motion-ease);
+  box-shadow: var(--shadow-popover);
+}
+
+.workspace-single-calendar {
+  --dp-cell-size: 36px;
+  --dp-cell-padding: 0;
+  --dp-cell-border-radius: 10px;
+  --dp-font-size: 13px;
+  box-shadow: none;
+}
+.workspace-single-calendar .dp--calendar-header-separator {
+  display: none;
+}
+.workspace-single-calendar .dp--calendar-header-item {
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 400;
+}
+.workspace-single-calendar .dp--month-year-select {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 :is(.workspace-calendar, .base-date-picker) :is(.dp--calendar-header, .dp--calendar-row) {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

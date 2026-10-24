@@ -2,6 +2,7 @@ export interface NumberFormatOptions {
   compact?: boolean
   decimals?: number
   currency?: string
+  currencyPosition?: 'prefix' | 'suffix'
   percent?: boolean
 }
 
@@ -51,7 +52,18 @@ export function formatNumber(
     }
   }
   const rounded = Math.round((value / divisor) * 10 ** decimals) / 10 ** decimals
-  return `${formatter.format(Object.is(rounded, -0) ? 0 : rounded)}${suffix}${options.percent ? '%' : ''}`
+  const amount = Object.is(rounded, -0) ? 0 : rounded
+  if (options.currency && options.currencyPosition === 'suffix') {
+    const parts = formatter.formatToParts(amount)
+    const number = parts
+      .filter((part) => part.type !== 'currency')
+      .map((part) => part.value)
+      .join('')
+      .trim()
+    const symbol = parts.find((part) => part.type === 'currency')?.value
+    return `${number}${suffix}${options.percent ? '%' : ''} ${symbol}`
+  }
+  return `${formatter.format(amount)}${suffix}${options.percent ? '%' : ''}`
 }
 
 export function combinedCache(usage: {

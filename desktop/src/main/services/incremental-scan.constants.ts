@@ -14,12 +14,15 @@ const AGENT_SCANNER_REVISIONS: Readonly<Record<string, number>> = {
   // 原生轮级首 Token 仍保留，随后沿用增量检查点。
   codex: 9,
   // 回填 thinking 首块推导的估算首字与估算流速，并按 custom-title 与桌面端元数据
-  // 重建会话标题和侧边会话的父子关系；版本 7 让最近响应缺首字的会话沿用更早一次的首字。
-  'claude-code': 7,
+  // 重建会话标题和侧边会话的父子关系；版本 7 让最近响应缺首字的会话沿用更早一次的首字；
+  // 版本 8 用父线程 Agent 结果的末次 usage 补齐旧版子代理转录缺失的最终 output。
+  'claude-code': 8,
   // 回填单次推理的原生首 Token 与流输出计时。
   grok: 5,
   // 从完成助手消息直接回填最新 API，兼容零 decode；不再跨表猜测请求。
-  'minimax-code': 7,
+  // 版本 8 按 runtime turn_id 及该轮用户消息来源回填对话次数，不改变 Token 计量。
+  // 版本 9 从逐次助手历史及压缩快照恢复型号，重新归属历史用量并计算参考费用。
+  'minimax-code': 9,
   // 回填转录父链中原生 API 完成事件提供的生成计时。
   qwen: 6,
   gemini: 4,
@@ -27,13 +30,16 @@ const AGENT_SCANNER_REVISIONS: Readonly<Record<string, number>> = {
   'kimi-code': 6,
   // 从已有会话日志补齐生成计时；保留已经采集但原日志已删除的历史。
   'deepseek-harness': 4,
-  // 补齐已有逐请求/逐 step 的原生首 Token 延迟和流输出计时。
-  zcode: 4,
+  // 补齐已有逐请求/逐 step 的原生首 Token 延迟和流输出计时；版本 5 按触发请求的用户消息
+  // 及其 semantics.origin 回填对话次数，不改变 Token 计量。
+  zcode: 5,
   kimiwork: 4,
   // 回填新版带 PID / MODEL_REQUEST 标记、逐调用 messageId 的原生计时。
   workbuddy: 6,
   // 读取助手消息已有的原生单次生成计时，保留会话累计用量口径。
   goose: 4,
+  // 按用户明确输入的 USER_INPUT 步骤回填对话次数，不改变 Token 计量。
+  antigravity: 4,
 }
 
 export function scannerRevisionForAgent(agent: string): number {

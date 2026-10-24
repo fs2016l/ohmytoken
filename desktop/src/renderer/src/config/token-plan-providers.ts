@@ -51,14 +51,6 @@ export const TOKEN_PLAN_PROVIDERS: TokenPlanProviderMeta[] = [
     docsUrl: 'https://www.kimi.com/code',
   },
   {
-    id: 'google',
-    nameEn: 'Google',
-    nameZh: 'Google',
-    mark: 'G',
-    brandColor: '#2563eb',
-    docsUrl: 'https://geminicli.com/docs/quota-and-pricing/',
-  },
-  {
     id: 'deepseek',
     nameEn: 'DeepSeek',
     nameZh: 'DeepSeek',

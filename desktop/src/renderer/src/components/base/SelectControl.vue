@@ -156,7 +156,11 @@ onBeforeUnmount(() => clearTimeout(timer))
     @click="open = !open"
     @keydown="keydown"
   >
-    <span class="select-control-value">{{ selectedLabel }}</span>
+    <span class="select-control-value">
+      <slot name="value" :option="options[selected]" :label="selectedLabel">
+        {{ selectedLabel }}
+      </slot>
+    </span>
     <DropdownChevron :open="open" />
   </button>
   <SelectionPopover
@@ -185,7 +189,9 @@ onBeforeUnmount(() => clearTimeout(timer))
         @focus="active = index"
         @click="choose(index)"
       >
-        <span>{{ option.label }}</span>
+        <span>
+          <slot name="option" :option="option">{{ option.label }}</slot>
+        </span>
         <span class="material-symbols-outlined select-option-check" aria-hidden="true">check</span>
       </button>
       <p v-if="!options.length">{{ text('No options', '暂无选项') }}</p>

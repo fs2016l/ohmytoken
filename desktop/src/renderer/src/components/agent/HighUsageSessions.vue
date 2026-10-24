@@ -67,7 +67,7 @@ header button {
   background: transparent;
   color: var(--text);
   font-size: 12px;
-  font-weight: 400;
+  font-weight: var(--weight-ui);
   line-height: 18px;
   cursor: pointer;
   text-align: right;

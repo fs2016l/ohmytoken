@@ -11,7 +11,8 @@ import { createChartTooltip, chartTooltipPosition } from '../../utils/chart-tool
 import { modelSeriesColor } from '../../utils/model-series-color'
 import { useChartColorMode } from '../../composables/useChartColorMode'
 import { useUsageBarHover } from '../../composables/useUsageBarHover'
-import { selectChartLabelIndices } from '../../utils/chart-label-layout'
+import { layoutChartLabels, type ChartLabelPlacement } from '../../utils/chart-label-layout'
+import { UI_FONT_WEIGHT } from '../../config/typography'
 import { modelLogoUrl } from '../../config/brand-logos'
 import '../../styles/chart-tooltip.css'
 const props = withDefaults(
@@ -20,9 +21,8 @@ const props = withDefaults(
     label: string
     mini?: boolean
     weekday?: boolean
-    labelsVisible?: boolean
   }>(),
-  { mini: false, weekday: false, labelsVisible: false },
+  { mini: false, weekday: false },
 )
 const tokens = useChartTokens()
 const { mode } = useChartColorMode()
@@ -52,30 +52,42 @@ function weekdayLabel(key: string): string {
   return weekdayNames.value[day] ?? key
 }
 const plot = ref<InstanceType<typeof WorkspaceChart> | null>(null)
-const labelIndices = shallowRef<number[]>([])
+const labelPlacements = shallowRef<ChartLabelPlacement[]>([])
 function updateLabelLayout(): void {
-  const width = (plot.value?.$el as HTMLElement | undefined)?.clientWidth
-  if (!width) return
+  const layout = plot.value?.getBarLayout('tonal-total')
+  const first = layout?.bars[0]
+  if (!layout || !first) return
   const family = getComputedStyle(document.documentElement).getPropertyValue('--font-number').trim()
-  const font = `600 ${props.mini ? 10 : 11}px ${family || 'sans-serif'}`
+  const font = `${UI_FONT_WEIGHT} ${props.mini ? 10 : 11}px ${family || 'sans-serif'}`
+  const baseline = first.y + first.height
   const candidates = props.points.flatMap((point, index) => {
-    const center = plot.value?.getCategoryPosition(index)
-    if (center === undefined || point.value <= 0) return []
+    const bar = layout.bars[index]
+    if (!bar || point.value <= 0) return []
+    const text = chartFormat.getTextRect(formatNumber(point.value, { compact: true }), font)
     return [
       {
         index,
         value: point.value,
-        center,
-        width: chartFormat.getTextRect(formatNumber(point.value, { compact: true }), font).width,
+        bar,
+        width: text.width,
+        height: text.height,
       },
     ]
   })
-  const next = selectChartLabelIndices(candidates, width, props.mini ? 16 : 12)
+  const next = layoutChartLabels(candidates, {
+    x: first.x + first.width / 2 - layout.bandWidth / 2,
+    y: 0,
+    width: layout.bandWidth * props.points.length,
+    height: baseline,
+  })
   if (
-    next.length !== labelIndices.value.length ||
-    next.some((index, position) => index !== labelIndices.value[position])
+    next.length !== labelPlacements.value.length ||
+    next.some((item, index) => {
+      const previous = labelPlacements.value[index]
+      return item.index !== previous.index || item.x !== previous.x || item.y !== previous.y
+    })
   )
-    labelIndices.value = next
+    labelPlacements.value = next
 }
 const tooltip = computed<TooltipComponentOption>(() => {
   void currentLang.value
@@ -108,7 +120,7 @@ const tooltip = computed<TooltipComponentOption>(() => {
         : point.models
       const other = (!focused || focused === 'remainder') && point.otherTokens > 0
       return createChartTooltip({
-        title: point.title.replaceAll('-', '/'),
+        title: point.title,
         summary: {
           label: focused
             ? localize('Tokens', 'Token 用量')
@@ -151,7 +163,7 @@ const tooltip = computed<TooltipComponentOption>(() => {
   }
 })
 const series = computed(() => {
-  const visibleLabels = new Set(props.labelsVisible ? labelIndices.value : [])
+  const placements = new Map(labelPlacements.value.map((item) => [item.index, item]))
   const models = new Map(
     props.points.flatMap((point) => point.models.map((model) => [model.id, model.name] as const)),
   )
@@ -206,7 +218,7 @@ const series = computed(() => {
       data: props.points.map((point, index) => ({
         id: point.key,
         value: point.value,
-        label: { show: visibleLabels.has(index) },
+        label: { show: placements.has(index) },
       })),
       barMaxWidth: props.mini ? 20 : 28,
       barGap: '-100%',
@@ -220,30 +232,22 @@ const series = computed(() => {
         show: false,
         silent: true,
         position: 'top',
-        distance: 5,
+        distance: 4,
         color: tokens.value['--text'],
         opacity: 1,
         fontSize: props.mini ? 10 : 11,
-        fontWeight: 600,
-        minMargin: 6,
+        fontWeight: UI_FONT_WEIGHT,
+        minMargin: 0,
         formatter: ({ value }: { value?: unknown }) =>
           typeof value === 'number' && value > 0 ? formatNumber(value, { compact: true }) : '',
       },
-      labelLayout: ({
-        rect,
-        labelRect,
-      }: {
-        rect: { x: number; width: number }
-        labelRect: { width: number }
-      }) => {
-        const width = (plot.value?.$el as HTMLElement | undefined)?.clientWidth
-        if (!width) return { hideOverlap: true }
-        // Use the bar's center so repeated layouts never reuse a shifted label position.
-        const center = rect.x + rect.width / 2
-        const half = labelRect.width / 2
+      labelLayout: ({ dataIndex }: { dataIndex: number }) => {
+        const placement = placements.get(dataIndex)
         return {
-          hideOverlap: true,
-          dx: Math.max(half, Math.min(width - half, center)) - center,
+          hideOverlap: false,
+          ...(placement
+            ? { x: placement.x, y: placement.y, align: 'center', verticalAlign: 'bottom' }
+            : {}),
         }
       },
       emphasis: { disabled: true },

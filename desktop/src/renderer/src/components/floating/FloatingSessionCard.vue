@@ -9,6 +9,7 @@ import SessionCost from '../agent/SessionCost.vue'
 import SessionTurns from '../agent/SessionTurns.vue'
 import GenerationMetrics from '../agent/GenerationMetrics.vue'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
+import TokenShare from '../base/TokenShare.vue'
 import RollingText from '../base/RollingText.vue'
 import AgentMark from '../base/AgentMark.vue'
 import CopyText from '../base/CopyText.vue'
@@ -162,15 +163,24 @@ const relativeActivity = computed(() => {
           </div>
           <div class="token-cell">
             <span>{{ label('Input', '输入') }}</span>
-            <strong>{{ formatTokens(session.inputTokens) }}</strong>
+            <strong>
+              <span>{{ formatTokens(session.inputTokens) }}</span>
+              <TokenShare :usage="session" bucket="input" />
+            </strong>
           </div>
           <div class="token-cell">
             <span>{{ label('Output', '输出') }}</span>
-            <strong>{{ formatTokens(session.outputTokens) }}</strong>
+            <strong>
+              <span>{{ formatTokens(session.outputTokens) }}</span>
+              <TokenShare :usage="session" bucket="output" />
+            </strong>
           </div>
           <div class="token-cell">
             <span>{{ label('Cache', '缓存') }}</span>
-            <strong>{{ formatTokens(cacheTokens) }}</strong>
+            <strong>
+              <span>{{ formatTokens(cacheTokens) }}</span>
+              <TokenShare :usage="session" bucket="cache" />
+            </strong>
           </div>
           <div class="token-cell token-cell--cost">
             <span>{{ label('API equivalent', 'API 参考费用') }}</span>
@@ -189,6 +199,7 @@ const relativeActivity = computed(() => {
           <span>{{ session.childCount }} {{ label('child sessions', '个子会话') }}</span>
           <span v-if="session.reasoningTokens > 0">
             {{ label('Reasoning', '推理') }} {{ formatTokens(session.reasoningTokens) }}
+            <TokenShare :usage="session" bucket="reasoning" />
           </span>
         </div>
         <CopyText :value="session.rootSessionId" :label="label('Copy session ID', '复制会话 ID')" />

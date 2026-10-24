@@ -145,6 +145,10 @@
   font-family: var(--font-number);
   font-size: 12px;
   font-weight: 500;
+  white-space: nowrap;
+}
+.token-cell > strong .token-share {
+  font-size: 11px;
 }
 .token-cell--cost {
   grid-column: 1 / -1;

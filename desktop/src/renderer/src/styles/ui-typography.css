@@ -6,6 +6,13 @@
  * minimums used by modern Windows and macOS interfaces.
  */
 
+/* Layered importance keeps component overrides and teleported UI at one weight. */
+@layer uniform-typography {
+  :where(body, body *):not(.material-symbols-outlined) {
+    font-weight: var(--weight-ui) !important;
+  }
+}
+
 :where(#app) {
   font-family: var(--font-sans);
   font-size: var(--type-body);

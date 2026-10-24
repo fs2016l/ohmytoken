@@ -5,9 +5,10 @@
  * - Anthropic API 的 4 个 token 字段互斥：total = input + output + cacheRead + cacheWrite
  * - 按 message.id 去重（同一消息可能被多个 jsonl 引用）
  * - "<synthetic>" 模型、input/output 均为 0 的记录会被过滤
+ * - 子代理转录缺最终 usage 时，用父线程 Agent 结果的末次 usage 补齐唯一对应调用的 output
  */
 import { readdirSync, statSync } from 'fs'
-import { join, relative, sep } from 'path'
+import { basename, join, relative, sep } from 'path'
 import type {
   AgentScanner,
   ScannerUsageDetails,
@@ -29,7 +30,7 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { extractProjectPath } from './project-path'
-import { tokenBuckets } from './token-usage'
+import { tokenBucketSum, tokenBuckets, type TokenBuckets } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
 import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
 import { ClaudeResponseEstimator } from './claude-generation-timing'
@@ -89,10 +90,14 @@ export class ClaudeCodeScanner implements AgentScanner {
     const customTitleBySessionId = new Map<string, string>()
     const agentNameBySessionId = new Map<string, string>()
     const generationBySessionId = new Map<string, LatestGeneration>()
+    // 旧版子代理转录常缺最终 usage 快照；父线程的 Agent 结果保留其末次响应的完整用量。
+    const callsByAgentId = new Map<string, Set<TokenUsageApiCall>>()
+    const agentFinalUsages = new Map<string, AgentFinalUsage[]>()
 
     for (const file of jsonlFiles) {
       // 子代理转录可能带自己的名称，不能覆盖主会话标题。
       const subagentFile = relative(projectsDir, file).split(sep).includes('subagents')
+      const agentId = subagentFile ? agentIdFromFile(file) : ''
       const estimator = new ClaudeResponseEstimator()
       const fileApiCalls = new Set<TokenUsageApiCall>()
       let turn: ConversationTurn | undefined
@@ -143,6 +148,7 @@ export class ClaudeCodeScanner implements AgentScanner {
               typeof obj.uuid === 'string' ? obj.uuid : `user:${lineIndex}`,
               obj.isSidechain !== true,
             )
+          if (obj.type === 'user') collectAgentFinalUsage(agentFinalUsages, obj.toolUseResult)
           if (obj.type !== 'assistant') continue
 
           const msg = obj.message
@@ -217,6 +223,11 @@ export class ClaudeCodeScanner implements AgentScanner {
       } catch (e) {
         throw new Error(`Claude Code 会话文件不可读 (${file}): ${(e as Error).message}`)
       }
+      if (agentId && fileApiCalls.size) {
+        const agentCalls = callsByAgentId.get(agentId) ?? new Set<TokenUsageApiCall>()
+        for (const call of fileApiCalls) agentCalls.add(call)
+        callsByAgentId.set(agentId, agentCalls)
+      }
       // 计时独立于用量窗口；晚写完的消息可补样本而不重播旧 API。
       for (const call of fileApiCalls) {
         const timing = estimator.timingFor(call.sessionId, call.apiCallId)
@@ -241,6 +252,8 @@ export class ClaudeCodeScanner implements AgentScanner {
         )
       }
     }
+
+    recoverAgentFinalUsage(callsByAgentId, agentFinalUsages)
 
     // 桌面端侧边会话有独立 JSONL，父会话关系与侧栏标题只保存在桌面端元数据中。
     const desktopSessions = readClaudeDesktopSessions(this.desktopSessionRoots())
@@ -294,6 +307,71 @@ function mergeClaudeDuplicate(kept: TokenUsageApiCall, incoming: TokenUsageApiCa
     kept.model = incoming.model
     kept.evidence = incoming.evidence
     kept.projectPath = incoming.projectPath || kept.projectPath
+  }
+}
+
+interface AgentFinalUsage {
+  model: string
+  buckets: TokenBuckets
+}
+
+function agentIdFromFile(file: string): string {
+  return /^agent-(.+)\.jsonl$/.exec(basename(file))?.[1] ?? ''
+}
+
+/** Agent 工具结果里的 usage 只是子代理末次响应，不是整个子代理的累计用量。 */
+function collectAgentFinalUsage(target: Map<string, AgentFinalUsage[]>, result: unknown): void {
+  if (!isObject(result) || !isObject(result.usage)) return
+  const agentId = readString(result.agentId)
+  if (!agentId) return
+  const usage = result.usage
+  const buckets = tokenBuckets({
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    cacheReadTokens: usage.cache_read_input_tokens,
+    cacheWriteTokens: usage.cache_creation_input_tokens,
+  })
+  if (buckets.outputTokens === 0) return
+  const model = readString(result.resolvedModel)
+  const usages = target.get(agentId) ?? []
+  // fork 会复制父转录中的同一结果；继续运行的同一子代理则会产生新的末次响应。
+  if (
+    !usages.some(
+      (item) =>
+        item.model === model &&
+        item.buckets.inputTokens === buckets.inputTokens &&
+        item.buckets.outputTokens === buckets.outputTokens &&
+        item.buckets.cacheReadTokens === buckets.cacheReadTokens &&
+        item.buckets.cacheWriteTokens === buckets.cacheWriteTokens,
+    )
+  )
+    usages.push({ model, buckets })
+  target.set(agentId, usages)
+}
+
+/**
+ * 只补 output：同一子代理内模型与其余三桶唯一相等的调用才认定为同一次响应，
+ * 有歧义或无法对应时保持转录原值。
+ */
+function recoverAgentFinalUsage(
+  callsByAgentId: Map<string, Set<TokenUsageApiCall>>,
+  agentFinalUsages: Map<string, AgentFinalUsage[]>,
+): void {
+  for (const [agentId, usages] of agentFinalUsages) {
+    const calls = callsByAgentId.get(agentId)
+    if (!calls) continue
+    for (const { model, buckets } of usages) {
+      const matches = [...calls].filter(
+        (call) =>
+          (!model || call.model === model) &&
+          call.inputTokens === buckets.inputTokens &&
+          call.cacheReadTokens === buckets.cacheReadTokens &&
+          call.cacheWriteTokens === buckets.cacheWriteTokens,
+      )
+      if (matches.length !== 1 || matches[0].outputTokens >= buckets.outputTokens) continue
+      matches[0].outputTokens = buckets.outputTokens
+      matches[0].totalTokens = tokenBucketSum(matches[0])
+    }
   }
 }
 

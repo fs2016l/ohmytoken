@@ -1,11 +1,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { EChartsCoreOption } from 'echarts/core'
-import { init, type ECharts } from '../../utils/charts'
+import { init, getBarLayout as readBarLayout, type ECharts } from '../../utils/charts'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
 import { useTypography } from '../../composables/useTypography'
 import { chartMotion } from '../../config/motion'
-const props = defineProps<{ option: EChartsCoreOption; label: string; highlight?: string }>()
+import { UI_FONT_WEIGHT } from '../../config/typography'
+const props = withDefaults(
+  defineProps<{
+    option: EChartsCoreOption
+    label: string
+    highlight?: string
+    animated?: boolean
+  }>(),
+  { highlight: undefined, animated: true },
+)
 const emit = defineEmits<{
   select: [index: number]
   hover: [seriesId?: string]
@@ -14,11 +23,10 @@ const emit = defineEmits<{
 const element = ref<HTMLElement | null>(null)
 const { currentInterfaceFont, currentNumberFont } = useTypography()
 let chart: ECharts | undefined
-function getCategoryPosition(index: number): number | undefined {
-  const position = chart?.convertToPixel({ xAxisIndex: 0 }, index)
-  return typeof position === 'number' && Number.isFinite(position) ? position : undefined
+function getBarLayout(seriesId: string) {
+  return chart ? readBarLayout(chart, seriesId) : undefined
 }
-defineExpose({ getCategoryPosition })
+defineExpose({ getBarLayout })
 function applyHighlight(): void {
   chart?.dispatchAction({ type: 'downplay' })
   if (props.highlight) chart?.dispatchAction({ type: 'highlight', seriesId: props.highlight })
@@ -44,12 +52,13 @@ function render(): void {
   chart.setOption(
     {
       textStyle: {
+        fontWeight: UI_FONT_WEIGHT,
         fontFamily: getComputedStyle(document.documentElement)
           .getPropertyValue('--font-number')
           .trim(),
       },
       ...props.option,
-      ...chartMotion(reduced.value),
+      ...chartMotion(reduced.value || props.animated === false),
     },
     { replaceMerge: ['series'] },
   )
@@ -68,10 +77,14 @@ const { requestRender, reduced } = useChartRenderLifecycle(element, {
     chart = undefined
   },
 })
-watch([() => props.option, currentInterfaceFont, currentNumberFont], requestRender, {
-  deep: true,
-  flush: 'post',
-})
+watch(
+  [() => props.option, () => props.animated, currentInterfaceFont, currentNumberFont],
+  requestRender,
+  {
+    deep: true,
+    flush: 'post',
+  },
+)
 </script>
 <template><div ref="element" class="workspace-chart" role="img" :aria-label="label" /></template>
 <style scoped>

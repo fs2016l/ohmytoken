@@ -42,11 +42,28 @@ export function validateDiscoveryCatalog(value: unknown): DiscoveryCatalogReques
   const input = source.method === 'GET' ? source.query : source.body
   const query: Record<string, string | number> = {}
   for (const [name, item] of Object.entries(input === undefined ? {} : record(input))) {
+    if (
+      key === 'cyberEggActivities' &&
+      !['provider', 'lang', 'pageNum', 'pageSize', 'snapshot'].includes(name)
+    )
+      throw new Error('Unknown cyber egg activity field')
     if (item === undefined || item === null) continue
     if (
       (name === 'scope' &&
         key === 'discoveryConfig' &&
         ['agents', 'articles', 'comparison'].includes(String(item))) ||
+      (name === 'provider' &&
+        (key === 'cyberEggCalendar' || key === 'cyberEggActivities') &&
+        typeof item === 'string' &&
+        /^[a-z0-9][a-z0-9-]{1,47}$/.test(item)) ||
+      (name === 'month' &&
+        key === 'cyberEggCalendar' &&
+        typeof item === 'string' &&
+        /^(?:20\d{2}|2100)-(?:0[1-9]|1[0-2])$/.test(item)) ||
+      (name === 'snapshot' &&
+        key === 'cyberEggActivities' &&
+        typeof item === 'string' &&
+        /^\d{13}\.[a-f0-9]{64}$/.test(item)) ||
       (name === 'lang' && (item === 'zh' || item === 'en')) ||
       (name === 'market' && (item === 'china' || item === 'global')) ||
       (name === 'direction' && (item === 'asc' || item === 'desc'))
@@ -54,7 +71,7 @@ export function validateDiscoveryCatalog(value: unknown): DiscoveryCatalogReques
       query[name] = item as string
     else if (name === 'pageNum' || name === 'pageSize') {
       if (
-        !listKeys.has(key) ||
+        (!listKeys.has(key) && key !== 'cyberEggActivities') ||
         !Number.isSafeInteger(item) ||
         Number(item) < 1 ||
         Number(item) > (name === 'pageSize' ? 100 : 1_000_000)
@@ -82,6 +99,8 @@ export function validateDiscoveryCatalog(value: unknown): DiscoveryCatalogReques
       query[name] = item
     else throw new Error('Unknown discovery query field')
   }
+  if (key === 'cyberEggCalendar' && (!query.provider || !query.month))
+    throw new Error('Missing cyber egg calendar selection')
   return {
     key,
     method: source.method,

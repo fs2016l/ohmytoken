@@ -34,6 +34,8 @@ import { isIncrementalContext, normalizeScanContext } from './incremental-utils'
 import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
 import { readMiniMaxLatestGenerations } from './minimax-generation-timing'
+import { miniMaxTurnReader } from './minimax-turns'
+import { miniMaxModelHistoryReader } from './minimax-model-history'
 import { latestGeneration } from '../../shared/generation-timing'
 import type { LatestGeneration } from '../../shared/models'
 
@@ -234,6 +236,15 @@ export class MiniMaxCodeScanner implements AgentScanner {
       const params: QueryParam[] = isIncrementalContext(scanContext) ? [scanContext.sinceMs] : []
 
       const usageRows = queryAll(db, sql, params)
+      const readHistoricalModel =
+        usageTable === 'local_runtime_token_usage'
+          ? miniMaxModelHistoryReader(db, dbPath)
+          : undefined
+      // 旧版 token_usage 的 turn_id 逐调用生成且不关联用户消息，轮次保留未知。
+      const readTurn =
+        usageTable === 'local_runtime_token_usage' && has('turn_id')
+          ? miniMaxTurnReader(db)
+          : undefined
       if (usageTable === 'local_runtime_token_usage') {
         const timingSessionIds = new Set(sessionMetadata.timingSessionIds)
         for (const row of usageRows) {
@@ -251,9 +262,10 @@ export class MiniMaxCodeScanner implements AgentScanner {
       for (const row of usageRows) {
         const ts = toLong(row.ts)
         const rowModel = hasModel && typeof row.model === 'string' ? row.model.trim() : ''
-        // 新版 runtime 的 model 列常为 NULL；config.yaml 的 defaultModel 是最后的模型依据。
-        const model = rowModel || configuredModel || 'unknown'
-        const modelFromConfig = rowModel === '' && configuredModel !== ''
+        // 新版 runtime 将逐次型号留在助手历史中；仅无法恢复时才使用当前配置展示。
+        const historicalModel = rowModel ? undefined : readHistoricalModel?.(row)
+        const model = rowModel || historicalModel || configuredModel || 'unknown'
+        const modelFromConfig = !rowModel && !historicalModel && configuredModel !== ''
 
         const buckets = tokenBuckets({
           inputTokens: hasInput ? row.input_tokens : 0,
@@ -319,12 +331,14 @@ export class MiniMaxCodeScanner implements AgentScanner {
         const projectPath =
           (projectPathColumn ? normalizeCollectedProjectPath(row[projectPathColumn]) : undefined) ||
           (sourceSessionId ? sessionMetadata.projectPaths.get(sourceSessionId) : '')
+        const turn = sourceSessionId ? readTurn?.(sourceSessionId, row.turn_id) : undefined
 
         apiCalls.push({
           agent: this.agentName,
           apiCallId: `${callIdPrefix}:${rowId}`,
           sessionId,
           ...(projectPath ? { projectPath } : {}),
+          ...(turn ? { turn } : {}),
           date,
           rawTimestamp,
           timestamp,
@@ -333,6 +347,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
           evidence: usageEvidence({
             bucketQuality: hasInput && hasOutput ? 'verified' : 'uncertain',
             modelSource: modelFromConfig ? 'current-config' : 'response',
+            modelId: historicalModel,
           }),
           // MiniMax 官方口径 total = input + output + cacheRead + cacheWrite + reasoning
           // 已用 token_usage.raw 字段验证：raw.total == 五项之和（全表 162/162 行吻合）

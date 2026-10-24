@@ -43,7 +43,11 @@ export interface TokenBarPoint {
   otherTokens: number
 }
 
-export function tokenBars(data: UsageAnalytics | null, model?: string): TokenBarPoint[] {
+export function tokenBars(
+  data: UsageAnalytics | null,
+  model?: string,
+  granularity: 'auto' | 'day' | 'hour' = 'auto',
+): TokenBarPoint[] {
   if (!data) return []
   const names = new Map(data.models.map((item) => [item.id, item.name]))
   const buckets = new Map<string, { title: string; value: number; models: Map<string, number> }>()
@@ -61,7 +65,10 @@ export function tokenBars(data: UsageAnalytics | null, model?: string): TokenBar
       if (usage?.tokens > 0) bucket.models.set(id, (bucket.models.get(id) || 0) + usage.tokens)
     }
   }
-  if (data.from === data.to && data.hours.length && data.hourlyComplete) {
+  if (
+    granularity === 'hour' ||
+    (granularity === 'auto' && data.from === data.to && data.hours.length && data.hourlyComplete)
+  ) {
     const hours = new Map(data.hours.map((hour) => [hour.key, hour]))
     for (let hour = 0; hour < 24; hour++) {
       const key = `${String(hour).padStart(2, '0')}:00`
@@ -70,7 +77,7 @@ export function tokenBars(data: UsageAnalytics | null, model?: string): TokenBar
   } else {
     const values = new Map(data.days.map((day) => [day.key, day]))
     const days = calendarDays(data.from, data.to),
-      byMonth = days.length > 62
+      byMonth = granularity === 'auto' && days.length > 62
     for (const day of days) {
       const key = byMonth ? day.slice(0, 7) : day
       add(key, key, values.get(day))

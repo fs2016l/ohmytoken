@@ -1,17 +1,16 @@
 <script setup lang="ts">
-import { computed, onDeactivated, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import type { UsageAnalytics } from '@shared/analytics'
 import type { Overview } from '@shared/models'
 import PageSurface from '../components/base/PageSurface.vue'
 import DateRangeControl from '../components/base/DateRangeControl.vue'
 import ChartColorControl from '../components/base/ChartColorControl.vue'
-import SegmentedControl from '../components/base/SegmentedControl.vue'
 import AnimatedNumber from '../components/base/AnimatedNumber.vue'
 import AnimatedCost from '../components/base/AnimatedCost.vue'
 import CardStatsFooter from '../components/base/CardStatsFooter.vue'
 import UsageBars from '../components/agent/UsageBars.vue'
-import OverviewUsageCard from '../components/agent/OverviewUsageCard.vue'
+import OverviewActiveUsage from '../components/agent/OverviewActiveUsage.vue'
 import ProjectButterfly from '../components/agent/ProjectButterfly.vue'
 import { usePageState } from '../composables/usePageState'
 import { usePageResource } from '../composables/usePageResource'
@@ -21,18 +20,14 @@ import { provideUsageBarHover } from '../composables/useUsageBarHover'
 import { useI18n } from '../i18n/useI18n'
 import { presetRange } from '../utils/date-range'
 import { calendarDays, tokenBars } from '../utils/analytics-display'
+import { motion } from '../config/motion'
 const { label } = useI18n(),
   router = useRouter()
 provideUsageBarHover()
-const rhythmLabelsVisible = ref(false)
-const projectLabelsVisible = ref(false)
-onDeactivated(() => {
-  rhythmLabelsVisible.value = false
-  projectLabelsVisible.value = false
-})
 const state = usePageState('overview', {
   range: presetRange('today'),
   activeDimension: 'models' as 'models' | 'agents',
+  cardsExpanded: false,
   defaultsVersion: 0,
 })
 if (!state.defaultsVersion) {
@@ -41,10 +36,6 @@ if (!state.defaultsVersion) {
 }
 useRollingDateRange(state)
 const activeDimension = computed(() => (state.activeDimension === 'agents' ? 'agents' : 'models'))
-const activeOptions = computed(() => [
-  { value: 'models', label: label('Active models', '活跃模型') },
-  { value: 'agents', label: label('Active agents', '活跃 Agent') },
-])
 const scan = useScanStatus()
 const resource = usePageResource(
   () => [state.range, scan.revision.value],
@@ -61,7 +52,6 @@ const fixed = usePageResource(
   null as Overview | null,
 )
 const data = resource.data
-const activeItems = computed(() => data.value?.[activeDimension.value].slice(0, 3) || [])
 const days = computed(() => (data.value ? calendarDays(data.value.from, data.value.to) : []))
 const peak = computed(() =>
   data.value ? Math.max(0, ...data.value.days.map((day) => day.total.tokens)) : null,
@@ -113,7 +103,7 @@ async function retry(): Promise<void> {
 }
 </script>
 <template>
-  <PageSurface page-key="overview" class="overview-page">
+  <PageSurface page-key="overview" fixed class="overview-page">
     <div class="workspace-heading">
       <div>
         <div class="overview-title-row">
@@ -134,180 +124,140 @@ async function retry(): Promise<void> {
         {{ label('Retry', '重试') }}
       </button>
     </p>
-    <div class="overview-top" :aria-busy="resource.busy.value">
-      <section class="overview-figures workspace-panel">
-        <header>
-          <h2>{{ label('Period overview', '期间概况') }}</h2>
-          <span>
-            {{ label('All time', '累计') }}
-            <AnimatedNumber :value="fixed.data.value?.grandTotal" :format="{ compact: true }" />
-          </span>
-        </header>
-        <div class="period-figures">
-          <div>
-            <span>{{ label('Tokens in range', '区间用量') }}</span>
-            <strong>
-              <AnimatedNumber
-                :value="data?.summary.totalTokens"
-                :format="{ compact: true }"
-                motion="digits"
+    <div
+      class="overview-content"
+      :class="{ 'overview-content--expanded': state.cardsExpanded }"
+      :style="{ '--detail-duration': `${motion.detail}ms` }"
+    >
+      <div class="overview-summary" :inert="state.cardsExpanded">
+        <div class="overview-top" :aria-busy="resource.busy.value">
+          <section class="overview-figures workspace-panel">
+            <header>
+              <h2>{{ label('Period overview', '期间概况') }}</h2>
+              <span>
+                {{ label('All time', '累计') }}
+                <AnimatedNumber :value="fixed.data.value?.grandTotal" :format="{ compact: true }" />
+              </span>
+            </header>
+            <div class="period-figures">
+              <div>
+                <span>{{ label('Tokens in range', '区间用量') }}</span>
+                <strong>
+                  <AnimatedNumber
+                    :value="data?.summary.totalTokens"
+                    :format="{ compact: true }"
+                    motion="digits"
+                  />
+                </strong>
+              </div>
+              <button type="button" @click="fees">
+                <span>{{ label('Est. cost', '预估花费') }}</span>
+                <strong>
+                  <AnimatedCost
+                    :summary="data?.summary.costSummary"
+                    :estimate-mark="false"
+                    motion="digits"
+                  />
+                </strong>
+              </button>
+              <div>
+                <span>{{ label('Daily average', '日均用量') }}</span>
+                <strong>
+                  <AnimatedNumber
+                    :value="data ? data.summary.totalTokens / Math.max(1, days.length) : null"
+                    :format="{ compact: true }"
+                    motion="digits"
+                  />
+                </strong>
+              </div>
+              <div>
+                <span>{{ label('Daily peak', '单日峰值') }}</span>
+                <strong>
+                  <AnimatedNumber :value="peak" :format="{ compact: true }" motion="digits" />
+                </strong>
+              </div>
+            </div>
+            <CardStatsFooter
+              :items="[
+                { id: 'agents', label: 'Agent' },
+                { id: 'models', label: label('Models', '模型') },
+                { id: 'days', label: label('Active days', '活跃天数') },
+              ]"
+            >
+              <template #agents>
+                <AnimatedNumber :value="data?.agents.length" :format="{ decimals: 0 }">
+                  <template #leading>
+                    <i class="material-symbols-outlined" aria-hidden="true">code</i>
+                  </template>
+                </AnimatedNumber>
+              </template>
+              <template #models>
+                <AnimatedNumber :value="data?.models.length" :format="{ decimals: 0 }">
+                  <template #leading>
+                    <i class="material-symbols-outlined" aria-hidden="true">stacks</i>
+                  </template>
+                </AnimatedNumber>
+              </template>
+              <template #days>
+                <AnimatedNumber :value="activeDays" :format="{ decimals: 0 }">
+                  <template #leading>
+                    <i class="material-symbols-outlined" aria-hidden="true">calendar_month</i>
+                  </template>
+                </AnimatedNumber>
+              </template>
+            </CardStatsFooter>
+          </section>
+          <section class="overview-rhythm workspace-panel">
+            <header>
+              <div>
+                <h2>{{ label('Usage rhythm', '用量节奏') }}</h2>
+                <p>
+                  {{ data?.from || '—' }} – {{ data?.to || '—' }} ·
+                  {{ label('Total tokens', 'Token 总量') }}
+                </p>
+              </div>
+              <button type="button" class="workspace-link" @click="analytics">
+                {{ label('Explore', '深入分析') }} ↗
+              </button>
+            </header>
+            <div class="rhythm-plot">
+              <UsageBars
+                :points="tokenBars(data)"
+                :weekday="state.range.preset === 'week'"
+                :label="label('Tokens over the selected period', '选定区间 Token 用量趋势')"
               />
-            </strong>
-          </div>
-          <button type="button" @click="fees">
-            <span>{{ label('Est. cost', '预估花费') }}</span>
-            <strong>
-              <AnimatedCost
-                :summary="data?.summary.costSummary"
-                :estimate-mark="false"
-                motion="digits"
-              />
-            </strong>
-          </button>
-          <div>
-            <span>{{ label('Daily average', '日均用量') }}</span>
-            <strong>
-              <AnimatedNumber
-                :value="data ? data.summary.totalTokens / Math.max(1, days.length) : null"
-                :format="{ compact: true }"
-                motion="digits"
-              />
-            </strong>
-          </div>
-          <div>
-            <span>{{ label('Daily peak', '单日峰值') }}</span>
-            <strong>
-              <AnimatedNumber :value="peak" :format="{ compact: true }" motion="digits" />
-            </strong>
-          </div>
+            </div>
+          </section>
+          <section class="overview-projects workspace-panel">
+            <header>
+              <h2>{{ label('Project usage', '项目用量') }}</h2>
+              <button type="button" class="workspace-link" @click="projects()">
+                {{ label('View projects', '查看项目') }} ↗
+              </button>
+            </header>
+            <ProjectButterfly
+              :projects="data?.projects || []"
+              :model-usage="data?.projectModels || {}"
+              :total-tokens="data?.summary.totalTokens"
+              :cost-summary="data?.summary.costSummary"
+              :from="data?.from"
+              :to="data?.to"
+              @select="projects"
+            />
+          </section>
         </div>
-        <CardStatsFooter
-          :items="[
-            { id: 'agents', label: 'Agent' },
-            { id: 'models', label: label('Models', '模型') },
-            { id: 'days', label: label('Active days', '活跃天数') },
-          ]"
-        >
-          <template #agents>
-            <AnimatedNumber :value="data?.agents.length" :format="{ decimals: 0 }">
-              <template #leading>
-                <i class="material-symbols-outlined" aria-hidden="true">code</i>
-              </template>
-            </AnimatedNumber>
-          </template>
-          <template #models>
-            <AnimatedNumber :value="data?.models.length" :format="{ decimals: 0 }">
-              <template #leading>
-                <i class="material-symbols-outlined" aria-hidden="true">stacks</i>
-              </template>
-            </AnimatedNumber>
-          </template>
-          <template #days>
-            <AnimatedNumber :value="activeDays" :format="{ decimals: 0 }">
-              <template #leading>
-                <i class="material-symbols-outlined" aria-hidden="true">calendar_month</i>
-              </template>
-            </AnimatedNumber>
-          </template>
-        </CardStatsFooter>
-      </section>
-      <section
-        class="overview-rhythm workspace-panel"
-        @mouseenter="rhythmLabelsVisible = true"
-        @mouseleave="rhythmLabelsVisible = false"
-      >
-        <header>
-          <div>
-            <h2>{{ label('Usage rhythm', '用量节奏') }}</h2>
-            <p>
-              {{ data?.from || '—' }} – {{ data?.to || '—' }} ·
-              {{ label('Total tokens', 'Token 总量') }}
-            </p>
-          </div>
-          <button type="button" class="workspace-link" @click="analytics">
-            {{ label('Explore', '深入分析') }} ↗
-          </button>
-        </header>
-        <div class="rhythm-plot">
-          <UsageBars
-            :points="tokenBars(data)"
-            :labels-visible="rhythmLabelsVisible"
-            :weekday="state.range.preset === 'week'"
-            :label="label('Tokens over the selected period', '选定区间 Token 用量趋势')"
-          />
-        </div>
-      </section>
-      <section
-        class="overview-projects workspace-panel"
-        @mouseenter="projectLabelsVisible = true"
-        @mouseleave="projectLabelsVisible = false"
-      >
-        <header>
-          <h2>{{ label('Project usage', '项目用量') }}</h2>
-          <button type="button" class="workspace-link" @click="projects()">
-            {{ label('View projects', '查看项目') }} ↗
-          </button>
-        </header>
-        <ProjectButterfly
-          :projects="data?.projects || []"
-          :labels-visible="projectLabelsVisible"
-          :model-usage="data?.projectModels || {}"
-          :total-tokens="data?.summary.totalTokens"
-          :cost-summary="data?.summary.costSummary"
-          :from="data?.from"
-          :to="data?.to"
-          @select="projects"
-        />
-      </section>
+      </div>
+      <OverviewActiveUsage
+        v-model:kind="state.activeDimension"
+        v-model:expanded="state.cardsExpanded"
+        :data="data"
+        :scope="JSON.stringify([state.range.from, state.range.to])"
+        :busy="resource.busy.value"
+        :scan-busy="scan.busy.value"
+        @open="openActive"
+        @scan="scan.refresh()"
+      />
     </div>
-    <section class="overview-models">
-      <header>
-        <SegmentedControl
-          v-model="state.activeDimension"
-          appearance="light"
-          class="active-dimension-control"
-          :options="activeOptions"
-          :label="label('Active usage', '活跃用量')"
-        />
-        <span>{{ label('Ranked by tokens in range', '按区间用量排序') }}</span>
-        <button type="button" class="workspace-link" @click="openActive()">
-          {{
-            activeDimension === 'agents'
-              ? label('All agents', '全部 Agent')
-              : label('All models', '全部模型')
-          }}
-          ↗
-        </button>
-      </header>
-      <div v-if="data && activeItems.length" class="model-cards">
-        <!-- Ranked slots stay mounted so titles, numbers and charts can transition in place. -->
-        <OverviewUsageCard
-          v-for="(item, index) in activeItems"
-          :key="index"
-          :item="item"
-          :kind="activeDimension"
-          :data="data"
-          @open="openActive(item.id)"
-        />
-      </div>
-      <div v-else class="workspace-panel workspace-empty">
-        <span class="material-symbols-outlined" aria-hidden="true">stacks</span>
-        {{
-          resource.busy.value
-            ? label('Preparing usage statistics…', '正在整理用量统计…')
-            : label('No usage in this period', '此区间暂无用量')
-        }}
-        <button
-          v-if="!resource.busy.value"
-          type="button"
-          class="workspace-link"
-          :disabled="scan.busy.value"
-          @click="scan.refresh()"
-        >
-          {{ label('Scan local usage', '扫描本地用量') }}
-        </button>
-      </div>
-    </section>
   </PageSurface>
 </template>
 <style scoped>
@@ -323,15 +273,39 @@ async function retry(): Promise<void> {
   padding-block: 24px;
 }
 .workspace-heading {
+  flex: none;
   min-height: 64px;
   align-items: center;
   margin-bottom: 32px;
+}
+.overview-content {
+  --overview-summary-height: 320px;
+  --overview-summary-gap: 32px;
+  display: grid;
+  grid-template-rows: var(--overview-summary-height) minmax(0, 1fr);
+  gap: var(--overview-summary-gap);
+  flex: 1;
+  min-height: 0;
+  transition:
+    grid-template-rows var(--detail-duration) ease-in-out,
+    gap var(--detail-duration) ease-in-out;
+}
+.overview-summary {
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity var(--detail-duration) ease-in-out;
+}
+.overview-content--expanded {
+  grid-template-rows: 0px minmax(0, 1fr);
+  gap: 0;
+}
+.overview-content--expanded .overview-summary {
+  opacity: 0;
 }
 .overview-top {
   display: grid;
   grid-template-columns: minmax(210px, 304fr) minmax(320px, 584fr) minmax(260px, 384fr);
   gap: 24px;
-  margin-bottom: 32px;
 }
 .overview-top > section {
   height: 320px;
@@ -422,20 +396,6 @@ header .workspace-link {
 .overview-projects > header {
   margin-bottom: 4px;
 }
-.overview-models > header {
-  align-items: center;
-  min-height: var(--control-height);
-  margin-bottom: 12px;
-}
-.overview-models > header .workspace-link {
-  min-height: 28px;
-  line-height: 18px;
-}
-.model-cards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
-}
 .workspace-error {
   margin-bottom: 24px;
 }
@@ -453,9 +413,6 @@ header .workspace-link {
   .period-figures > button strong {
     font-size: 18px;
   }
-  .model-cards {
-    gap: 16px;
-  }
 }
 @media (max-width: 1150px) {
   .overview-top {
@@ -464,8 +421,11 @@ header .workspace-link {
   .overview-projects {
     grid-column: 1 / -1;
   }
-  .model-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (prefers-reduced-motion: reduce) {
+  .overview-content,
+  .overview-summary {
+    transition: none;
   }
 }
 </style>

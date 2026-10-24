@@ -4,7 +4,6 @@ export const TOKEN_PLAN_PROVIDER_IDS = [
   'openai',
   'anthropic',
   'kimi',
-  'google',
   'antigravity',
   'deepseek',
   'xai',

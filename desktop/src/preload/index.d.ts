@@ -74,6 +74,7 @@ import type {
   TokenPlanUsageSnapshot,
 } from '../shared/token-plan'
 import type { QuotaDetailQuery, QuotaDetails } from '../shared/quota-details'
+import type { PlanRenewalsAPI } from '../shared/plan-renewals'
 import type {
   CustomMessageData,
   CustomMessageEvent,
@@ -166,6 +167,7 @@ export interface AppAPI
   extends
     DiscoveryNativeAPI,
     ReplayAPI,
+    PlanRenewalsAPI,
     ThirdPartyNoticesAPI,
     NetworkMonitorAPI,
     WindowMaterialAPI,
@@ -297,6 +299,8 @@ export interface AppAPI
   /** 关闭 Token 会话悬浮窗 */
   closeFloatingWindow(): Promise<void>
   resetFloatingWindowPreferences(): Promise<void>
+  /** 恢复主窗口默认尺寸、居中位置和非最大化状态，并保存。 */
+  resetMainWindowPreferences(): Promise<void>
 
   /** 查询 Token 会话悬浮窗是否可见 */
   isFloatingWindowVisible(): Promise<boolean>

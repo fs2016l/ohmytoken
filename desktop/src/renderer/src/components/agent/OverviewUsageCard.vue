@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AnalyticsDimension, UsageAnalytics } from '@shared/analytics'
-import { computed, onDeactivated, ref } from 'vue'
+import { computed } from 'vue'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
 import AnimatedCost from '../base/AnimatedCost.vue'
 import AnimatedBar from '../base/AnimatedBar.vue'
@@ -23,8 +23,6 @@ const props = withDefaults(
   { kind: 'models' },
 )
 const emit = defineEmits<{ open: [] }>()
-const labelsVisible = ref(false)
-onDeactivated(() => (labelsVisible.value = false))
 const { label } = useI18n()
 const tokens = useChartTokens()
 const { mode } = useChartColorMode()
@@ -70,7 +68,12 @@ const sources = computed(() => {
       totalTokens: remaining.reduce((sum, source) => sum + source.totalTokens, 0),
       other: true,
     })
-  return visible
+  return visible.map((source) => ({
+    ...source,
+    share: `${formatNumber(
+      props.item.totalTokens ? (source.totalTokens / props.item.totalTokens) * 100 : 0,
+    )}%`,
+  }))
 })
 const sourceColor = (id: string, index: number): string =>
   isAgent.value && mode.value === 'categorical'
@@ -83,13 +86,7 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 })
 </script>
 <template>
-  <article
-    class="overview-model workspace-panel"
-    :data-dimension="kind"
-    :data-usage-id="item.id"
-    @mouseenter="labelsVisible = true"
-    @mouseleave="labelsVisible = false"
-  >
+  <article class="overview-model workspace-panel" :data-dimension="kind" :data-usage-id="item.id">
     <button type="button" class="model-heading" :aria-label="name" @click="emit('open')">
       <span class="model-glyph" aria-hidden="true">
         <RollingMark :kind="kind" :value="isAgent ? item.id : item.name" :size="32" />
@@ -124,12 +121,7 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
       </div>
     </div>
     <div class="model-trend" :aria-busy="pendingScope">
-      <UsageBars
-        :points="points"
-        :label="label(`${name} usage trend`, `${name} 用量趋势`)"
-        :labels-visible="labelsVisible"
-        mini
-      />
+      <UsageBars :points="points" :label="label(`${name} usage trend`, `${name} 用量趋势`)" mini />
       <p v-if="isAgent && scoped.error.value" class="trend-status" role="alert">
         {{ label('Trend update failed', '趋势更新失败') }} ·
         <button type="button" class="workspace-link" @click="scoped.refresh()">
@@ -140,10 +132,13 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
         {{ label('Loading trend…', '正在读取趋势…') }}
       </p>
     </div>
-    <div class="agent-source">
-      <span>
-        {{ isAgent ? label('Model sources', '模型来源') : label('Agent sources', 'Agent 来源') }}
-      </span>
+    <div
+      class="agent-source"
+      role="group"
+      :aria-label="
+        isAgent ? label('Model sources', '模型来源') : label('Agent sources', 'Agent 来源')
+      "
+    >
       <div class="source-bar">
         <AnimatedBar
           v-for="(source, index) in sources"
@@ -156,15 +151,24 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
       </div>
       <div class="source-legend">
         <span
-          v-for="source in sources"
+          v-for="(source, index) in sources"
           :key="source.id"
-          :title="`${source.name} · ${formatNumber(source.totalTokens, { compact: true })}`"
+          :style="{
+            '--source-color': source.other
+              ? tokens['--analytics-series-other']
+              : sourceColor(source.id, index),
+          }"
+          :title="`${source.share} ${source.name} · ${formatNumber(source.totalTokens, { compact: true })}`"
         >
-          <i v-if="source.other" :style="{ background: tokens['--analytics-series-other'] }" />
+          <i
+            v-if="source.other"
+            :style="{ background: tokens['--analytics-series-other'] }"
+            aria-hidden="true"
+          />
           <ModelMark v-else-if="isAgent" :model="source.id" :size="12" />
           <AgentMark v-else :agent="source.id" :size="12" />
-          {{ source.name }}
-          {{ formatNumber(item.totalTokens ? (source.totalTokens / item.totalTokens) * 100 : 0) }}%
+          <span class="source-share">{{ source.share }}</span>
+          <span class="source-name">{{ source.name }}</span>
         </span>
       </div>
     </div>
@@ -211,6 +215,7 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 </template>
 <style scoped>
 .overview-model {
+  height: 382px;
   padding: 20px;
   border: 0;
   display: flex;
@@ -285,8 +290,13 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 }
 .model-trend {
   position: relative;
+  display: grid;
+  align-items: center;
+  min-height: 110px;
+  flex: 1;
+}
+.model-trend :deep(.workspace-chart) {
   height: 110px;
-  flex: none;
 }
 .model-trend[aria-busy='true'] :deep(.workspace-chart) {
   pointer-events: none;
@@ -300,7 +310,6 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
   text-align: right;
 }
 .agent-source {
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -320,11 +329,26 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 }
 .source-legend {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 2px 6px;
   font-size: 11px;
   line-height: 22px;
 }
 .source-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 80px;
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--source-color) 12%, var(--surface-low));
+}
+.source-share {
+  flex: none;
+  white-space: nowrap;
+}
+.source-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -332,10 +356,10 @@ const points = computed((previous: ReturnType<typeof tokenBars> | undefined) => 
 }
 .source-legend i {
   display: inline-block;
+  flex: none;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  margin-right: 4px;
 }
 @media (max-width: 1350px) {
   .model-figures {

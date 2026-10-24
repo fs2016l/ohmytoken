@@ -11,6 +11,7 @@ import type {
 } from '../shared/local-favorites'
 import { electronAPI } from '@electron-toolkit/preload'
 import { replayAPI } from './replay-api'
+import { planRenewalsAPI } from './plan-renewals-api'
 import { discoveryUiAPI } from './discovery-ui-api'
 import { thirdPartyNoticesAPI } from './third-party-notices-api'
 import { scanRefreshAPI } from './scan-refresh-api'
@@ -114,6 +115,7 @@ export interface UsageTrendParams {
 }
 
 const api = {
+  ...planRenewalsAPI,
   ...discoveryUiAPI,
   ...floatingResizeAPI,
   ...scanRefreshAPI,
@@ -315,6 +317,8 @@ const api = {
     ipcRenderer.invoke(IPC.FLOATING_WINDOW_CLOSE) as Promise<void>,
   resetFloatingWindowPreferences: (): Promise<void> =>
     ipcRenderer.invoke(IPC.FLOATING_WINDOW_RESET_PREFERENCES) as Promise<void>,
+  resetMainWindowPreferences: (): Promise<void> =>
+    ipcRenderer.invoke(IPC.MAIN_WINDOW_RESET_PREFERENCES) as Promise<void>,
   /** 查询 Token 会话悬浮窗是否可见 */
   isFloatingWindowVisible: (): Promise<boolean> =>
     ipcRenderer.invoke(IPC.FLOATING_WINDOW_IS_VISIBLE) as Promise<boolean>,

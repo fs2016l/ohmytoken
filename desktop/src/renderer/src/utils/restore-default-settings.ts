@@ -33,6 +33,7 @@ interface RestoreOptions {
     | 'networkMonitorStop'
     | 'setCloseBehavior'
     | 'resetFloatingWindowPreferences'
+    | 'resetMainWindowPreferences'
   >
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
   resetMaterial: () => Promise<void>
@@ -65,6 +66,7 @@ export async function restoreDefaultSettings({
   // Close the other renderer before clearing shared preferences so it cannot write them back.
   await api.resetFloatingWindowPreferences()
   await resetMaterial()
+  await api.resetMainWindowPreferences()
 
   for (const key of preferenceKeys) storage.removeItem(key)
   storage.setItem('cost-currency', defaultCostCurrency(isAppLanguage(language) ? language : 'zh'))

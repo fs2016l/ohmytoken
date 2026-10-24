@@ -1,7 +1,14 @@
-import type { DnsGeolocation, DnsObservation, ExitObservation } from '../../shared/network-check'
-import { parseIpQuality } from './ip-quality'
+import type {
+  DnsGeolocation,
+  DnsIpLocation,
+  DnsObservation,
+  ExitObservation,
+} from '../../shared/network-check'
+import { ipQualityUrl, parseIpQuality } from './ip-quality'
 import { connectionIssue, publicIp } from './policy'
-import { requestIssue, type NetworkFetcher } from './protocol'
+import type { NetworkFetcher } from './protocol'
+
+const LOOKUP_CONCURRENCY = 3
 
 /** 同一来源、同一轮查询出口和解析器地区；不把地理差异解释为隧道泄漏证据。 */
 export async function inspectDnsGeolocation(
@@ -26,55 +33,46 @@ export async function inspectDnsGeolocation(
   if (addresses.length > 65 || addresses.some((ip) => !ip)) {
     return { ...result, state: 'failed', issue: 'invalid_response' }
   }
-  try {
-    if (signal.aborted) throw new Error('Aborted')
-    const url = `https://api.ipquery.io/${addresses.map((ip) => encodeURIComponent(ip!)).join(',')}`
-    const response = await fetch(url, signal)
-    result.observedAt = response.observedAt ?? now()
-    result.retryAt = response.retryAt ?? null
-    result.issue = requestIssue(response)
-    if (signal.aborted) throw new Error('Aborted')
-    if (!result.issue) {
-      if (response.truncated || response.redirectStopped || response.destination !== url) {
+  // IPQuery 已停用批量查询，只能逐个查询；任一地址失败即不再派发剩余请求。
+  const queue = [...addresses] as string[]
+  const located = new Map<string, DnsIpLocation>()
+  const pending = (): boolean => !result.issue && !signal.aborted && queue.length > 0
+  const lookup = async (): Promise<void> => {
+    const ip = queue.shift()!
+    try {
+      const url = ipQualityUrl('ipquery', ip)
+      const response = await fetch(url, signal)
+      const observedAt = response.observedAt ?? now()
+      result.observedAt = Math.max(result.observedAt ?? 0, observedAt)
+      if (result.issue) return
+      const location = parseIpQuality('ipquery', response, ip, observedAt)
+      if (location.issue) {
+        result.issue = location.issue
+        result.retryAt = response.retryAt ?? null
+      } else if (response.destination !== url) {
         result.issue = 'invalid_response'
       } else {
-        const data: unknown = JSON.parse(response.body)
-        const entries = Array.isArray(data) ? data : [data]
-        const seen = new Set<string>()
-        if (entries.length > addresses.length) result.issue = 'invalid_response'
-        for (const entry of entries) {
-          if (result.issue) break
-          const location = parseIpQuality(
-            'ipquery',
-            { ...response, body: JSON.stringify(entry) },
-            null,
-            result.observedAt,
-          )
-          if (
-            location.state !== 'done' ||
-            !location.ip ||
-            !addresses.includes(location.ip) ||
-            seen.has(location.ip)
-          ) {
-            result.issue = 'invalid_response'
-            break
-          }
-          seen.add(location.ip)
-          result.locations.push({
-            ip: location.ip,
-            countryCode: location.countryCode,
-            asn: location.asn,
-            organization: location.organization,
-          })
-        }
+        located.set(ip, {
+          ip,
+          countryCode: location.countryCode,
+          asn: location.asn,
+          organization: location.organization,
+        })
       }
+    } catch (error) {
+      result.issue ??= connectionIssue(error, signal)
     }
-  } catch (error) {
-    result.issue =
-      error instanceof SyntaxError ? 'invalid_response' : connectionIssue(error, signal)
   }
-  // 无法验证的批量响应不提供任何判断依据，原始 DNS 观测由调用方保留。
-  if (result.issue) result.locations = []
+  // 首个请求单独发出：来源限流或不可用时只消耗一次请求。
+  if (pending()) await lookup()
+  await Promise.all(
+    Array.from({ length: LOOKUP_CONCURRENCY }, async () => {
+      while (pending()) await lookup()
+    }),
+  )
+  if (signal.aborted) result.issue = connectionIssue('', signal)
+  // 任一地址无法验证时不提供部分判断依据，原始 DNS 观测由调用方保留。
+  result.locations = result.issue ? [] : addresses.map((ip) => located.get(ip!)!)
   result.state = result.issue === 'cancelled' ? 'cancelled' : result.issue ? 'failed' : 'done'
   return result
 }

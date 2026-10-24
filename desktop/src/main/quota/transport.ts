@@ -19,7 +19,7 @@ const HOSTS = new Set([
   'api.kimi.ai',
   'api.deepseek.com',
   'platform.deepseek.com',
-  'cloudcode-pa.googleapis.com',
+  'daily-cloudcode-pa.googleapis.com',
   'cli-chat-proxy.grok.com',
 ])
 
@@ -84,7 +84,7 @@ async function requestJson(
     throw new QuotaQueryError('unsupported')
   }
   await assertQuotaRegionAllowed(
-    googleAuth ? 'cloudcode-pa.googleapis.com' : address.hostname,
+    googleAuth ? 'daily-cloudcode-pa.googleapis.com' : address.hostname,
     fetcher,
   )
   const controller = new AbortController()
@@ -232,22 +232,6 @@ async function fetchQuota(
       ])
       if (usage.status === 'rejected') throw usage.reason
       return { ...usage.value, profile: profile.status === 'fulfilled' ? profile.value : null }
-    }
-    case 'google': {
-      const account = await request(
-        'https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist',
-        {
-          metadata: { ideType: 'GEMINI_CLI', pluginType: 'GEMINI' },
-        },
-      )
-      const project =
-        textValue(account.cloudaicompanionProject) ??
-        textValue(object(account.cloudaicompanionProject).id)
-      const quota = await request(
-        'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota',
-        project ? { project } : {},
-      )
-      return { ...quota, accountTier: account.paidTier ?? account.currentTier }
     }
     case 'xai': {
       headers['X-XAI-Token-Auth'] = 'xai-grok-cli'

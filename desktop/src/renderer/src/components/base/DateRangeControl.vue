@@ -270,27 +270,6 @@ onDeactivated(() => picker.value?.closeMenu())
 .date-trigger .material-symbols-outlined {
   font-size: 16px;
 }
-.workspace-calendar {
-  --dp-background-color: var(--surface-low);
-  --dp-text-color: var(--text);
-  --dp-hover-color: var(--bg-hover);
-  --dp-hover-text-color: var(--text);
-  --dp-primary-color: var(--primary);
-  --dp-primary-text-color: var(--primary-on);
-  --dp-menu-border-color: var(--border);
-  --dp-icon-color: var(--text-muted);
-  --dp-border-color-hover: var(--accent);
-  --dp-cell-in-range-bg: var(--primary-soft);
-  --dp-border-color: var(--border);
-  --dp-border-radius: 12px;
-  --dp-font-family: var(--font-ui);
-  --dp-disabled-color: var(--bg-hover);
-  --dp-disabled-color-text: var(--text-soft);
-  --dp-secondary-color: var(--text-soft);
-  --dp-border-color-focus: var(--accent);
-  --dp-common-transition: background var(--motion-hover) var(--motion-ease);
-  box-shadow: var(--shadow-popover);
-}
 .workspace-range-calendar {
   --date-sidebar-width: 129px;
   --dp-cell-size: 36px;

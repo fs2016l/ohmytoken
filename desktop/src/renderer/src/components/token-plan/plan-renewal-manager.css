@@ -1,0 +1,369 @@
+.renewal-manager {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  container-type: inline-size;
+}
+.renewal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  margin-bottom: 12px;
+}
+.renewal-heading h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 26px;
+  font-weight: 500;
+}
+.renewal-heading p {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 18px;
+}
+.renewal-feedback {
+  flex: none;
+  height: 40px;
+  margin-bottom: 12px;
+}
+.renewal-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warning) 5%, var(--surface-low));
+  color: var(--warning);
+  font-size: 13px;
+}
+.renewal-notice--clear {
+  border-color: var(--border);
+  color: var(--text-soft);
+  background: var(--surface-low);
+}
+.renewal-notice .material-symbols-outlined {
+  font-size: 19px;
+}
+.renewal-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 100%;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+.renewal-layout {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+.renewal-list-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-low);
+}
+.renewal-list-panel > :first-child {
+  flex: none;
+  align-self: flex-start;
+}
+.renewal-list-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 28px;
+  max-width: 100%;
+}
+.renewal-add {
+  flex: none;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  gap: 4px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.renewal-add .material-symbols-outlined {
+  font-size: 16px;
+}
+.renewal-list-panel > .workspace-empty {
+  flex: 1;
+  min-height: 0;
+}
+.renewal-sort-hint,
+.renewal-list-help {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-soft);
+  flex: none;
+}
+.renewal-sort-hint {
+  margin: 8px 0;
+}
+.renewal-list-help {
+  margin: 12px 0 0;
+}
+.renewal-sort-hint .material-symbols-outlined,
+.renewal-list-help .material-symbols-outlined {
+  font-size: 16px;
+}
+.renewal-table {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.renewal-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.renewal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 176px 84px 28px;
+  align-items: center;
+  gap: 12px;
+  min-height: 72px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-low);
+}
+.renewal-rows > :last-child {
+  border-bottom: 0;
+  border-radius: 0 0 8px 8px;
+}
+.renewal-table-head {
+  flex: none;
+  min-height: 36px;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  padding-block: 8px;
+  background: var(--surface-container);
+  color: var(--text-soft);
+  font-size: 12px;
+  border-radius: 8px 8px 0 0;
+}
+.renewal-rows .renewal-row {
+  cursor: grab;
+  touch-action: pan-y;
+}
+.renewal-row:hover {
+  background: var(--surface-container);
+}
+.renewal-row--dragging {
+  opacity: 0.3;
+}
+.renewal-name {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+.renewal-name-text,
+.renewal-date {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.renewal-name-text strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.renewal-name-text :is(strong, span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.renewal-name-text span,
+.renewal-date span {
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.renewal-date time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.renewal-name-heading,
+.renewal-next-heading {
+  padding-left: 56px;
+}
+.renewal-edit-heading {
+  text-align: center;
+}
+.renewal-next {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.renewal-drag-handle {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 36px;
+  margin-right: -4px;
+  color: var(--text-disabled);
+  cursor: grab;
+  touch-action: none;
+}
+.renewal-drag-handle::before {
+  content: '';
+  width: 10px;
+  height: 30px;
+  background-image: radial-gradient(circle, currentColor 1px, transparent 1.3px);
+  background-size: 5px 5px;
+}
+.renewal-row:hover .renewal-drag-handle {
+  color: var(--text-soft);
+}
+.renewal-drag-handle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.renewal-row .workspace-button {
+  border-color: transparent;
+  background: transparent;
+}
+.renewal-row .workspace-button--icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.renewal-status {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  color: var(--text-soft);
+  background: var(--surface-container);
+}
+.renewal-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.renewal-status--pending {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 9%, transparent);
+}
+.renewal-status--normal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding-inline: 0;
+  color: var(--success);
+  background: transparent;
+}
+.renewal-status--normal::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.renewal-row .renewal-complete {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  border-color: color-mix(in srgb, var(--success) 24%, transparent);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+.renewal-row .renewal-complete:hover:not(:disabled) {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+.renewal-complete .material-symbols-outlined {
+  font-size: 18px;
+}
+.renewal-reorder-move {
+  transition: transform var(--renewal-reorder-duration) var(--motion-ease);
+}
+@container (max-width: 1040px) {
+  .renewal-row {
+    grid-template-columns: minmax(0, 1fr) 148px 80px 24px;
+    gap: 8px;
+    padding-inline: 10px;
+  }
+  .renewal-name {
+    gap: 6px;
+  }
+  .renewal-name-heading {
+    padding-left: 48px;
+  }
+  .renewal-next {
+    gap: 8px;
+  }
+  .renewal-next-heading {
+    padding-left: 52px;
+  }
+  .renewal-status-cell {
+    gap: 4px;
+  }
+  .renewal-row .workspace-button--icon {
+    width: 24px;
+  }
+}
+@container (max-width: 880px) {
+  .renewal-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(2, 560px);
+    flex: none;
+  }
+  .renewal-heading {
+    flex-wrap: wrap;
+  }
+  .renewal-feedback {
+    height: auto;
+    min-height: 40px;
+  }
+}
+@container (max-width: 560px) {
+  .renewal-list-panel {
+    padding: 12px;
+  }
+  .renewal-table {
+    overflow-x: auto;
+  }
+  .renewal-row {
+    min-width: 480px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .renewal-reorder-move {
+    transition: none;
+  }
+}

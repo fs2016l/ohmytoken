@@ -14,6 +14,9 @@ export interface DesktopRuntimeConfig {
 export const DESKTOP_API_PARAMETERS = {
   discoveryConfig: [],
   discoveryUi: ['pageKey'],
+  cyberEggProviders: [],
+  cyberEggCalendar: [],
+  cyberEggActivities: [],
   plans: [],
   apiModels: [],
   planTier: ['id'],

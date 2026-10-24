@@ -43,6 +43,14 @@ const now = useVisibleNow()
         <th class="favorite-cell">
           <span class="table-saved-label">{{ label('Saved', '收藏') }}</span>
         </th>
+        <th class="expand-cell" :aria-label="label('Expand', '展开')" />
+        <WorkspaceSortHeader
+          class="recent-column"
+          :options="[{ key: 'recent', label: label('Time', '时间') }]"
+          :sort="sort"
+          :direction="direction"
+          @sort="emit('sort', $event)"
+        />
         <WorkspaceSortHeader
           class="title-column"
           :options="[{ key: 'title', label: label('Project', '项目') }]"
@@ -80,13 +88,6 @@ const now = useVisibleNow()
           :direction="direction"
           @sort="emit('sort', $event)"
         />
-        <WorkspaceSortHeader
-          class="recent-column"
-          :options="[{ key: 'recent', label: label('Recent activity', '最近活动') }]"
-          :sort="sort"
-          :direction="direction"
-          @sort="emit('sort', $event)"
-        />
       </tr>
     </thead>
     <tbody>
@@ -100,22 +101,27 @@ const now = useVisibleNow()
           <td class="favorite-cell">
             <FavoriteButton :target="{ type: 'project', id: project.projectId }" />
           </td>
+          <td class="expand-cell">
+            <button
+              type="button"
+              class="workspace-expand expand-project"
+              :aria-expanded="expanded.includes(project.projectId)"
+              :aria-label="
+                label(
+                  'Toggle sessions in ' + project.name,
+                  '展开或收起 ' + project.name + ' 的会话',
+                )
+              "
+              @click.stop="emit('toggle', project.projectId)"
+            >
+              <DropdownChevron :open="expanded.includes(project.projectId)" direction="right" />
+            </button>
+          </td>
+          <td class="recent-cell" :title="displayTimestamp(project.lastActivity)">
+            {{ displayRecentActivity(project.lastActivity, new Date(now)) }}
+          </td>
           <td>
             <div class="workspace-title-wrap">
-              <button
-                type="button"
-                class="workspace-expand expand-project"
-                :aria-expanded="expanded.includes(project.projectId)"
-                :aria-label="
-                  label(
-                    'Toggle sessions in ' + project.name,
-                    '展开或收起 ' + project.name + ' 的会话',
-                  )
-                "
-                @click.stop="emit('toggle', project.projectId)"
-              >
-                <DropdownChevron :open="expanded.includes(project.projectId)" direction="right" />
-              </button>
               <button
                 type="button"
                 class="workspace-row-title"
@@ -128,12 +134,6 @@ const now = useVisibleNow()
                       project.sessionCount + ' main sessions',
                       project.sessionCount + ' 个主会话',
                     )
-                  }}
-                  ·
-                  {{
-                    project.source === 'discovered'
-                      ? label('Auto-detected', '自动识别')
-                      : label('Manually added', '手动添加')
                   }}
                 </small>
               </button>
@@ -154,9 +154,6 @@ const now = useVisibleNow()
               :complete="project.apiCallCountComplete"
               :turns="project.turns"
             />
-          </td>
-          <td class="recent-cell" :title="displayTimestamp(project.lastActivity)">
-            {{ displayRecentActivity(project.lastActivity, new Date(now)) }}
           </td>
         </tr>
         <ProjectSessionRows

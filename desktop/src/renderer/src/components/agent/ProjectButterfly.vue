@@ -28,14 +28,12 @@ const props = withDefaults(
     costSummary?: UsageCostRollup
     from?: string
     to?: string
-    labelsVisible?: boolean
   }>(),
   {
     totalTokens: undefined,
     costSummary: undefined,
     from: undefined,
     to: undefined,
-    labelsVisible: false,
   },
 )
 const emit = defineEmits<{ select: [id: string] }>()
@@ -197,11 +195,7 @@ onUnmounted(closeTooltip)
 watch(() => rows.value.map((row) => row.id).join('\0'), closeTooltip)
 </script>
 <template>
-  <div
-    class="project-butterfly"
-    :class="{ 'labels-visible': labelsVisible }"
-    :style="{ '--project-row-count': rows.length }"
-  >
+  <div class="project-butterfly" :style="{ '--project-row-count': rows.length }">
     <div class="butterfly-legend">
       <span>
         <i :style="{ background: gradient(true) }" />
@@ -320,14 +314,9 @@ watch(() => rows.value.map((row) => row.id).join('\0'), closeTooltip)
 }
 .token-wing > :first-child,
 .cost-wing > :first-child {
-  visibility: hidden;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-.labels-visible .token-wing > :first-child,
-.labels-visible .cost-wing > :first-child {
-  visibility: visible;
 }
 .token-wing {
   text-align: right;

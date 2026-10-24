@@ -103,7 +103,7 @@ header > div > span {
 header strong {
   display: block;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--weight-ui);
   line-height: 26px;
   white-space: nowrap;
   overflow: hidden;

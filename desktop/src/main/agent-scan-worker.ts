@@ -1,5 +1,5 @@
 import { parentPort } from 'node:worker_threads'
-import { allScanners, CodexScanner } from './scanners'
+import { allScanners, AntigravityScanner, CodexScanner } from './scanners'
 import { validateScannerUsageDetails } from './scanners/token-usage'
 import type { ScanAgentProgress } from '../shared/scan-progress'
 import type { AgentScanJob, AgentScanOutput, AgentScanReply } from './services/agent-scan-pool'
@@ -26,7 +26,9 @@ async function prepareAgentScan(job: AgentScanJob): Promise<PreparedAgentScan> {
   const scanner =
     job.agent === 'codex'
       ? new CodexScanner(job.sourceStates)
-      : allScanners.find((scanner) => scanner.agentName === job.agent)
+      : job.agent === 'antigravity'
+        ? new AntigravityScanner(undefined, job.sourceStates)
+        : allScanners.find((scanner) => scanner.agentName === job.agent)
   if (!scanner) throw new Error('未注册的 Agent 扫描器')
   if (!scanner.isAvailable()) throw new Error('扫描来源已不可用')
   let phase: ScanAgentProgress['phase'] = 'reading'

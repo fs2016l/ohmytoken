@@ -8,7 +8,6 @@ export const QUOTA_DETAIL_SOURCES = [
   'glm-tools',
   'minimax-billing',
   'claude-extra',
-  'gemini-account',
   'grok-billing',
   'grok-settings',
 ] as const

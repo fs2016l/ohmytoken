@@ -1,5 +1,6 @@
 import type { ScanAgentProgress } from '../../shared/scan-progress'
 import type { AgentScanner } from '../scanners/types'
+import { ANTIGRAVITY_SOURCE_TYPE } from '../scanners/antigravity-sources'
 import type { AgentScanPlan } from './incremental-scan-storage.service'
 import { runAgentScanJobs, type AgentScanOutput } from './agent-scan-pool'
 import type { ScanStaging } from './scan-staging.service'
@@ -27,7 +28,9 @@ export async function prepareParallelAgents(
     sourceStates:
       scanner.agentName === 'codex' && plan.context.mode === 'incremental'
         ? getSourceStatesByType('codex', 'codex-rollout')
-        : [],
+        : scanner.agentName === 'antigravity' && plan.context.mode === 'incremental'
+          ? getSourceStatesByType('antigravity', ANTIGRAVITY_SOURCE_TYPE)
+          : [],
   }))
   progress.update({ phase: 'reading', agent: undefined, work: undefined }, true)
   return runAgentScanJobs(jobs, execution.agentWorkers!, {

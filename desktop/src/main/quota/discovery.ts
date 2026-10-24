@@ -199,7 +199,7 @@ export async function discoverQuotaConnections(
     const expiresAt = fields.expiresAt ?? timestamp(claims.exp) ?? undefined
     const unsupported =
       authType === 'api-key' &&
-      (['openai', 'anthropic', 'google'].includes(destination.providerId) ||
+      (['openai', 'anthropic'].includes(destination.providerId) ||
         (destination.providerId === 'minimax' && secret.startsWith('sk-api-')))
     found.set(id, {
       ...fields,
@@ -395,10 +395,6 @@ export async function discoverQuotaConnections(
       expiresAt: timestamp(kimi.expires_at) ?? undefined,
     })
   }
-  const google = await read(join(home, '.gemini', 'oauth_creds.json'), 'Gemini')
-  add('Gemini', { providerId: 'google', region: 'global' }, google.access_token, 'oauth', {
-    expiresAt: timestamp(google.expiry_date) ?? undefined,
-  })
   const antigravity = options.antigravityGrants
     ? { grants: options.antigravityGrants, checkedSources: ['Antigravity'], issues: [] }
     : await discoverAntigravityGrants(options)

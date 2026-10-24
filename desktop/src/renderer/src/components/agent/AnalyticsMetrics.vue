@@ -84,7 +84,7 @@ const rows = computed(() => {
           class="metric-value metric-cost"
           @click="emit('fees')"
         >
-          <AnimatedCost :summary="data?.summary.costSummary" :note="false" />
+          <AnimatedCost :summary="data?.summary.costSummary" :note="false" :estimate-mark="false" />
         </button>
         <strong v-else class="metric-value">
           <AnimatedNumber
@@ -153,7 +153,7 @@ const rows = computed(() => {
   display: block;
   font-size: 27px;
   line-height: 36px;
-  font-weight: 600;
+  font-weight: var(--weight-ui);
   letter-spacing: -0.5px;
   font-family: var(--font-number);
 }

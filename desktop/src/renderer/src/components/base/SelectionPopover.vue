@@ -10,10 +10,11 @@ const props = withDefaults(
     id: string
     width: number
     maxHeight?: number
+    matchAnchorWidth?: boolean
     role?: 'dialog' | 'listbox' | 'tooltip'
     placement?: 'auto' | 'top'
   }>(),
-  { maxHeight: 360, role: 'dialog', placement: 'auto' },
+  { maxHeight: 360, matchAnchorWidth: true, role: 'dialog', placement: 'auto' },
 )
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ opened: [element: HTMLElement] }>()
@@ -26,7 +27,10 @@ function place(): void {
   const element = panel.value
   const anchor = props.anchor?.getBoundingClientRect()
   if (!element || !anchor || !open.value) return
-  const width = Math.min(Math.max(props.width, anchor.width), innerWidth - 24)
+  const width = Math.min(
+    Math.max(props.width, props.matchAnchorWidth ? anchor.width : 0),
+    innerWidth - 24,
+  )
   const below = innerHeight - anchor.bottom - 20
   const above = anchor.top - 20
   const up =
@@ -99,7 +103,7 @@ watch(
   { flush: 'post' },
 )
 watch(
-  () => [props.width, props.maxHeight],
+  () => [props.width, props.maxHeight, props.matchAnchorWidth],
   () => void nextTick(place),
 )
 function toggled(event: Event): void {

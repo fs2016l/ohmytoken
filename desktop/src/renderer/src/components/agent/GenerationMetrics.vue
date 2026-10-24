@@ -265,11 +265,11 @@ const latencyTooltip = computed(() =>
     <span
       class="generation-speed"
       :title="speedTooltip"
-      :role="floating ? 'group' : undefined"
-      :aria-label="floating ? speedLabel : undefined"
+      :role="floating || stacked ? 'group' : undefined"
+      :aria-label="floating || stacked ? speedLabel : undefined"
     >
       <DesignIcon
-        v-if="floating"
+        v-if="floating || stacked"
         class="generation-metric-icon"
         name="generationSpeed"
         :size="14"
@@ -287,11 +287,11 @@ const latencyTooltip = computed(() =>
       class="generation-ttft"
       :class="{ 'generation-ttft--long': floating && latency.length > 6 }"
       :title="latencyTooltip"
-      :role="floating ? 'group' : undefined"
-      :aria-label="floating ? latencyLabel : undefined"
+      :role="floating || stacked ? 'group' : undefined"
+      :aria-label="floating || stacked ? latencyLabel : undefined"
     >
       <DesignIcon
-        v-if="floating"
+        v-if="floating || stacked"
         class="generation-metric-icon"
         name="generationTimer"
         :size="14"
@@ -329,6 +329,10 @@ b {
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+}
+.stacked > span {
+  align-items: center;
+  gap: 5px;
 }
 .generation-metrics--floating {
   position: relative;

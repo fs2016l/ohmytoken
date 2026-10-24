@@ -19,6 +19,7 @@ const {
   activeIndex,
   rollDirection,
   detailsOpen,
+  currentDetailsOpen,
   next,
   previous,
   openDetails,
@@ -46,7 +47,7 @@ function localTitle(message: DesktopMessage | null): string {
     class="message-host"
     :class="[
       `message-host--${placement}`,
-      { 'message-host--compact': compact, 'message-host--expanded': detailsOpen },
+      { 'message-host--compact': compact, 'message-host--expanded': currentDetailsOpen },
     ]"
   >
     <div :class="['message-banner', `message-banner--${currentMessage.level}`]">
@@ -63,13 +64,11 @@ function localTitle(message: DesktopMessage | null): string {
         type="button"
         :title="title"
         :aria-label="
-          placement === 'floating'
-            ? detailsOpen
-              ? label('Collapse announcement', '收起公告')
-              : label('Expand announcement', '展开公告')
-            : label('Show message details', '查看消息详情')
+          currentDetailsOpen
+            ? label('Collapse announcement', '收起公告')
+            : label('Expand announcement', '展开公告')
         "
-        :aria-expanded="placement === 'floating' ? detailsOpen : undefined"
+        :aria-expanded="currentDetailsOpen"
         :aria-controls="placement === 'floating' ? 'floating-announcement-details' : undefined"
         :aria-description="title"
         @click="openDetails(currentMessage)"
@@ -90,7 +89,13 @@ function localTitle(message: DesktopMessage | null): string {
           </Transition>
         </span>
         <span class="message-detail" aria-hidden="true">
-          <span v-if="placement === 'main'">{{ label('View details', '查看详情') }}</span>
+          <span v-if="placement === 'main'">
+            {{
+              currentDetailsOpen
+                ? label('Collapse details', '收起详情')
+                : label('View details', '查看详情')
+            }}
+          </span>
           <DesignIcon class="message-detail-chevron" name="chevronRight" :size="14" />
         </span>
       </button>

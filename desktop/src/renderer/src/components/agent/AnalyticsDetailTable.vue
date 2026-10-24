@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { AnalyticsDimension, UsageAnalytics, UsageAnalyticsFilter } from '@shared/analytics'
+import type { BrowsingValue } from '@shared/browsing-state'
 import type { SessionSort, TokenUsageUserSession } from '@shared/models'
 import { sumMoneyInUsd } from '@shared/cost-currency'
 import SegmentedControl from '../base/SegmentedControl.vue'
@@ -8,18 +9,20 @@ import DropdownChevron from '../base/DropdownChevron.vue'
 import ScrollRegion from '../base/ScrollRegion.vue'
 import PaginationBar from '../base/PaginationBar.vue'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
+import TokenShare from '../base/TokenShare.vue'
 import AnimatedCost from '../base/AnimatedCost.vue'
 import { useI18n } from '../../i18n/useI18n'
-import { usePageState } from '../../composables/usePageState'
+import { getPageScroll, savePageScroll, usePageState } from '../../composables/usePageState'
 import { useTableTabState } from '../../composables/useTableTabState'
 import { usePageResource } from '../../composables/usePageResource'
 import { useCostCurrency } from '../../composables/useCostCurrency'
 import { useScanStatus } from '../../composables/useScanStatus'
+import { useVisibleNow } from '../../composables/useVisibleNow'
 import { getAgentName } from '../../config/agents'
 import AgentMark from '../base/AgentMark.vue'
 import ModelMark from '../base/ModelMark.vue'
 import { sessionKey } from '../../utils/session-display'
-import { displayTimestamp } from '../../utils/date-range'
+import { displayRecentActivity, displayTimestamp } from '../../utils/date-range'
 import { downloadCsv } from '../../utils/csv'
 import { comparisonDay, type ComparisonMode } from '../../utils/analytics-trend'
 const props = defineProps<{
@@ -40,13 +43,32 @@ const emit = defineEmits<{
 const { label } = useI18n(),
   { exchange } = useCostCurrency(),
   scan = useScanStatus()
+const now = useVisibleNow()
 const state = usePageState('analytics-table', {
   page: 1,
   size: 10,
-  sort: 'totalTokens',
+  sort: 'lastActiveAt',
   direction: 'desc',
   expanded: [] as string[],
+  sortDefaultsVersion: 0,
 })
+// Retire the old default once, then keep any subsequent sort choices across visits.
+if (state.sortDefaultsVersion < 1) {
+  const savedTabs = usePageState('analytics-table/tabs', {
+    entries: {} as Record<string, Record<string, BrowsingValue>>,
+  })
+  for (const [tab, entry] of [[dimension.value, state], ...Object.entries(savedTabs.entries)] as [
+    string,
+    Record<string, BrowsingValue>,
+  ][]) {
+    if (entry.sort !== 'totalTokens' || entry.direction !== 'desc') continue
+    entry.sort = 'lastActiveAt'
+    entry.page = 1
+    const region = `table/${tab}`
+    savePageScroll('analytics-table', region, 0, getPageScroll('analytics-table', region).left)
+  }
+  state.sortDefaultsVersion = 1
+}
 const tabs = useTableTabState(
   'analytics-table',
   () => dimension.value,
@@ -54,7 +76,7 @@ const tabs = useTableTabState(
   {
     page: 1,
     size: 10,
-    sort: 'totalTokens',
+    sort: 'lastActiveAt',
     direction: 'desc',
     expanded: [],
   },
@@ -125,8 +147,8 @@ const change = (row: Row): number | null => {
         : undefined
   return prior ? ((row.totalTokens - prior) / prior) * 100 : null
 }
+const nameSort = computed(() => (dimension.value === 'dates' ? 'lastActiveAt' : 'name'))
 const columns = computed(() => [
-  { key: 'lastActiveAt', name: label('Time', '时间') },
   { key: 'totalTokens', name: label('Total tokens', 'Token 总量') },
   { key: 'cost', name: label('Est. cost', '预估花费') },
   { key: 'inputTokens', name: label('Input', '输入') },
@@ -139,7 +161,14 @@ const columns = computed(() => [
 ])
 function sortValue(row: Row, column: string): number | string | null {
   if (column === 'name') return row.name
-  if (column === 'lastActiveAt') return row.lastActiveAt ? Date.parse(row.lastActiveAt) : null
+  if (column === 'lastActiveAt')
+    return dimension.value === 'dates'
+      ? row.id
+      : row.lastActiveAt
+        ? Date.parse(
+            row.lastActiveAt.length === 10 ? `${row.lastActiveAt}T00:00:00` : row.lastActiveAt,
+          )
+        : null
   if (column === 'cost')
     return row.costSummary?.pricedRecords
       ? (sumMoneyInUsd(row.costSummary.totals, exchange.value.snapshot)?.min ?? null)
@@ -176,7 +205,7 @@ const sessionSort = computed<SessionSort>(
       apiCallCount: 'calls',
       turns: 'turns',
       change: 'change',
-    })[state.sort] as SessionSort) || 'tokens',
+    })[state.sort] as SessionSort) || 'recent',
 )
 const sessionResource = usePageResource(
   () => [
@@ -431,16 +460,60 @@ async function exportRows(): Promise<void> {
     >
       <table class="workspace-table">
         <colgroup>
+          <col v-if="dimension !== 'dates'" class="expand-column" />
+          <col v-if="dimension !== 'dates'" class="time-column" />
           <col class="name-column" />
           <col v-for="column in columns" :key="column.key" class="metric-column" />
         </colgroup>
         <thead>
           <tr>
-            <th>
-              <button type="button" @click="sort('name')">
-                {{ label('Name', '名称') }}
+            <th
+              v-if="dimension !== 'dates'"
+              class="expand-column"
+              :aria-label="label('Expand', '展开')"
+            />
+            <th
+              v-if="dimension !== 'dates'"
+              class="time-column"
+              :aria-sort="
+                state.sort === 'lastActiveAt'
+                  ? state.direction === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button
+                type="button"
+                :class="{ sorted: state.sort === 'lastActiveAt' }"
+                @click="sort('lastActiveAt')"
+              >
+                {{ label('Time', '时间') }}
                 <span>
-                  {{ state.sort === 'name' ? (state.direction === 'asc' ? '↑' : '↓') : '↕' }}
+                  {{
+                    state.sort === 'lastActiveAt' ? (state.direction === 'asc' ? '↑' : '↓') : '↕'
+                  }}
+                </span>
+              </button>
+            </th>
+            <th
+              class="name-column"
+              :aria-sort="
+                state.sort === nameSort
+                  ? state.direction === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button
+                type="button"
+                :class="{ sorted: state.sort === nameSort }"
+                @click="sort(nameSort)"
+              >
+                {{ dimension === 'dates' ? label('Date', '日期') : label('Name', '名称') }}
+                <span>
+                  {{ state.sort === nameSort ? (state.direction === 'asc' ? '↑' : '↓') : '↕' }}
                 </span>
               </button>
             </th>
@@ -470,21 +543,30 @@ async function exportRows(): Promise<void> {
         </thead>
         <tbody>
           <tr v-for="item in rows" :key="item.key" :class="{ child: item.child }">
-            <td>
+            <td v-if="dimension !== 'dates'" class="expand-column">
+              <button
+                v-if="item.row.children?.length"
+                type="button"
+                class="expand-row"
+                :aria-label="label('Toggle breakdown', '展开或收起构成')"
+                :aria-expanded="state.expanded.includes(key(item.row.id))"
+                @click="toggle(item.row)"
+              >
+                <DropdownChevron
+                  :open="state.expanded.includes(key(item.row.id))"
+                  direction="right"
+                />
+              </button>
+            </td>
+            <td
+              v-if="dimension !== 'dates'"
+              class="time-column"
+              :title="item.row.lastActiveAt ? displayTimestamp(item.row.lastActiveAt) : undefined"
+            >
+              {{ displayRecentActivity(item.row.lastActiveAt || '', new Date(now)) }}
+            </td>
+            <td class="name-cell" :class="{ 'date-cell': dimension === 'dates' }">
               <div class="detail-row-name">
-                <button
-                  v-if="item.row.children?.length"
-                  type="button"
-                  class="expand-row"
-                  :aria-label="label('Toggle breakdown', '展开或收起构成')"
-                  :aria-expanded="state.expanded.includes(key(item.row.id))"
-                  @click="toggle(item.row)"
-                >
-                  <DropdownChevron
-                    :open="state.expanded.includes(key(item.row.id))"
-                    direction="right"
-                  />
-                </button>
                 <button
                   type="button"
                   class="row-name"
@@ -527,27 +609,28 @@ async function exportRows(): Promise<void> {
                 </button>
               </div>
             </td>
-            <td class="time-column">
-              {{
-                item.row.lastActiveAt?.length === 10
-                  ? item.row.lastActiveAt
-                  : item.row.lastActiveAt
-                    ? displayTimestamp(item.row.lastActiveAt)
-                    : '—'
-              }}
-            </td>
             <td><AnimatedNumber :value="item.row.totalTokens" :format="{ compact: true }" /></td>
-            <td><AnimatedCost :summary="item.row.costSummary" :note="false" /></td>
-            <td><AnimatedNumber :value="item.row.inputTokens" :format="{ compact: true }" /></td>
-            <td><AnimatedNumber :value="item.row.outputTokens" :format="{ compact: true }" /></td>
             <td>
+              <AnimatedCost :summary="item.row.costSummary" :note="false" :estimate-mark="false" />
+            </td>
+            <td class="share-cell">
+              <AnimatedNumber :value="item.row.inputTokens" :format="{ compact: true }" />
+              <TokenShare :usage="item.row" bucket="input" />
+            </td>
+            <td class="share-cell">
+              <AnimatedNumber :value="item.row.outputTokens" :format="{ compact: true }" />
+              <TokenShare :usage="item.row" bucket="output" />
+            </td>
+            <td class="share-cell">
               <AnimatedNumber
                 :value="item.row.cacheReadTokens + item.row.cacheWriteTokens"
                 :format="{ compact: true }"
               />
+              <TokenShare :usage="item.row" bucket="cache" />
             </td>
-            <td>
+            <td class="share-cell">
               <AnimatedNumber :value="item.row.reasoningTokens" :format="{ compact: true }" />
+              <TokenShare :usage="item.row" bucket="reasoning" />
             </td>
             <td>
               <AnimatedNumber
@@ -628,7 +711,13 @@ async function exportRows(): Promise<void> {
   font-size: 12px;
 }
 .name-column {
-  width: 240px;
+  width: 212px;
+}
+.expand-column {
+  width: 32px;
+}
+.time-column {
+  width: 100px;
 }
 .metric-column {
   width: 104px;
@@ -640,11 +729,11 @@ async function exportRows(): Promise<void> {
   height: 32px;
   padding: 4px 8px;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
 }
-.workspace-table th:first-child {
+.workspace-table th.name-column,
+.workspace-table th.time-column {
   text-align: left;
-  padding-left: 20px;
 }
 .workspace-table th button {
   padding: 0;
@@ -668,14 +757,36 @@ async function exportRows(): Promise<void> {
   font-family: var(--font-number);
   font-variant-numeric: tabular-nums;
 }
-.workspace-table td:first-child {
+.workspace-table .name-cell {
   text-align: left;
   font-family: var(--font-ui);
-  padding-left: 16px;
+}
+.workspace-table .share-cell {
+  white-space: nowrap;
+}
+.workspace-table .share-cell .token-share {
+  font-size: 11px;
 }
 .workspace-table .time-column {
-  font-size: 10px;
-  color: var(--text-soft);
+  text-align: left;
+  white-space: nowrap;
+  line-height: 20px;
+}
+.workspace-table td.time-column {
+  color: var(--text);
+  font-size: 12px;
+}
+.workspace-table .expand-column {
+  padding-inline: 8px;
+}
+.workspace-table .date-cell,
+.workspace-table .date-cell .row-name {
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums;
+}
+.workspace-table th.name-column:first-child,
+.workspace-table .date-cell {
+  padding-left: 20px;
 }
 .detail-row-name {
   display: flex;
@@ -712,12 +823,12 @@ async function exportRows(): Promise<void> {
 .row-name small {
   display: block;
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.child td:first-child {
-  padding-left: 44px;
+.child .name-cell {
+  padding-left: 24px;
 }
 .child .row-name {
   color: var(--text-muted);

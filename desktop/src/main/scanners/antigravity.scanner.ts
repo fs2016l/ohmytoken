@@ -1,9 +1,8 @@
-import { existsSync, readdirSync } from 'fs'
-import { basename, join } from 'path'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import Database from 'better-sqlite3'
 import { usageEvidence } from '../cost/usage-evidence'
 import { getAntigravityDataDir } from '../lib/paths'
-import { readUtf8Lines } from '../lib/line-reader'
 import {
   applySessionTitles,
   buildRecordsFromSessions,
@@ -13,7 +12,19 @@ import {
   resolveRootSessionId,
   timestampsFromValue,
 } from './detail-utils'
-import { normalizeScanContext } from './incremental-utils'
+import { eventTimestampMs, isIncrementalContext, normalizeScanContext } from './incremental-utils'
+import {
+  ANTIGRAVITY_SOURCE_TYPE,
+  antigravitySourceState,
+  conversationFiles,
+  shouldScanAntigravitySource,
+  transcriptFiles,
+} from './antigravity-sources'
+import {
+  getSourceStatesByType,
+  type ScanSourceStateRow,
+  type ScanSourceStateUpdate,
+} from '../services/scan-source-state.service'
 import { normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
 import {
@@ -31,6 +42,11 @@ import {
   type AntigravityStepMetadata,
   type AntigravityUsage,
 } from './antigravity-protobuf'
+import {
+  antigravityTurnForStep,
+  antigravityUserInputSteps,
+  readAntigravityTranscript,
+} from './antigravity-transcript'
 import type {
   AgentScanner,
   ScannerScanContext,
@@ -49,9 +65,15 @@ type Conversation = {
 export class AntigravityScanner implements AgentScanner {
   readonly agentName = 'antigravity'
   private readonly dataDirectory: () => string
+  private readonly sourceStates: readonly ScanSourceStateRow[] | undefined
+  private pendingSourceStates: ScanSourceStateUpdate[] = []
 
-  constructor(dataDirectory: () => string = getAntigravityDataDir) {
+  constructor(
+    dataDirectory: () => string = getAntigravityDataDir,
+    sourceStates?: readonly ScanSourceStateRow[],
+  ) {
     this.dataDirectory = dataDirectory
+    this.sourceStates = sourceStates
   }
 
   isAvailable(): boolean {
@@ -67,8 +89,23 @@ export class AntigravityScanner implements AgentScanner {
     return (await this.scanDetailed(context)).records
   }
 
+  takeScanStateUpdates(): ScanSourceStateUpdate[] {
+    const updates = this.pendingSourceStates
+    this.pendingSourceStates = []
+    return updates
+  }
+
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.pendingSourceStates = []
     const scanContext = normalizeScanContext(context)
+    // 每轮从成功提交的状态开始；失败或回滚的扫描不能让下一次错误跳过来源。
+    const storedStates = new Map(
+      (isIncrementalContext(scanContext)
+        ? (this.sourceStates ?? getSourceStatesByType(this.agentName, ANTIGRAVITY_SOURCE_TYPE))
+        : []
+      ).map((state) => [state.source_id, state]),
+    )
+    const updates: ScanSourceStateUpdate[] = []
     const root = this.dataDirectory()
     const dbFiles = conversationFiles(root)
     const transcripts = transcriptFiles(root)
@@ -80,14 +117,29 @@ export class AntigravityScanner implements AgentScanner {
       if (info.title) titles.set(id, info.title)
     }
     const sessionIds = [...new Set([...dbFiles.keys(), ...transcripts.keys()])].sort()
+    const completeSessionIds: string[] = []
     const calls = new Map<string, TokenUsageApiCall>()
     scanContext.reportProgress?.({ unit: 'files', completed: 0, total: sessionIds.length })
     for (const [index, id] of sessionIds.entries()) {
       const dbFile = dbFiles.get(id)
       try {
-        // 不用 DB mtime 或最大 idx 跳过历史：WAL 和同 idx 的最终用量都可能继续变化。
-        const conversation = dbFile ? readConversation(dbFile) : emptyConversation()
-        this.collectConversation(id, conversation, transcripts.get(id), calls)
+        const transcript = transcripts.get(id)
+        // 保存读取前的状态：读取期间又写入的数据会在下次扫描时重新检查。
+        const state = antigravitySourceState(root, id, dbFile, transcript, [
+          summaries.get(id),
+          resolveRootSessionId(id, parentIds),
+        ])
+        if (shouldScanAntigravitySource(state, storedStates.get(state.source_id), scanContext)) {
+          const conversation = dbFile ? readConversation(dbFile) : emptyConversation()
+          const sessionCalls = new Map<string, TokenUsageApiCall>()
+          this.collectConversation(id, conversation, transcript, sessionCalls)
+          for (const call of sessionCalls.values()) {
+            calls.set(call.apiCallId, call)
+            state.event_watermark_ms = Math.max(state.event_watermark_ms, eventTimestampMs(call))
+          }
+          completeSessionIds.push(id)
+          updates.push(state)
+        }
       } catch (error) {
         throw new Error(
           `Antigravity 会话不可读 (${dbFile ?? transcripts.get(id)}): ${message(error)}`,
@@ -107,15 +159,18 @@ export class AntigravityScanner implements AgentScanner {
         call.parentSessionId = info.parentSessionId
         call.rootSessionId = resolveRootSessionId(call.sessionId, parentIds)
         if (info.name) call.subAgentName = info.name
+        // 子代理由父会话派发，其输入不是新的用户请求。
+        if (call.turn) call.turn = { ...call.turn, userInitiated: false }
       }
     }
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(sessions, titles)
+    this.pendingSourceStates = updates
     return {
       apiCalls,
       sessions,
       records: buildRecordsFromSessions(this.agentName, sessions),
-      completeSessionIds: sessionIds,
+      completeSessionIds,
     }
   }
 
@@ -125,6 +180,13 @@ export class AntigravityScanner implements AgentScanner {
     transcript: string | undefined,
     calls: Map<string, TokenUsageApiCall>,
   ): void {
+    const rows = transcript ? readAntigravityTranscript(transcript) : []
+    const userSteps = antigravityUserInputSteps(conversation.steps, rows)
+    const withTurn = (call: TokenUsageApiCall, step: number | undefined): TokenUsageApiCall => {
+      const turn = antigravityTurnForStep(userSteps, step)
+      if (turn) call.turn = turn
+      return call
+    }
     const coveredSteps = new Set<number>()
     const generationForStep = new Map<number, { id: string; metadata: AntigravityGeneration }>()
     const authoritative = new Set<string>()
@@ -163,7 +225,10 @@ export class AntigravityScanner implements AgentScanner {
       const conflict = linkedSteps.some(
         (step) => hasUsage(step.usage) && !sameUsage(step.usage!, usage!),
       )
-      const call = this.apiCall(sessionId, id, usage!, metadata, linkedSteps, conflict)
+      const call = withTurn(
+        this.apiCall(sessionId, id, usage!, metadata, linkedSteps, conflict),
+        primaryStepIndex,
+      )
       if (duplicate) {
         const previousModelId = duplicate.call.evidence?.modelId
         const currentModelId = call.evidence?.modelId
@@ -202,7 +267,10 @@ export class AntigravityScanner implements AgentScanner {
         generationForStep.set(idx, { id: duplicate.id, metadata: duplicate.metadata })
         continue
       }
-      const call = this.apiCall(sessionId, `step:${idx}`, step.usage!, {}, [step], false)
+      const call = withTurn(
+        this.apiCall(sessionId, `step:${idx}`, step.usage!, {}, [step], false),
+        idx,
+      )
       calls.set(call.apiCallId, call)
       authoritative.add(call.apiCallId)
       if (request)
@@ -214,29 +282,22 @@ export class AntigravityScanner implements AgentScanner {
           toolCall: !!step.toolCall,
         })
     }
-    if (!transcript) return
-    for (const line of readUtf8Lines(transcript)) {
-      if (!line.line.trim()) continue
-      let value: unknown
-      try {
-        value = JSON.parse(line.line)
-      } catch (error) {
-        if (line.terminated === false) continue
-        throw new Error(`transcript 第 ${line.lineIndex + 1} 行无效: ${message(error)}`)
-      }
-      if (!isObject(value)) continue
-      const usage = transcriptUsage(value)
+    for (const row of rows) {
+      const usage = row.usage
       if (!hasUsage(usage)) continue
-      const idx = count(value.step_index)
+      const idx = row.stepIndex
       const generation = idx === undefined ? undefined : generationForStep.get(idx)
-      const id = generation?.id ?? (idx === undefined ? `line:${line.byteOffset}` : `step:${idx}`)
+      const id = generation?.id ?? (idx === undefined ? `line:${row.byteOffset}` : `step:${idx}`)
       const apiCallId = `antigravity:${sessionId}:${id}`
       if (authoritative.has(apiCallId)) continue
       const step = idx === undefined ? undefined : conversation.steps.get(idx)
       // JSONL 兜底没有可核对的流窗口，只保留原生首 Token。
       const timingMetadata = { ...generation?.metadata, streamDurationMs: undefined }
-      const call = this.apiCall(sessionId, id, usage!, timingMetadata, step ? [step] : [], true)
-      const collected = timestampsFromValue(value.created_at, 'unknown')
+      const call = withTurn(
+        this.apiCall(sessionId, id, usage!, timingMetadata, step ? [step] : [], true),
+        idx,
+      )
+      const collected = timestampsFromValue(row.createdAt, 'unknown')
       if (!call.rawTimestamp && collected.rawTimestamp) {
         Object.assign(call, collected)
         call.date = dateFromTimestamp(call.timestamp)
@@ -388,39 +449,6 @@ function requireColumns(
   if (expected.some((column) => !columns.has(column))) throw new Error(`${table} 用量字段不兼容`)
 }
 
-function conversationFiles(root: string): Map<string, string> {
-  const result = new Map<string, string>()
-  const directory = join(root, 'conversations')
-  for (const entry of listEntries(directory)) {
-    if (entry.isFile() && entry.name.endsWith('.db'))
-      result.set(basename(entry.name, '.db'), join(directory, entry.name))
-  }
-  return result
-}
-
-function transcriptFiles(root: string): Map<string, string> {
-  const result = new Map<string, string>()
-  const directory = join(root, 'brain')
-  for (const entry of listEntries(directory)) {
-    if (!entry.isDirectory()) continue
-    const logs = join(directory, entry.name, '.system_generated', 'logs')
-    const canonical = join(logs, 'transcript.jsonl')
-    const full = join(logs, 'transcript_full.jsonl')
-    if (existsSync(canonical)) result.set(entry.name, canonical)
-    else if (existsSync(full)) result.set(entry.name, full)
-  }
-  return result
-}
-
-function listEntries(directory: string): import('fs').Dirent[] {
-  try {
-    return readdirSync(directory, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-    throw error
-  }
-}
-
 function emptyConversation(): Conversation {
   return { steps: new Map(), generations: [] }
 }
@@ -455,23 +483,6 @@ function workspacePath(value: unknown): string | undefined {
     return undefined
   }
   return undefined
-}
-
-function transcriptUsage(row: Record<string, unknown>): AntigravityUsage | undefined {
-  const keys = ['input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens']
-  if (!keys.some((key) => count(row[key]) !== undefined)) return undefined
-  return {
-    inputTokens: count(row.input_tokens) ?? 0,
-    outputTokens: count(row.output_tokens) ?? 0,
-    cacheReadTokens: count(row.cache_read_tokens) ?? 0,
-    cacheWriteTokens: count(row.cache_write_tokens) ?? 0,
-    thinkingTokens: count(row.thinking_output_tokens) ?? 0,
-    responseTokens: count(row.response_output_tokens),
-  }
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function message(error: unknown): string {

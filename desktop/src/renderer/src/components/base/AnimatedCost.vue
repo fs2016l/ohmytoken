@@ -11,9 +11,16 @@ const props = withDefaults(
     summary?: UsageCostRollup
     note?: boolean
     estimateMark?: boolean
+    currencyPosition?: 'prefix' | 'suffix'
     motion?: NumberMotionMode
   }>(),
-  { note: true, estimateMark: true, summary: undefined, motion: 'auto' },
+  {
+    note: true,
+    estimateMark: true,
+    currencyPosition: 'prefix',
+    summary: undefined,
+    motion: 'auto',
+  },
 )
 const { currency, exchange } = useCostCurrency()
 const { label } = useI18n()
@@ -38,10 +45,18 @@ const hint = computed(() =>
   <span class="animated-cost" :title="hint">
     <span v-if="money" class="cost-value">
       <template v-if="estimateMark">≈</template>
-      <AnimatedNumber :value="money.min" :format="{ currency, compact: true }" :motion="motion" />
+      <AnimatedNumber
+        :value="money.min"
+        :format="{ currency, compact: true, currencyPosition }"
+        :motion="motion"
+      />
       <template v-if="range">
         –
-        <AnimatedNumber :value="money.max" :format="{ currency, compact: true }" :motion="motion" />
+        <AnimatedNumber
+          :value="money.max"
+          :format="{ currency, compact: true, currencyPosition }"
+          :motion="motion"
+        />
       </template>
     </span>
     <span v-else>—</span>

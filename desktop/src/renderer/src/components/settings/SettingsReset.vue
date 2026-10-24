@@ -76,8 +76,8 @@ async function restore(): Promise<void> {
       <p>
         {{
           label(
-            'Restore the light Classic theme, solid background, default fonts and tonal charts. Reset page filters, sorting and export preferences; close the mini window and turn off automatic refresh and network monitoring.',
-            '恢复浅色经典主题、纯色背景、默认字体和同色系图表，重置页面筛选、排序与导出偏好，关闭悬浮窗、自动刷新和网络监控。',
+            'Restore the light Classic theme, solid background, default fonts and tonal charts. Restore and center the main window at its default size. Reset page filters, sorting and export preferences; close the mini window and turn off automatic refresh and network monitoring.',
+            '恢复浅色经典主题、纯色背景、默认字体和同色系图表，将主窗口恢复默认大小并居中，重置页面筛选、排序与导出偏好，关闭悬浮窗、自动刷新和网络监控。',
           )
         }}
       </p>

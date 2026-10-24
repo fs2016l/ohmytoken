@@ -1,0 +1,477 @@
+.renewal-calendar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-low);
+  container: renewal-calendar / inline-size;
+}
+.renewal-calendar-header,
+.renewal-calendar-heading,
+.renewal-calendar-navigation {
+  display: flex;
+  align-items: center;
+}
+.renewal-calendar-header {
+  flex: none;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.renewal-calendar-heading {
+  min-width: 0;
+  gap: 8px;
+}
+.renewal-calendar-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--primary-soft-text);
+  background: var(--primary-soft);
+  font-size: 20px;
+}
+h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.renewal-calendar-total,
+.renewal-day-count {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 20px;
+  color: var(--primary-soft-text);
+  background: var(--primary-soft);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.renewal-calendar-navigation {
+  flex: none;
+  gap: 6px;
+}
+.renewal-calendar-navigation strong {
+  min-width: 94px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.renewal-calendar-navigation .workspace-button {
+  height: 30px;
+  min-height: 30px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+.renewal-calendar-navigation .workspace-button--icon {
+  width: 30px;
+  padding: 0;
+}
+.renewal-calendar-today {
+  margin-left: 2px;
+}
+.renewal-calendar-weekdays,
+.renewal-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.renewal-calendar-weekdays {
+  flex: none;
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: var(--surface-container);
+}
+.renewal-calendar-weekdays span {
+  padding: 6px 0;
+  text-align: center;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-soft);
+}
+.renewal-calendar-weekdays span:nth-last-child(-n + 2) {
+  color: var(--primary-soft-text);
+}
+.renewal-calendar-grid {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: repeat(var(--calendar-weeks), minmax(min-content, 1fr));
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.renewal-calendar-blank,
+.renewal-calendar-day {
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+  background: var(--surface-low);
+}
+.renewal-calendar-day {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px;
+  overflow: hidden;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  container: renewal-day / size;
+}
+.renewal-calendar-day.has-single {
+  min-height: 52px;
+}
+.renewal-calendar-day.has-pair {
+  min-height: 78px;
+}
+.renewal-calendar-day.is-crowded {
+  min-height: 88px;
+}
+.renewal-calendar-day:hover {
+  background: var(--surface-container);
+}
+.renewal-calendar-day.is-selected {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--surface-low));
+  box-shadow: inset 0 0 0 1.5px var(--primary-border);
+}
+.renewal-calendar-day:focus-visible,
+.renewal-day-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.renewal-calendar-day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  min-height: 20px;
+  margin-bottom: 1px;
+}
+.renewal-calendar-number {
+  display: grid;
+  place-items: center;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.is-selected .renewal-calendar-number {
+  color: var(--primary-soft-text);
+  font-weight: 600;
+}
+.is-today .renewal-calendar-number {
+  color: var(--primary-on);
+  background: var(--primary);
+}
+.renewal-calendar-day-count {
+  min-width: 17px;
+  padding: 0 3px;
+  border-radius: 9px;
+  color: var(--primary-soft-text);
+  background: var(--primary-soft);
+  font-size: 10px;
+  line-height: 17px;
+  text-align: center;
+}
+.renewal-tone--soon {
+  --renewal-event-color: var(--warning);
+}
+.renewal-tone--overdue {
+  --renewal-event-color: var(--error);
+}
+.renewal-tone--upcoming {
+  --renewal-event-color: var(--primary);
+}
+.renewal-calendar-events {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+}
+.renewal-calendar-events:is(.is-single, .is-pair) {
+  flex: 1;
+}
+.renewal-calendar-events.is-pair {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.renewal-calendar-event {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 20px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  overflow: hidden;
+  color: var(--renewal-event-text, var(--text));
+  background: var(
+    --renewal-event-fill,
+    color-mix(in srgb, var(--renewal-event-color) 9%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px var(--renewal-event-outline, transparent);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.renewal-calendar-events:is(.is-single, .is-pair) .renewal-calendar-event {
+  flex: 1;
+  min-height: 20px;
+  height: auto;
+  border-radius: 5px;
+}
+.renewal-calendar-events.is-single .renewal-calendar-event {
+  justify-content: center;
+  gap: 6px;
+  padding-block: 0;
+}
+.renewal-calendar-event-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@container renewal-day (min-height: 60px) {
+  .renewal-calendar-events.is-single .renewal-calendar-event-name {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+@container renewal-day (min-height: 86px) {
+  .renewal-calendar-events.is-single .renewal-calendar-event {
+    flex-direction: column;
+    gap: 2px;
+    padding: 1px 5px;
+    text-align: center;
+  }
+  .renewal-calendar-events.is-single .renewal-calendar-event-name {
+    flex: none;
+    font-size: 12px;
+  }
+}
+@container renewal-day (min-height: 104px) {
+  .renewal-calendar-events.is-pair .renewal-calendar-event-name {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
+    white-space: normal;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+.renewal-calendar-more {
+  flex: none;
+  padding-left: 3px;
+  color: var(--primary-soft-text);
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+.renewal-day-agenda {
+  flex: none;
+  min-width: 0;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.renewal-day-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.renewal-day-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 46px;
+  align-content: start;
+  gap: 6px 8px;
+  height: 98px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  list-style: none;
+}
+.renewal-day-list li {
+  min-width: 0;
+}
+.renewal-day-list:is(.is-single, .is-pair) {
+  grid-auto-rows: 98px;
+}
+.renewal-day-list.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+.renewal-day-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--renewal-event-text, var(--text));
+  background: var(
+    --renewal-event-fill,
+    color-mix(in srgb, var(--renewal-event-color) 9%, var(--surface-low))
+  );
+  box-shadow: inset 0 0 0 1px var(--renewal-event-outline, transparent);
+  text-align: left;
+  cursor: pointer;
+}
+.renewal-day-list:is(.is-single, .is-pair) .renewal-day-item {
+  gap: 12px;
+  padding: 10px 14px;
+}
+.renewal-day-list:is(.is-single, .is-pair) .renewal-day-info strong {
+  display: -webkit-box;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 14px;
+  line-height: 18px;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.renewal-day-item:hover:not(:disabled) {
+  background: var(
+    --renewal-event-fill,
+    color-mix(in srgb, var(--renewal-event-color) 16%, var(--surface-low))
+  );
+}
+.renewal-day-info {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+.renewal-day-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.renewal-day-info > span {
+  color: var(--renewal-event-text, var(--text-soft));
+  font-size: 11px;
+  line-height: 14px;
+}
+.renewal-day-provider {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.renewal-day-edit {
+  flex: none;
+  color: var(--renewal-event-text, var(--text-disabled));
+  font-size: 15px;
+}
+.renewal-day-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 98px;
+  margin: 0;
+  border-radius: 7px;
+  color: var(--text-soft);
+  background: var(--surface-container);
+  font-size: 12px;
+}
+.renewal-day-empty .material-symbols-outlined {
+  font-size: 20px;
+}
+.renewal-calendar-footer,
+.renewal-calendar-legend {
+  display: flex;
+  align-items: center;
+}
+.renewal-calendar-footer {
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  margin-top: 8px;
+  min-height: 18px;
+}
+.renewal-calendar-legend {
+  gap: 12px;
+  color: var(--text-soft);
+  font-size: 10px;
+}
+.renewal-calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.renewal-calendar-legend span::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.renewal-calendar-legend .today::before {
+  background: var(--primary);
+}
+.renewal-calendar-legend .soon::before {
+  background: var(--warning);
+}
+.renewal-calendar-legend .overdue::before {
+  background: var(--error);
+}
+.renewal-calendar-help {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 10px;
+  line-height: 18px;
+}
+@container renewal-calendar (max-width: 520px) {
+  .renewal-calendar-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .renewal-calendar-heading {
+    flex: 1;
+  }
+  .renewal-calendar-navigation {
+    margin-left: auto;
+  }
+  .renewal-calendar-help {
+    display: none;
+  }
+}
+@media (max-width: 600px) {
+  .renewal-calendar {
+    padding: 12px;
+  }
+}

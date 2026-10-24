@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import AnimatedNumber from './AnimatedNumber.vue'
 import AnimatedBar from './AnimatedBar.vue'
+import TokenShare from './TokenShare.vue'
 import { useI18n } from '../../i18n/useI18n'
 import { combinedCache } from '../../utils/number-format'
 const props = defineProps<{
@@ -16,10 +17,14 @@ const props = defineProps<{
 }>()
 const { label } = useI18n()
 const rows = computed(() => [
-  { id: 'input', label: label('Input', '输入'), value: props.usage.inputTokens },
-  { id: 'output', label: label('Output', '输出'), value: props.usage.outputTokens },
-  { id: 'cache', label: label('Cache', '缓存'), value: combinedCache(props.usage)! },
-  { id: 'reasoning', label: label('Reasoning', '推理'), value: props.usage.reasoningTokens },
+  { id: 'input' as const, label: label('Input', '输入'), value: props.usage.inputTokens },
+  { id: 'output' as const, label: label('Output', '输出'), value: props.usage.outputTokens },
+  { id: 'cache' as const, label: label('Cache', '缓存'), value: combinedCache(props.usage)! },
+  {
+    id: 'reasoning' as const,
+    label: label('Reasoning', '推理'),
+    value: props.usage.reasoningTokens,
+  },
 ])
 </script>
 <template>
@@ -34,6 +39,7 @@ const rows = computed(() => [
         />
       </div>
       <AnimatedNumber :value="row.value" :format="{ compact: true }" />
+      <TokenShare :usage="usage" :bucket="row.id" />
     </div>
   </div>
 </template>
@@ -44,16 +50,22 @@ const rows = computed(() => [
 }
 .token-breakdown-row {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 68px;
+  grid-template-columns: 46px minmax(0, 1fr) 68px 40px;
   gap: 10px;
   align-items: center;
   min-height: 32px;
   font-size: 12px;
   color: var(--text-muted);
 }
-.token-breakdown-row > :last-child {
+.token-breakdown-row > .animated-number {
   text-align: right;
   color: var(--text);
+}
+.token-breakdown-row > .token-share {
+  grid-column: 4;
+  margin-inline-start: 0;
+  text-align: right;
+  font-size: 11px;
 }
 .token-bar-track {
   height: 12px;

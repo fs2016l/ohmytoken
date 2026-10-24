@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { UsageTrendStats } from '@shared/models'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
+import TokenShare from '../base/TokenShare.vue'
 import UpdatedAt from '../base/UpdatedAt.vue'
 import { useI18n } from '../../i18n/useI18n'
 import { compactTokenLine } from '../../utils/floating-summary'
@@ -16,6 +17,20 @@ const props = defineProps<{
 const emit = defineEmits<{ expand: [] }>()
 const { label } = useI18n()
 const line = computed(() => compactTokenLine(props.stats))
+const breakdown = computed(() => [
+  { id: 'input' as const, name: label('Input', '输入'), value: props.stats.inputTokens },
+  { id: 'output' as const, name: label('Output', '输出'), value: props.stats.outputTokens },
+  {
+    id: 'cache' as const,
+    name: label('Cache', '缓存'),
+    value: props.stats.cacheReadTokens + props.stats.cacheWriteTokens,
+  },
+  {
+    id: 'reasoning' as const,
+    name: label('Reasoning', '推理'),
+    value: props.stats.reasoningTokens,
+  },
+])
 </script>
 
 <template>
@@ -49,26 +64,13 @@ const line = computed(() => compactTokenLine(props.stats))
       </svg>
     </button>
     <div class="floating-summary-breakdown">
-      <div>
-        <span>{{ label('Input', '输入') }}</span>
+      <div v-for="item in breakdown" :key="item.id">
+        <span>
+          {{ item.name }}
+          <TokenShare :usage="ready ? stats : null" :bucket="item.id" />
+        </span>
         <AnimatedNumber
-          :value="ready ? stats.inputTokens : null"
-          :format="{ compact: true }"
-          :replay="false"
-        />
-      </div>
-      <div>
-        <span>{{ label('Output', '输出') }}</span>
-        <AnimatedNumber
-          :value="ready ? stats.outputTokens : null"
-          :format="{ compact: true }"
-          :replay="false"
-        />
-      </div>
-      <div>
-        <span>{{ label('Cache', '缓存') }}</span>
-        <AnimatedNumber
-          :value="ready ? stats.cacheReadTokens + stats.cacheWriteTokens : null"
+          :value="ready ? item.value : null"
           :format="{ compact: true }"
           :replay="false"
         />

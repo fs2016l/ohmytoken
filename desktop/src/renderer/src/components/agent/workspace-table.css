@@ -26,8 +26,9 @@
   padding-inline: 8px;
   text-align: center;
 }
-.usage-workspace-table .title-column {
-  padding-left: 36px;
+.usage-workspace-table .expand-cell {
+  width: 24px;
+  padding-inline: 4px;
 }
 .usage-workspace-table .identity-column {
   width: 156px;
@@ -40,7 +41,7 @@
   width: 140px;
 }
 .usage-workspace-table .recent-column {
-  width: 90px;
+  width: 100px;
 }
 .usage-workspace-table tbody tr {
   cursor: pointer;
@@ -57,12 +58,9 @@
   gap: 8px;
   min-width: 0;
 }
-.workspace-expand,
-.workspace-expand-spacer {
+.workspace-expand {
   width: 16px;
   flex: none;
-}
-.workspace-expand {
   display: grid;
   place-items: center;
   padding: 0;
@@ -106,8 +104,11 @@
   line-height: 20px;
 }
 .usage-workspace-table .recent-cell {
-  font-size: 11px;
-  line-height: 18px;
+  color: var(--text);
+  font-family: var(--font-number);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
   white-space: nowrap;
 }
 .usage-workspace-table .child-row td,

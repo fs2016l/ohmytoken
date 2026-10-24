@@ -17,6 +17,12 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-rou
 import DiscoveryRoute from '../components/discovery/DiscoveryRoute.vue'
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: '/cyber-eggs/:provider?',
+    name: 'cyber-eggs',
+    meta: { surface: true },
+    component: DiscoveryRoute,
+  },
   { path: '/', redirect: '/agent' },
   {
     path: '/agent',

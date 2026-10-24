@@ -32,6 +32,7 @@ import type {
 } from './types'
 import { normalizeZCodeTokenBuckets } from './zcode-usage'
 import { zCodeGenerationTiming } from './zcode-generation-timing'
+import { zCodeTurnReader, type ZCodeTurnReader } from './zcode-turns'
 
 type DbValue = number | string | bigint | Uint8Array | null | undefined
 type QueryParam = string | number | bigint | null
@@ -63,6 +64,7 @@ export class ZCodeScanner implements AgentScanner {
 
       const sessionById = readSessionMetadata(db, this.agentName)
       const modelUsageColumns = tableColumns(db, 'model_usage')
+      const readTurn = zCodeTurnReader(db)
       const apiCalls: TokenUsageApiCall[] = []
 
       if (isUsableModelUsageSchema(modelUsageColumns)) {
@@ -71,6 +73,7 @@ export class ZCodeScanner implements AgentScanner {
           modelUsageColumns,
           sessionById,
           scanContext,
+          readTurn,
         )
         apiCalls.push(...modelUsage.apiCalls)
 
@@ -82,11 +85,14 @@ export class ZCodeScanner implements AgentScanner {
               sessionById,
               scanContext,
               modelUsage.referencedMessageIds,
+              readTurn,
             ),
           )
         }
       } else {
-        apiCalls.push(...this.readMessageApiCalls(db, sessionById, scanContext, new Set()))
+        apiCalls.push(
+          ...this.readMessageApiCalls(db, sessionById, scanContext, new Set(), readTurn),
+        )
       }
 
       const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
@@ -123,6 +129,7 @@ export class ZCodeScanner implements AgentScanner {
     columns: Set<string>,
     sessionById: ReadonlyMap<string, TokenUsageSession>,
     context: ScannerScanContext,
+    readTurn?: ZCodeTurnReader,
   ) {
     const selectColumns = [
       'id',
@@ -131,6 +138,7 @@ export class ZCodeScanner implements AgentScanner {
         'logical_request_id',
         'attempt_index',
         'assistant_message_id',
+        'parent_user_message_id',
         'query_source',
         'model_id',
         'provider_id',
@@ -168,6 +176,7 @@ export class ZCodeScanner implements AgentScanner {
           row,
           sessionById,
           !columns.has('computed_total_tokens'),
+          readTurn,
         )
         if (!call) continue
         byId.set(call.apiCallId, call)
@@ -199,6 +208,7 @@ export class ZCodeScanner implements AgentScanner {
     row: Record<string, DbValue>,
     sessionById: ReadonlyMap<string, TokenUsageSession>,
     legacyInclusiveSchema: boolean,
+    readTurn?: ZCodeTurnReader,
   ): TokenUsageApiCall | null {
     const sourceId =
       dbString(row.id) ||
@@ -235,6 +245,7 @@ export class ZCodeScanner implements AgentScanner {
     const rootSessionId = session?.rootSessionId ?? sessionId
     const subAgentName = dbString(row.agent)
     const querySource = dbString(row.query_source)
+    const turn = readTurn?.(sessionId, dbString(row.parent_user_message_id), !!parentSessionId)
 
     return {
       agent: this.agentName,
@@ -242,6 +253,7 @@ export class ZCodeScanner implements AgentScanner {
       sessionId,
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
+      ...(turn ? { turn } : {}),
       ...(subAgentName ? { subAgentName } : {}),
       ...(session?.projectPath ? { projectPath: session.projectPath } : {}),
       ...(querySource ? { role: querySource } : {}),
@@ -267,6 +279,7 @@ export class ZCodeScanner implements AgentScanner {
     sessionById: ReadonlyMap<string, TokenUsageSession>,
     context: ScannerScanContext,
     excludedMessageIds: ReadonlySet<string>,
+    readTurn?: ZCodeTurnReader,
   ): TokenUsageApiCall[] {
     const columns = tableColumns(db, 'message')
     if (!columns || !hasColumns(columns, 'id', 'session_id', 'data')) return []
@@ -291,7 +304,13 @@ export class ZCodeScanner implements AgentScanner {
         const row = rawRow as Record<string, DbValue>
         const sourceId = dbString(row.id)
         if (sourceId && excludedMessageIds.has(sourceId)) continue
-        const call = this.messageRowToApiCall(row, sessionById, hasTimeCreated, hasTimeUpdated)
+        const call = this.messageRowToApiCall(
+          row,
+          sessionById,
+          hasTimeCreated,
+          hasTimeUpdated,
+          readTurn,
+        )
         if (call) byId.set(call.apiCallId, call)
       }
     }
@@ -319,6 +338,7 @@ export class ZCodeScanner implements AgentScanner {
     sessionById: ReadonlyMap<string, TokenUsageSession>,
     hasTimeCreated: boolean,
     hasTimeUpdated: boolean,
+    readTurn?: ZCodeTurnReader,
   ): TokenUsageApiCall | null {
     const data = parseJsonObject(row.data)
     if (readJsonString(data, 'role') !== 'assistant') return null
@@ -356,6 +376,7 @@ export class ZCodeScanner implements AgentScanner {
     const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, fallbackDate)
     const parentSessionId = session?.parentSessionId
     const rootSessionId = session?.rootSessionId ?? sessionId
+    const turn = readTurn?.(sessionId, readJsonString(data, 'parentID'), !!parentSessionId)
 
     return {
       agent: this.agentName,
@@ -363,6 +384,7 @@ export class ZCodeScanner implements AgentScanner {
       sessionId,
       ...(parentSessionId ? { parentSessionId } : {}),
       ...(rootSessionId !== sessionId || parentSessionId ? { rootSessionId } : {}),
+      ...(turn ? { turn } : {}),
       ...(session?.projectPath ? { projectPath: session.projectPath } : {}),
       role: 'assistant',
       date: dateFromTimestamp(timestamp, fallbackDate),

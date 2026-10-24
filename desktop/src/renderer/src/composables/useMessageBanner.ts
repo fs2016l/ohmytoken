@@ -55,6 +55,11 @@ export function useMessageBanner(placement: MessagePlacement, interacting: Ref<b
   let unsubscribeAnnouncements: (() => void) | null = null
 
   const currentMessage = computed(() => messages.value[activeIndex.value] || null)
+  const currentDetailsOpen = computed(
+    () =>
+      !!currentMessage.value &&
+      details.message.value?.messageUid === currentMessage.value.messageUid,
+  )
   const rotationKey = computed(() => {
     const message = currentMessage.value
     return message ? `${message.id}:${message.messageUid}:${message.displayDurationSeconds}` : ''
@@ -142,7 +147,7 @@ export function useMessageBanner(placement: MessagePlacement, interacting: Ref<b
   }
 
   function openDetails(message: DesktopMessage): void {
-    if (placement === 'floating' && details.message.value?.messageUid === message.messageUid) {
+    if (details.message.value?.messageUid === message.messageUid) {
       details.close()
       return
     }
@@ -238,6 +243,7 @@ export function useMessageBanner(placement: MessagePlacement, interacting: Ref<b
     activeIndex,
     rollDirection,
     detailsOpen,
+    currentDetailsOpen,
     isLoading,
     refresh,
     next,

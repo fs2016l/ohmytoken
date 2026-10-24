@@ -7,7 +7,7 @@ import { QuotaQueryError } from './query-error'
 const GUARDED_HOSTS = new Set([
   'chatgpt.com',
   'api.anthropic.com',
-  'cloudcode-pa.googleapis.com',
+  'daily-cloudcode-pa.googleapis.com',
   'cli-chat-proxy.grok.com',
 ])
 const REGION_SOURCES = [

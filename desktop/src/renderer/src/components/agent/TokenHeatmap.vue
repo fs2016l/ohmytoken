@@ -71,7 +71,7 @@ function choose(date: string): void {
         :title="`${readout}: ${formatNumber(readoutValue)} Token`"
         @click="choose(readout)"
       >
-        <span>{{ readout.slice(5).replace('-', '/') }}</span>
+        <span>{{ readout.slice(5) }}</span>
         <b>{{ formatNumber(readoutValue, { compact: true }) }}</b>
         {{ label('Details', '明细') }}
       </button>

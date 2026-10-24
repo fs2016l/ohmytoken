@@ -22,8 +22,6 @@ export function detailSources(connection: DiscoveredConnection): QuotaDetailSour
       return ['minimax-billing']
     case 'anthropic':
       return ['claude-extra']
-    case 'google':
-      return ['gemini-account']
     case 'xai':
       return ['grok-billing', 'grok-settings']
   }
