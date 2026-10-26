@@ -55,12 +55,17 @@ Oh My Token 汇总本机 [多种受支持的 Agent](#支持的-agent) 的用量�
 
 ### 工作时，用浮窗随时看一眼
 
-桌面浮窗提供 Token 和额度两个页签：收起时看摘要，展开时查看用量趋势、关注会话和额度窗口。支持窗口置顶，也可以调整会话与关注账户的顺序；展开的额度界面可切换条形和圆球两种样式。
+展开小窗，查看 Token 趋势和关注会话；收藏夹与最近会话可分别切换“全部轮 / 最新轮”，随时查看本轮 Token 用量。额度页签集中展示关注账户的额度窗口、余额和重置时间，支持条形和圆球两种样式。
 
-|                                                                                                  Token                                                                                                   |                                                                                                      额度                                                                                                      |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
-| **展开**<br><a href="docs/screenshots/readme/floating-token-expanded-zh.png"><img src="docs/screenshots/readme/floating-token-expanded-zh.png" width="420" alt="Token 浮窗展开：用量趋势与关注会话"></a> |     **展开**<br><a href="docs/screenshots/readme/floating-quota-expanded-zh.png"><img src="docs/screenshots/readme/floating-quota-expanded-zh.png" width="420" alt="额度浮窗展开：关注账户与额度窗口"></a>     |
-|     **收起**<br><a href="docs/screenshots/readme/floating-token-collapsed-zh.png"><img src="docs/screenshots/readme/floating-token-collapsed-zh.png" width="420" alt="Token 浮窗收起：用量摘要"></a>     | **收起**<br><a href="docs/screenshots/readme/floating-quota-collapsed-zh.png"><img src="docs/screenshots/readme/floating-quota-collapsed-zh.png" width="420" alt="额度浮窗收起：余额、余量与重置时间摘要"></a> |
+|                                                                                                        Token                                                                                                        |                                                                                                   额度                                                                                                   |
+| :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| **展开**<br><a href="docs/screenshots/readme/floating-token-expanded-zh.png"><img src="docs/screenshots/readme/floating-token-expanded-zh.png" width="420" alt="Token 小窗：用量趋势、最新轮 Token 与回答状态"></a> | **展开**<br><a href="docs/screenshots/readme/floating-quota-expanded-zh.png"><img src="docs/screenshots/readme/floating-quota-expanded-zh.png" width="420" alt="额度小窗：关注账户、余额与额度窗口"></a> |
+
+收起时，Token 趋势与账户额度合并为一张紧凑摘要。支持窗口置顶、贴边隐藏，以及会话和关注账户排序。
+
+<p align="center">
+  <a href="docs/screenshots/readme/floating-token-collapsed-zh.png"><img src="docs/screenshots/readme/floating-token-collapsed-zh.png" width="420" alt="收起的小窗：同时查看 Token 趋势、账户余额、剩余额度与重置时间"></a>
+</p>
 
 ### 把用量变成可分享的回顾
 
