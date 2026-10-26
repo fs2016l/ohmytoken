@@ -10,6 +10,7 @@ import Database from 'better-sqlite3'
 import { ensureSessionUsageSchema } from './session-usage-schema'
 import { ensureSessionGenerationSchema } from './session-generation-storage'
 import { ensureSessionTurnTimingSchema } from './session-turn-timing-storage'
+import { ensureLatestTurnSchema } from './session-latest-turn-storage'
 import { ensureProjectSchema } from './project-schema'
 import { costSchemaReady, migrateCostSchema } from '../cost/cost-schema'
 import { parseCostRollup, type CostRollupRow } from '../cost/cost-rollup-storage'
@@ -463,6 +464,7 @@ export function openUsageDatabase(dbPath: string): Database.Database {
   ensureSessionUsageSchema(conn)
   ensureSessionGenerationSchema(conn)
   ensureSessionTurnTimingSchema(conn)
+  ensureLatestTurnSchema(conn)
   ensureProjectSchema(conn)
   if (currentVersion < 18) conn.pragma('user_version = 18')
 

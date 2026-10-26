@@ -30,6 +30,16 @@ export interface UpdateState {
   error: string | null
 }
 
+export interface UpdateCheckOptions {
+  /** Startup checks stay quiet when no update is available. */
+  silent?: boolean
+}
+
+export interface UpdateCheckResult extends Partial<UpdateInfo> {
+  hasUpdate: boolean
+  state?: UpdateState
+}
+
 export interface UpdateAsset extends UpdateInfo {
   /** Stable tracking URL; never persist the expiring CDN redirect. */
   url: string

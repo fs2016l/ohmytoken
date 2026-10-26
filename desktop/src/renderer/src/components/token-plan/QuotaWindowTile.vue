@@ -104,8 +104,8 @@ const title = computed(() => quotaWindowTitle(props.usage, label))
   border-radius: 7px;
   background: var(--surface-container);
   color: var(--text-muted);
-  font-size: 10px;
-  line-height: 14px;
+  font-size: 11px;
+  line-height: 16px;
 }
 .quota-window__value {
   display: flex;
@@ -132,12 +132,15 @@ const title = computed(() => quotaWindowTitle(props.usage, label))
   display: flex;
   align-items: center;
   gap: 3px;
-  height: 16px;
+  height: auto;
   color: var(--text-muted);
-  font-family: var(--font-number);
-  font-size: 11px;
-  line-height: 16px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
   white-space: nowrap;
+  min-height: 18px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 .quota-window__reset .material-symbols-outlined {
   font-size: 13px;

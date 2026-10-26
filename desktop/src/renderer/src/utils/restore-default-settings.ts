@@ -13,6 +13,7 @@ const preferenceKeys = [
   'chart-color-mode',
   'date-from',
   'date-to',
+  'plan-renewals-time-zone',
   'article-reading-size',
   'agent-reading-size',
   'floating-view',

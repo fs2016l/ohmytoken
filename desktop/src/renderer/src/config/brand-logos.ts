@@ -1,5 +1,8 @@
 import { modelPalette } from './agents'
 import { computed, shallowRef } from 'vue'
+import { useTheme } from '../composables/useTheme'
+import { getTheme } from './themes'
+import { themedBrandImageUrl } from '../utils/themed-brand-image'
 import {
   createModelBrandIdentityResolver,
   resolveModelBrandId,
@@ -112,11 +115,21 @@ const monochromeAgents = new Set(['codex', 'grok', 'zed'])
 const monochromeVendors = new Set(['openai', 'anthropic'])
 
 export function agentLogoUrl(agent: string): string | undefined {
-  return agentLogos[agent]
+  const url = agentLogos[agent]
+  return url && monochromeAgents.has(agent) ? themedLogoUrl(url) : url
 }
 
 export function modelLogoUrl(modelName: string): string | undefined {
-  return remoteModelLogoUrl(modelName)
+  const url = remoteModelLogoUrl(modelName)
+  return url ? themedLogoUrl(url) : undefined
+}
+
+function themedLogoUrl(url: string): string | undefined {
+  const { currentTheme, currentAccent } = useTheme()
+  return themedBrandImageUrl(
+    url,
+    getTheme(currentAccent.value).colors[currentTheme.value]['--text'],
+  )
 }
 
 export function vendorLogoUrl(providerId: string): string | undefined {

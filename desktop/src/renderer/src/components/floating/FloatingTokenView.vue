@@ -4,9 +4,11 @@ import AnimatedNumber from '../base/AnimatedNumber.vue'
 import TokenShare from '../base/TokenShare.vue'
 import DesignIcon from '../base/DesignIcon.vue'
 import SelectControl from '../base/SelectControl.vue'
+import RollingText from '../base/RollingText.vue'
 import DropdownChevron from '../base/DropdownChevron.vue'
 import NetworkRefreshButton from '../network/NetworkRefreshButton.vue'
 import FloatingSessionCard from './FloatingSessionCard.vue'
+import SessionTurnScopeControl from '../agent/SessionTurnScopeControl.vue'
 import FloatingTokenTrend from './FloatingTokenTrend.vue'
 import FloatingTokenSummary from './FloatingTokenSummary.vue'
 import FloatingTokenRange from './FloatingTokenRange.vue'
@@ -16,6 +18,7 @@ import {
 } from '../../composables/useFloatingSessions'
 import {
   useFloatingTokenTrend,
+  type FloatingTrendDisplay,
   type FloatingTrendRange,
 } from '../../composables/useFloatingTokenTrend'
 import { useVisibleNow } from '../../composables/useVisibleNow'
@@ -45,6 +48,8 @@ const refreshInterval = computed({
 })
 const {
   latestCount,
+  pinnedTurnScope,
+  latestTurnScope,
   pinnedSessions,
   latestSessions,
   tokenDeltas,
@@ -63,6 +68,7 @@ const {
   baselineAt,
   applyBaseline,
   groupBy,
+  displayMode,
   sessionsExpanded,
   stats,
   isLoading: trendBusy,
@@ -133,6 +139,11 @@ const rangeDescription = computed(() => {
   const start = `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
   return label(`From ${start} to now`, `${start} 起 · 至今`)
 })
+const groupOptions = computed<{ value: FloatingTrendDisplay; label: string }[]>(() => [
+  { value: 'total', label: label('Total', '总量') },
+  { value: 'model', label: label('By model', '按模型') },
+  { value: 'agent', label: label('By Agent', '按 Agent') },
+])
 const refreshOptions = [0, ...SCAN_REFRESH_INTERVALS]
 function intervalText(value: number): string {
   if (!value) return label('Manual', '手动刷新')
@@ -224,7 +235,7 @@ onUnmounted(() => {
     :aria-label="label('Token monitor', 'Token 监测')"
   >
     <FloatingTokenSummary
-      v-show="compact"
+      v-if="compact"
       :stats="stats"
       :range-title="rangeTitle"
       :ready="lastUpdatedAt > 0"
@@ -233,30 +244,50 @@ onUnmounted(() => {
       @expand="$emit('expand')"
     />
     <div v-show="!compact" ref="scroll" class="floating-scroll" @scroll="save">
-      <FloatingTokenRange
-        v-model:range="range"
-        :baseline-at="baselineAt"
-        :range-title="rangeTitle"
-        :range-description="rangeDescription"
-        @baseline="applyBaseline"
-      />
-      <div class="floating-total">
-        <AnimatedNumber :value="stats.totalTokens" :format="{ compact: true }" :replay="false" />
-        <span>tokens</span>
-      </div>
-      <FloatingTokenTrend :stats="stats" :group-by="stats.groupBy" :loading="trendBusy">
-        <template #actions>
-          <button class="floating-link" @click="groupBy = groupBy === 'agent' ? 'model' : 'agent'">
-            {{ groupBy === 'agent' ? label('By model', '按模型') : label('By Agent', '按 Agent') }}
-            <DesignIcon name="floatingArrow" :size="12" />
-          </button>
-        </template>
-      </FloatingTokenTrend>
-      <div class="floating-token-breakdown floating-card">
-        <div v-for="item in breakdown" :key="item.id">
-          <span>{{ item.name }}</span>
-          <AnimatedNumber :value="item.value" :format="{ compact: true }" :replay="false" />
-          <TokenShare :usage="stats" :bucket="item.id" plain />
+      <div class="floating-token-overview">
+        <FloatingTokenRange
+          v-model:range="range"
+          :baseline-at="baselineAt"
+          @baseline="applyBaseline"
+        />
+        <FloatingTokenTrend
+          :stats="stats"
+          :group-by="stats.groupBy"
+          :total-only="displayMode === 'total'"
+          :loading="trendBusy"
+        >
+          <template #heading>
+            <RollingText
+              :text="label(`${rangeTitle} usage`, `${rangeTitle}用量`)"
+              :title="rangeDescription"
+            />
+          </template>
+          <template #actions>
+            <SelectControl
+              v-model="displayMode"
+              class="floating-group-select"
+              :options="groupOptions"
+              :label="label('Group usage', '用量分组')"
+              compact
+            />
+          </template>
+          <template #summary>
+            <div class="floating-total">
+              <AnimatedNumber
+                :value="stats.totalTokens"
+                :format="{ compact: true }"
+                :replay="false"
+              />
+              <span>tokens</span>
+            </div>
+          </template>
+        </FloatingTokenTrend>
+        <div class="floating-token-breakdown">
+          <div v-for="item in breakdown" :key="item.id">
+            <span>{{ item.name }}</span>
+            <AnimatedNumber :value="item.value" :format="{ compact: true }" :replay="false" />
+            <TokenShare :usage="stats" :bucket="item.id" plain />
+          </div>
         </div>
       </div>
       <p v-if="failed" class="floating-error" role="alert">
@@ -276,6 +307,7 @@ onUnmounted(() => {
           {{ label('Favorites', '收藏夹') }}
           {{ pinnedSessions.length + missingPinned.length }}
         </strong>
+        <SessionTurnScopeControl v-model="pinnedTurnScope" compact />
         <button class="floating-link" @click="$emit('open', 'sessions')">
           {{ label('All sessions', '全部会话') }}
           <DesignIcon name="floatingArrow" :size="12" />
@@ -308,14 +340,10 @@ onUnmounted(() => {
         <p
           v-if="!pinnedSessions.length && !missingPinned.length"
           key="empty"
-          class="floating-empty"
+          class="floating-favorites-empty"
         >
-          {{
-            label(
-              'Star a recent session or favorite one in the main window to find it here.',
-              '点击最近会话的星标，或在主窗口收藏，即可在此快速查看。',
-            )
-          }}
+          <span class="material-symbols-outlined" aria-hidden="true">star</span>
+          <span>{{ label('Star a session to save it here.', '点击会话星标，收藏到这里') }}</span>
         </p>
       </div>
       <details
@@ -326,6 +354,7 @@ onUnmounted(() => {
         <summary class="disclosure-summary">
           <DropdownChevron disclosure direction="right" />
           <span>{{ label('Recent sessions', '最近会话') }}</span>
+          <SessionTurnScopeControl v-model="latestTurnScope" compact @click.stop @keydown.stop />
           <SelectControl
             v-model="latestCount"
             class="floating-recent-count"
@@ -371,106 +400,4 @@ onUnmounted(() => {
   </section>
 </template>
 
-<style scoped>
-.floating-total {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-top: 8px;
-}
-.floating-total > .animated-number {
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 52px;
-  letter-spacing: -1.2px;
-}
-.floating-total > span:last-child {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.floating-token-breakdown {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: var(--surface-low);
-}
-.floating-token-breakdown > div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-  text-align: center;
-}
-.floating-token-breakdown span:first-child {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.floating-token-breakdown .animated-number {
-  font-size: 14px;
-  font-weight: 500;
-}
-.floating-token-breakdown .token-share {
-  font-size: 11px;
-  line-height: 14px;
-}
-.floating-session-heading {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-  margin-top: 8px;
-  margin-bottom: 6px;
-}
-.floating-session-heading strong {
-  font-size: 12px;
-  font-weight: 500;
-}
-.floating-session-list {
-  display: grid;
-  gap: 4px;
-}
-.floating-missing-session {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 8px;
-  border-radius: 8px;
-  background: var(--surface-low);
-}
-.floating-missing-session > span {
-  min-width: 0;
-}
-.floating-missing-session small {
-  display: block;
-  color: var(--text-muted);
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.floating-missing-session button {
-  flex: 0 0 auto;
-}
-.floating-recent {
-  margin-top: 8px;
-  color: var(--text-muted);
-}
-.floating-recent summary {
-  min-height: var(--control-height-compact);
-  margin-bottom: 6px;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  user-select: none;
-}
-.floating-recent :deep(.floating-recent-count) {
-  flex: none;
-  min-width: 56px;
-  margin-inline-start: auto;
-}
-.floating-recent :deep(.session-card + .session-card) {
-  margin-top: 4px;
-}
-</style>
+<style scoped src="./floating-token-view.css"></style>

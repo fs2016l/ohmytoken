@@ -9,6 +9,8 @@ export interface ScanExecutionOptions {
   onProgress?: (progress: ScanProgress) => void
   parserWorkers?: ParserWorkerOptions
   agentWorkers?: ParserWorkerOptions
+  /** 尚无用量的 Agent 首次扫描先读本月，更早的历史在随后的扫描中补全。 */
+  recentFirst?: boolean
 }
 
 export class ScanProgressReporter {

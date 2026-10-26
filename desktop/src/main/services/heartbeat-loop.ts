@@ -1,4 +1,6 @@
 /** One HTTP heartbeat per installation, shared by every renderer window. */
+import type { DesktopHeartbeatResult } from '../../shared/desktop-api'
+
 export const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000
 const WAKE_COOLDOWN_MS = 3_000
 
@@ -7,10 +9,13 @@ interface RevisionSnapshot {
 }
 
 export interface HeartbeatDependencies<T extends RevisionSnapshot> {
-  heartbeat(): Promise<{ announcementRevision: string }>
+  heartbeat(): Promise<Pick<DesktopHeartbeatResult, 'announcementRevision' | 'updateRevision'>>
   synchronize(): Promise<T>
   persist(snapshot: T): void
   onError(error: unknown): void
+  onHeartbeat?(
+    heartbeat: Pick<DesktopHeartbeatResult, 'announcementRevision' | 'updateRevision'>,
+  ): void
   afterHeartbeat(): void
   now(): number
   schedule(callback: () => void, delay: number): ReturnType<typeof setTimeout>
@@ -96,6 +101,8 @@ export class HeartbeatLoop<T extends RevisionSnapshot> {
   private async run(epoch: number): Promise<void> {
     const heartbeat = await this.deps.heartbeat()
     if (!this.running || epoch !== this.epoch) return
+    // Release discovery does not depend on a successful announcement sync.
+    this.deps.onHeartbeat?.(heartbeat)
     if (heartbeat.announcementRevision !== this.revision) {
       const snapshot = await this.deps.synchronize()
       if (!this.running || epoch !== this.epoch) return

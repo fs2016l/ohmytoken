@@ -54,7 +54,7 @@ function render(): void {
       textStyle: {
         fontWeight: UI_FONT_WEIGHT,
         fontFamily: getComputedStyle(document.documentElement)
-          .getPropertyValue('--font-number')
+          .getPropertyValue('--font-sans')
           .trim(),
       },
       ...props.option,

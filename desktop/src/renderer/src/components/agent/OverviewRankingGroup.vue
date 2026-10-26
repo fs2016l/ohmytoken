@@ -5,6 +5,7 @@ import WorkspaceChart from '../base/WorkspaceChart.vue'
 import AgentMark from '../base/AgentMark.vue'
 import ModelMark from '../base/ModelMark.vue'
 import { useI18n } from '../../i18n/useI18n'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useChartTokens } from '../../composables/useChartTokens'
 import { useChartColorMode } from '../../composables/useChartColorMode'
 import { getAgentName } from '../../config/agents'
@@ -29,6 +30,7 @@ const props = defineProps<{
 const emit = defineEmits<{ toggle: [id: string] }>()
 const { label } = useI18n()
 const tokens = useChartTokens()
+const { getChartText } = useChartTheme()
 const { mode } = useChartColorMode()
 const plot = ref<InstanceType<typeof WorkspaceChart> | null>(null)
 const hoveredId = ref<string | null>(null)
@@ -171,6 +173,7 @@ const option = computed(() => ({
       barWidth: 24,
       itemStyle: { borderRadius: [0, 3, 3, 0] },
       label: {
+        ...getChartText('number'),
         show: true,
         position: 'right',
         distance: 8,

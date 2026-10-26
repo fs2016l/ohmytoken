@@ -3,6 +3,7 @@ import { computed, onDeactivated, onUnmounted, ref, shallowRef, watch } from 'vu
 import { format as chartFormat } from 'echarts/core'
 import type { TooltipComponentOption } from 'echarts/components'
 import WorkspaceChart from '../base/WorkspaceChart.vue'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useChartTokens } from '../../composables/useChartTokens'
 import { useI18n } from '../../i18n/useI18n'
 import { formatNumber } from '../../utils/number-format'
@@ -12,7 +13,6 @@ import { modelSeriesColor } from '../../utils/model-series-color'
 import { useChartColorMode } from '../../composables/useChartColorMode'
 import { useUsageBarHover } from '../../composables/useUsageBarHover'
 import { layoutChartLabels, type ChartLabelPlacement } from '../../utils/chart-label-layout'
-import { UI_FONT_WEIGHT } from '../../config/typography'
 import { modelLogoUrl } from '../../config/brand-logos'
 import '../../styles/chart-tooltip.css'
 const props = withDefaults(
@@ -25,6 +25,7 @@ const props = withDefaults(
   { mini: false, weekday: false },
 )
 const tokens = useChartTokens()
+const { getChartText } = useChartTheme()
 const { mode } = useChartColorMode()
 const hover = useUsageBarHover()
 const hoverOwner = Symbol('usage-bars')
@@ -58,7 +59,7 @@ function updateLabelLayout(): void {
   const first = layout?.bars[0]
   if (!layout || !first) return
   const family = getComputedStyle(document.documentElement).getPropertyValue('--font-number').trim()
-  const font = `${UI_FONT_WEIGHT} ${props.mini ? 10 : 11}px ${family || 'sans-serif'}`
+  const font = `500 ${props.mini ? 10 : 11}px ${family || 'sans-serif'}`
   const baseline = first.y + first.height
   const candidates = props.points.flatMap((point, index) => {
     const bar = layout.bars[index]
@@ -229,6 +230,7 @@ const series = computed(() => {
         opacity: mode.value === 'tonal' ? 1 : 0,
       },
       label: {
+        ...getChartText('number'),
         show: false,
         silent: true,
         position: 'top',
@@ -236,7 +238,7 @@ const series = computed(() => {
         color: tokens.value['--text'],
         opacity: 1,
         fontSize: props.mini ? 10 : 11,
-        fontWeight: UI_FONT_WEIGHT,
+        fontWeight: 500,
         minMargin: 0,
         formatter: ({ value }: { value?: unknown }) =>
           typeof value === 'number' && value > 0 ? formatNumber(value, { compact: true }) : '',
@@ -273,7 +275,11 @@ const option = computed(() => ({
           ? point.key.slice(5).replace('-', '/')
           : point.key,
     ),
-    axisLabel: { color: tokens.value['--text-soft'], fontSize: 10, hideOverlap: true },
+    axisLabel: {
+      color: tokens.value['--text-soft'],
+      fontSize: props.mini ? 10 : 11,
+      hideOverlap: true,
+    },
     axisTick: { show: false },
     axisLine: { show: false },
   },
@@ -282,6 +288,7 @@ const option = computed(() => ({
     show: !props.mini,
     splitNumber: 4,
     axisLabel: {
+      ...getChartText('number'),
       color: tokens.value['--text-soft'],
       fontSize: 11,
       formatter: (value: number) => formatNumber(value, { compact: true }),

@@ -21,6 +21,7 @@ function receive(next: ScanProgress): void {
       (next.scanId === previous.scanId && next.sequence <= previous.sequence))
   )
     return
+  if (next.status === 'running' && next.scanId !== previous?.scanId) result.value = null
   if (next.scanId !== previous?.scanId || next.status === 'complete') error.value = ''
   progress.value = next
   if (next.status !== 'running' && finishedId !== next.scanId) {

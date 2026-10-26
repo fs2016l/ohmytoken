@@ -1,5 +1,6 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { LatestTurnTracker } from './latest-turn-tracker'
 import Database from 'better-sqlite3'
 import { usageEvidence } from '../cost/usage-evidence'
 import { getAntigravityDataDir } from '../lib/paths'
@@ -56,13 +57,23 @@ import type {
 } from './types'
 
 type DbRow = Record<string, unknown>
-type SessionInfo = { title?: string; projectPath?: string; parentSessionId?: string; name?: string }
+type SessionInfo = {
+  title?: string
+  projectPath?: string
+  parentSessionId?: string
+  name?: string
+  runStatus?: string
+  notFullyIdle?: boolean
+  killed?: boolean
+  modifiedAt?: unknown
+}
 type Conversation = {
   steps: Map<number, AntigravityStepMetadata>
   generations: Array<{ idx: number; metadata: AntigravityGeneration }>
 }
 
 export class AntigravityScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'antigravity'
   private readonly dataDirectory: () => string
   private readonly sourceStates: readonly ScanSourceStateRow[] | undefined
@@ -96,6 +107,7 @@ export class AntigravityScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     this.pendingSourceStates = []
     const scanContext = normalizeScanContext(context)
     // 每轮从成功提交的状态开始；失败或回滚的扫描不能让下一次错误跳过来源。
@@ -132,7 +144,7 @@ export class AntigravityScanner implements AgentScanner {
         if (shouldScanAntigravitySource(state, storedStates.get(state.source_id), scanContext)) {
           const conversation = dbFile ? readConversation(dbFile) : emptyConversation()
           const sessionCalls = new Map<string, TokenUsageApiCall>()
-          this.collectConversation(id, conversation, transcript, sessionCalls)
+          this.collectConversation(id, conversation, transcript, sessionCalls, summaries.get(id))
           for (const call of sessionCalls.values()) {
             calls.set(call.apiCallId, call)
             state.event_watermark_ms = Math.max(state.event_watermark_ms, eventTimestampMs(call))
@@ -166,11 +178,13 @@ export class AntigravityScanner implements AgentScanner {
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(sessions, titles)
     this.pendingSourceStates = updates
+    const latestTurns = this.latestTurns.values()
     return {
       apiCalls,
       sessions,
       records: buildRecordsFromSessions(this.agentName, sessions),
       completeSessionIds,
+      ...(latestTurns.length ? { latestTurns } : {}),
     }
   }
 
@@ -179,9 +193,38 @@ export class AntigravityScanner implements AgentScanner {
     conversation: Conversation,
     transcript: string | undefined,
     calls: Map<string, TokenUsageApiCall>,
+    info?: SessionInfo,
   ): void {
     const rows = transcript ? readAntigravityTranscript(transcript) : []
     const userSteps = antigravityUserInputSteps(conversation.steps, rows)
+    const userIndex = userSteps.at(-1)
+    if (userIndex !== undefined) {
+      const user = rows.findLast((row) => row.stepIndex === userIndex)
+      const started = user?.createdAt ?? conversation.steps.get(userIndex)?.createdAtMs
+      const turnId = `user:${userIndex}`
+      this.latestTurns.start(sessionId, turnId, started, false)
+      const tail = rows.at(-1)
+      const lastStep =
+        tail?.stepIndex === undefined ? undefined : conversation.steps.get(tail.stepIndex)
+      const updated =
+        info?.modifiedAt ??
+        lastStep?.finishedAtMs ??
+        lastStep?.completedAtMs ??
+        tail?.createdAt ??
+        started
+      if (info?.killed) this.latestTurns.finish(sessionId, 'interrupted', updated, turnId)
+      else if (info?.notFullyIdle || info?.runStatus?.includes('RUNNING'))
+        this.latestTurns.finish(sessionId, 'running', updated, turnId)
+      else if (
+        info?.runStatus === 'CASCADE_RUN_STATUS_IDLE' &&
+        tail?.stepIndex !== undefined &&
+        tail.stepIndex > userIndex
+      ) {
+        if (tail.status === 'ERROR') this.latestTurns.finish(sessionId, 'failed', updated, turnId)
+        else if (tail.type === 'PLANNER_RESPONSE' && tail.status === 'DONE' && !tail.hasTools)
+          this.latestTurns.finish(sessionId, 'completed', updated, turnId)
+      }
+    }
     const withTurn = (call: TokenUsageApiCall, step: number | undefined): TokenUsageApiCall => {
       const turn = antigravityTurnForStep(userSteps, step)
       if (turn) call.turn = turn
@@ -392,12 +435,17 @@ function readSummaries(file: string): Map<string, SessionInfo> {
       if (!columns.has(idColumn)) throw new Error('conversation_summaries 缺少会话 ID')
       const select = (name: string): string => (columns.has(name) ? name : `NULL AS ${name}`)
       const sql = `SELECT ${idColumn} AS id, ${select('title')}, ${select('workspace_uris')},
-        ${select('parent_conversation_id')}, ${select('agent_name')} FROM conversation_summaries`
+        ${select('parent_conversation_id')}, ${select('agent_name')}, ${select('status')},
+        ${select('not_fully_idle')}, ${select('killed')}, ${select('last_modified_time')} FROM conversation_summaries`
       for (const row of db.prepare(sql).iterate() as Iterable<DbRow>) {
         const id = text(row.id)
         if (!id) continue
         summaries.set(id, {
           title: text(row.title),
+          runStatus: text(row.status),
+          notFullyIdle: row.not_fully_idle === 1,
+          killed: row.killed === 1,
+          modifiedAt: row.last_modified_time,
           parentSessionId: text(row.parent_conversation_id),
           name: text(row.agent_name),
           projectPath: workspacePath(row.workspace_uris),

@@ -1,17 +1,18 @@
 .floating-window--collapsed {
   height: auto;
+  /* The body retains its full size while edge hiding clips the native viewport. */
+  max-height: 100%;
+}
+html[data-theme='light'] .floating-window--compact {
+  --shell: var(--surface-low);
+  --glass-edge-surface: var(--surface-low);
 }
 .floating-window--collapsed .floating-content {
-  --floating-summary-tabs-width: 116px;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
-.floating-window--collapsed .floating-tabs {
-  position: absolute;
-  z-index: 1;
-  top: 6px;
-  right: 12px;
-  width: var(--floating-summary-tabs-width);
-  padding: 0;
+.floating-window--compact .floating-monitor {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .floating-edge-hitarea {
   position: fixed;
@@ -28,14 +29,15 @@
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
-.floating-window--collapsed .floating-pane {
+.floating-window--compact .floating-pane {
   flex: 0 0 auto;
-  overflow-y: auto;
+  overflow: visible;
 }
 .floating-summary {
+  font-weight: 400;
   display: flex;
   flex-direction: column;
-  height: 184px;
+  height: auto;
   flex: none;
   padding: 4px 12px 0;
 }
@@ -46,7 +48,6 @@
   gap: 8px;
   min-height: 32px;
   flex: none;
-  padding-inline-end: calc(var(--floating-summary-tabs-width) + 8px);
 }
 .floating-summary-heading > strong {
   overflow: hidden;
@@ -54,100 +55,6 @@
   text-overflow: ellipsis;
   font-size: 12px;
   font-weight: 500;
-}
-.floating-summary-accounts {
-  display: grid;
-  flex: 1;
-  align-content: center;
-  grid-template-columns: repeat(var(--summary-columns), minmax(0, 1fr));
-  padding: 8px 0;
-}
-.floating-summary-account {
-  --summary-ring: var(--success, #159a87);
-  min-width: 0;
-  padding: 0 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  color: var(--text);
-}
-.floating-summary-account + .floating-summary-account {
-  border-left: 1px solid var(--border);
-}
-.floating-summary-account.is-low {
-  --summary-ring: var(--warning);
-}
-.floating-summary-account.is-unavailable {
-  --summary-ring: var(--text-muted);
-}
-/* 收起状态与展开状态共用液面效果：同一个液面组件裁成圆球，读数居中。 */
-.floating-summary-accounts .floating-summary-account .floating-summary-orb {
-  flex: none;
-  width: 58px;
-  border-radius: 50%;
-}
-.floating-summary-accounts .floating-summary-orb .liquid-readout {
-  padding: 0;
-  align-items: center;
-  justify-content: center;
-}
-.floating-summary-orb strong {
-  color: var(--text);
-  font-family: var(--font-number);
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-/* 百分号作为伪元素缩小显示，读数保持为单个文本节点。 */
-.floating-summary-orb strong::after {
-  content: attr(data-suffix);
-  margin-left: 1px;
-  color: var(--text-muted);
-  font-size: 9px;
-  font-weight: 400;
-}
-.floating-summary-account > b,
-.floating-summary-account > small {
-  max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.floating-summary-account b {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 500;
-}
-.floating-summary-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.floating-summary-tier {
-  flex: none;
-  color: var(--text-muted);
-  font-weight: 400;
-}
-.floating-summary-alert {
-  flex: none;
-  color: var(--warning);
-  font-size: 12px;
-}
-.floating-summary-account > small {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 10px;
-  color: var(--text-muted);
-}
-.floating-summary-account > small .material-symbols-outlined {
-  margin-left: 4px;
-  font-size: 11px;
-}
-.floating-summary-reset {
-  font-family: var(--font-number);
 }
 .floating-summary-footer {
   display: flex;
@@ -159,7 +66,8 @@
   margin-top: auto;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 16px;
 }
 .floating-summary-footer > span {
   min-width: 0;
@@ -174,81 +82,93 @@
   font-size: 11px;
   flex: none;
 }
-.floating-summary-empty {
-  flex: 1;
-  min-height: 78px;
-  display: grid;
-  place-items: center;
-  color: var(--text-muted);
-  margin: 0;
-}
 .floating-summary-total {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   flex: none;
   width: 100%;
-  height: 80px;
+  min-height: 112px;
   padding: 0;
   color: var(--text);
   text-align: left;
 }
-.floating-summary-total > span {
+.floating-summary-total > span:first-child {
   display: flex;
   align-items: baseline;
   gap: 6px;
   flex: none;
-  height: 30px;
+  height: 40px;
 }
 .floating-summary-total .animated-number {
-  font-size: 28px;
-  line-height: 30px;
+  font-family: var(--font-number);
+  font-size: 32px;
+  line-height: 40px;
   font-weight: 600;
   letter-spacing: -0.6px;
 }
 .floating-summary-total small {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 400;
 }
-.floating-summary-total svg {
-  display: block;
-  height: 50px;
-  width: 100%;
-  flex: none;
-  color: var(--accent);
+.floating-summary-updated {
+  display: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  line-height: 16px;
+  font-weight: 400;
+}
+.floating-window--compact:has(.floating-quota-summary) .floating-summary-updated {
+  display: inline;
+}
+.floating-summary-updated.is-stale {
+  color: var(--warning);
+}
+.floating-window--compact:has(.floating-quota-summary)
+  .floating-token-summary
+  > .floating-summary-footer {
+  display: none;
 }
 .floating-summary-breakdown {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  height: 38px;
+  height: auto;
+  min-height: 48px;
   flex: none;
-  padding: 2px 0 4px;
+  padding: 3px 0 9px;
 }
 .floating-summary-breakdown > div {
   display: flex;
   flex-direction: column;
-  padding-inline: 10px;
-}
-.floating-summary-breakdown > div:first-child {
-  padding-left: 0;
+  align-items: center;
+  padding-inline: 6px;
+  text-align: center;
 }
 .floating-summary-breakdown > div + div {
   border-left: 1px solid var(--border);
 }
 .floating-summary-breakdown > div > span:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  column-gap: 4px;
   font-size: 11px;
-  line-height: 14px;
+  line-height: 16px;
   color: var(--text-muted);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-weight: 400;
 }
 .floating-summary-breakdown .token-share {
-  margin-inline-start: 4px;
+  margin-inline-start: 0;
   font-size: 11px;
 }
 .floating-summary-breakdown .animated-number {
+  font-family: var(--font-number);
   font-size: 14px;
-  line-height: 18px;
+  line-height: 20px;
   font-weight: 500;
+  margin-top: auto;
 }

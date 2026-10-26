@@ -7,6 +7,7 @@ import type { UsageTrendStats } from '@shared/models'
 import { getAgentName } from '../../config/agents'
 import { agentLogoUrl, modelLogoUrl } from '../../config/brand-logos'
 import { useChartTokens } from '../../composables/useChartTokens'
+import { useChartColorMode } from '../../composables/useChartColorMode'
 import { useChartRenderLifecycle } from '../../composables/useChartRenderLifecycle'
 import { chartMotion } from '../../config/motion'
 import { TOTAL_SERIES_KEY, TOTAL_SERIES_LINE_TYPE } from '../../config/chart'
@@ -16,8 +17,18 @@ import type { LegendVisibilityState } from '../../composables/useLegendSelection
 import LegendVisibilityButton from '../base/LegendVisibilityButton.vue'
 import ChartColorControl from '../base/ChartColorControl.vue'
 import PointerTooltip from '../base/PointerTooltip.vue'
+import AgentMark from '../base/AgentMark.vue'
+import ModelMark from '../base/ModelMark.vue'
+import FloatingTokenSparkline from './FloatingTokenSparkline.vue'
 import { formatTokens } from '../../utils/format'
 import { modelSeriesColor } from '../../utils/model-series-color'
+import { floatingBarGradient, floatingTrendPalette } from '../../utils/floating-trend-style'
+import {
+  tokenSparklineInset,
+  tokenSparklineMaximum,
+  tokenSparklinePalette,
+  tokenSparklineSamples,
+} from '../../utils/floating-token-sparkline'
 import {
   createChartTooltip,
   chartTooltipPosition,
@@ -28,6 +39,7 @@ import '../../styles/chart-tooltip.css'
 interface Props {
   stats: UsageTrendStats
   groupBy: 'agent' | 'model'
+  totalOnly?: boolean
   loading: boolean
 }
 
@@ -52,11 +64,28 @@ const {
 } = useChartTheme()
 const chartRef = ref<HTMLElement | null>(null)
 const tokens = useChartTokens()
+const { mode: colorMode } = useChartColorMode()
+const plotTokens = computed(() => floatingTrendPalette(tokens.value, colorMode.value))
 const chartControls = ref(false)
 const chartWidth = ref(560)
-const hiddenSeries = ref(new Set<string>([TOTAL_SERIES_KEY]))
+const chartHeight = ref(112)
+const hiddenSeries = ref(new Set<string>(props.totalOnly ? [] : [TOTAL_SERIES_KEY]))
 const zoomStart = ref(0)
 const zoomEnd = ref(100)
+const totalSparklineStats = computed(() => {
+  const span = props.stats.to - props.stats.from
+  return {
+    ...props.stats,
+    from: props.stats.from + (span * zoomStart.value) / 100,
+    to: props.stats.from + (span * zoomEnd.value) / 100,
+  }
+})
+const totalSamples = computed(() => tokenSparklineSamples(totalSparklineStats.value))
+const totalSparklineInsets = ref({ ...tokenSparklineInset })
+const axisBottom = computed(() => (chartControls.value ? 45 : 22))
+const totalSparklineHeight = computed(
+  () => chartHeight.value - axisBottom.value + tokenSparklineInset.bottom,
+)
 const visibleSpanMs = ref(0)
 const otherKey = '__other__'
 const maxPrimarySeries = 2
@@ -131,7 +160,7 @@ function showLegendDetails(event: MouseEvent | FocusEvent, item: TrendSeriesItem
       : { x: bounds.left + bounds.width / 2, y: bounds.bottom }
 }
 watch(otherDimensionLabels, () => (legendPoint.value = null))
-// Legend chips show the brand mark when one exists; the color dot remains the fallback.
+// Keep recognizable brand marks alongside each series' color indicator.
 const seriesLogo = (key: string): string | undefined =>
   key === TOTAL_SERIES_KEY || key === otherKey
     ? undefined
@@ -139,16 +168,18 @@ const seriesLogo = (key: string): string | undefined =>
       ? agentLogoUrl(key)
       : modelLogoUrl(key)
 const seriesItems = computed<TrendSeriesItem[]>(() => {
-  const colors = [tokens.value['--chart-primary'], tokens.value['--chart-secondary']]
+  const colors = [plotTokens.value['--chart-primary'], plotTokens.value['--chart-secondary']]
   const items: TrendSeriesItem[] = primaryDimensions.value.map((key, index) => ({
     key,
     label: props.groupBy === 'agent' ? getAgentName(key) : key,
-    color: props.groupBy === 'model' ? modelSeriesColor(key, tokens.value) : colors[index],
+    color: props.groupBy === 'model' ? modelSeriesColor(key, plotTokens.value) : colors[index],
   }))
   items.unshift({
     key: TOTAL_SERIES_KEY,
-    label: label('Total', '总量'),
-    color: tokens.value['--chart-quaternary'],
+    label: props.totalOnly ? label('Total usage', '总用量') : label('Total', '总量'),
+    color: props.totalOnly
+      ? tokenSparklinePalette[currentTheme.value].start
+      : tokens.value['--chart-quaternary'],
   })
   if (hasOtherSeries.value)
     items.push({
@@ -156,8 +187,8 @@ const seriesItems = computed<TrendSeriesItem[]>(() => {
       label: label('Other', '其他'),
       color:
         props.groupBy === 'model'
-          ? tokens.value['--analytics-series-other']
-          : tokens.value['--chart-tertiary'],
+          ? plotTokens.value['--analytics-series-other']
+          : plotTokens.value['--chart-tertiary'],
       details: otherDimensionLabels.value,
     })
   return items
@@ -165,11 +196,23 @@ const seriesItems = computed<TrendSeriesItem[]>(() => {
 const seriesIconURLs = computed(
   () => new Map(seriesItems.value.map((item) => [item.key, seriesLogo(item.key)])),
 )
+const availableSeries = computed(() =>
+  props.totalOnly
+    ? seriesItems.value.filter((item) => item.key === TOTAL_SERIES_KEY)
+    : seriesItems.value,
+)
+const legendItems = computed(() =>
+  props.totalOnly
+    ? availableSeries.value
+    : seriesItems.value.filter((item) => item.key !== TOTAL_SERIES_KEY),
+)
 
 const seriesVisibilityState = computed<LegendVisibilityState>(() => {
-  const itemCount = seriesItems.value.length
+  const itemCount = availableSeries.value.length
   if (itemCount === 0) return 'none'
-  const visibleCount = seriesItems.value.filter((item) => !hiddenSeries.value.has(item.key)).length
+  const visibleCount = availableSeries.value.filter(
+    (item) => !hiddenSeries.value.has(item.key),
+  ).length
   if (visibleCount === 0) return 'none'
   if (visibleCount === itemCount) return 'all'
   return 'partial'
@@ -252,13 +295,13 @@ function seriesValue(point: UsageTrendStats['points'][number], key: string): num
     .reduce((sum, dimension) => sum + (point.dimensionTokens[dimension] || 0), 0)
 }
 
-function formatTime(value: number, withDate = false): string {
+function formatTime(value: number, withDate = false, precise = false): string {
   const locale = currentLang.value === 'zh' ? 'zh-CN' : 'en'
   return new Intl.DateTimeFormat(locale, {
     ...(withDate ? { month: 'short', day: 'numeric' } : {}),
     hour: '2-digit',
     minute: '2-digit',
-    second: activeBucketMinutes.value < 1 ? '2-digit' : undefined,
+    second: precise || activeBucketMinutes.value < 1 ? '2-digit' : undefined,
     hour12: false,
   }).format(value)
 }
@@ -276,7 +319,7 @@ function axisLabel(value: number): string {
 function tooltipTitle(value: number): string {
   const date = new Date(value)
   const pad = (part: number): string => String(part).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatTime(value)}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${formatTime(value, false, props.totalOnly)}`
 }
 
 function tooltipFormatter(rawParams: unknown): HTMLElement {
@@ -284,6 +327,17 @@ function tooltipFormatter(rawParams: unknown): HTMLElement {
   const first = params[0] as Record<string, unknown> | undefined
   const firstValue = Array.isArray(first?.value) ? first.value : []
   const timestamp = Number(firstValue[0] ?? props.stats.from)
+  if (props.totalOnly) {
+    const sample = totalSamples.value.find((item) => item.position === timestamp)
+    return createChartTooltip({
+      title: tooltipTitle(sample?.from ?? timestamp),
+      summary: {
+        label: label('Total tokens', 'Token 总量'),
+        value: formatTokens(sample?.value ?? 0),
+      },
+      rows: [],
+    })
+  }
   let visibleTotal = 0
   let totalSeriesValue: number | undefined
   const rows: ChartTooltipRow[] = []
@@ -354,7 +408,24 @@ function updateVisibleSpan(): void {
 }
 
 function buildSeries() {
-  return seriesItems.value
+  if (props.totalOnly) {
+    if (hiddenSeries.value.has(TOTAL_SERIES_KEY)) return []
+    // The shared SVG draws the curve. ECharts keeps the same samples for axes, zoom and hover.
+    return [
+      {
+        id: TOTAL_SERIES_KEY,
+        name: label('Total usage', '总用量'),
+        type: 'line',
+        data: totalSamples.value.map((sample) => ({ value: [sample.position, sample.value] })),
+        showSymbol: false,
+        lineStyle: { opacity: 0 },
+        areaStyle: { opacity: 0 },
+        emphasis: { disabled: true },
+        animation: false,
+      },
+    ]
+  }
+  return availableSeries.value
     .filter((item) => !hiddenSeries.value.has(item.key))
     .map((item) => {
       const total = item.key === TOTAL_SERIES_KEY
@@ -377,20 +448,39 @@ function buildSeries() {
                 ),
           value: [point.timestamp, seriesValue(point, item.key)],
         })),
-        barMaxWidth: 9,
-        barWidth: Math.max(3, Math.min(9, ((chartWidth.value - 24) / 32) * 0.65)),
+        barMaxWidth: 3,
+        barWidth: 3,
         barMinHeight: 0,
         showSymbol: false,
-        itemStyle: { color: item.color, borderRadius: total ? 0 : [3, 3, 0, 0] },
+        animation: !reduced.value,
+        itemStyle: {
+          color: total
+            ? item.color
+            : floatingBarGradient(item.color, tokens.value['--surface-low']),
+          borderRadius: 0,
+        },
         ...(total
-          ? { z: 6, lineStyle: { color: item.color, width: 1.5, type: TOTAL_SERIES_LINE_TYPE } }
+          ? {
+              z: 6,
+              lineStyle: {
+                color: item.color,
+                width: 1.5,
+                type: TOTAL_SERIES_LINE_TYPE,
+                opacity: 1,
+              },
+              areaStyle: { opacity: 0 },
+            }
           : {}),
-        emphasis: { focus: 'series' },
+        emphasis: { disabled: false, focus: 'series', itemStyle: { color: item.color } },
       }
     })
 }
 
 function updateSeriesData(): void {
+  if (props.totalOnly) {
+    requestRender()
+    return
+  }
   if (!chart || renderedBucketMinutes === activeBucketMinutes.value) return
   renderedBucketMinutes = activeBucketMinutes.value
   chart.setOption({ series: buildSeries() }, { replaceMerge: ['series'], lazyUpdate: true })
@@ -418,7 +508,8 @@ function handleDataZoom(event: unknown): void {
   if (needsCorrection && chart) {
     chart.dispatchAction({ type: 'dataZoom', start: normalized.start, end: normalized.end })
   }
-  if (activeBucketMinutes.value !== previousBucketMinutes) void nextTick(updateSeriesData)
+  if (props.totalOnly || activeBucketMinutes.value !== previousBucketMinutes)
+    void nextTick(updateSeriesData)
 }
 
 function clearSeriesEmphasis(): void {
@@ -427,9 +518,30 @@ function clearSeriesEmphasis(): void {
   chart.dispatchAction({ type: 'hideTip' })
 }
 
+function alignTotalSparkline(): void {
+  if (!props.totalOnly || !chart || hiddenSeries.value.has(TOTAL_SERIES_KEY)) return
+  const maximum = tokenSparklineMaximum(totalSamples.value.map((sample) => sample.value))
+  const [left, bottom] = chart.convertToPixel({ seriesIndex: 0 }, [
+    totalSparklineStats.value.from,
+    0,
+  ])
+  const [right, top] = chart.convertToPixel({ seriesIndex: 0 }, [
+    totalSparklineStats.value.to,
+    maximum,
+  ])
+  // ECharts reserves extra room for time labels after zooming; share its final plot bounds.
+  totalSparklineInsets.value = {
+    left,
+    right: (chartRef.value?.clientWidth ?? chartWidth.value) - right,
+    top,
+    bottom: totalSparklineHeight.value - bottom,
+  }
+}
+
 function renderChart(): void {
   if (!chartRef.value || chartRef.value.clientWidth === 0) return
   chartWidth.value = chartRef.value.clientWidth
+  chartHeight.value = chartRef.value.clientHeight
   const normalized = normalizeZoomRange(zoomStart.value, zoomEnd.value)
   zoomStart.value = normalized.start
   zoomEnd.value = normalized.end
@@ -448,7 +560,12 @@ function renderChart(): void {
     {
       backgroundColor: 'transparent',
       ...chartMotion(reduced.value),
-      grid: { top: 8, right: 12, bottom: chartControls.value ? 45 : 22, left: 12 },
+      grid: {
+        top: props.totalOnly ? tokenSparklineInset.top : 8,
+        right: props.totalOnly ? tokenSparklineInset.right : 4,
+        bottom: axisBottom.value,
+        left: props.totalOnly ? tokenSparklineInset.left : 4,
+      },
       tooltip: {
         trigger: 'axis',
         renderMode: 'html',
@@ -480,12 +597,24 @@ function renderChart(): void {
         min: props.stats.from,
         max: props.stats.to,
         boundaryGap: false,
-        axisLabel: { ...chartText, fontSize: 10, hideOverlap: true, formatter: axisLabel },
+        axisLabel: { ...chartText, fontSize: 11, hideOverlap: true, formatter: axisLabel },
         axisLine: getAxisLine(),
         axisTick: { show: false },
         splitLine: { show: false },
       },
-      yAxis: { type: 'value', show: false, minInterval: 1 },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        max: props.totalOnly
+          ? tokenSparklineMaximum(totalSamples.value.map((sample) => sample.value))
+          : null,
+        minInterval: 1,
+        splitNumber: 2,
+        axisLabel: { show: false },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: colors.splitLine, opacity: 0.6 } },
+      },
       dataZoom: [
         {
           type: 'inside',
@@ -533,6 +662,7 @@ function renderChart(): void {
     },
     { replaceMerge: ['series'] },
   )
+  alignTotalSparkline()
   updateVisibleSpan()
 }
 
@@ -576,6 +706,8 @@ function handleChartResize(): void {
     return
   }
   chart.resize()
+  chartHeight.value = chartRef.value?.clientHeight || chartHeight.value
+  alignTotalSparkline()
   if (Math.abs(nextWidth - chartWidth.value) < 1) return
 
   const previousBucketMinutes = activeBucketMinutes.value
@@ -616,7 +748,7 @@ function toggleSeries(key: string): void {
 function toggleAllSeries(): void {
   hiddenSeries.value =
     seriesVisibilityState.value === 'all'
-      ? new Set(seriesItems.value.map((item) => item.key))
+      ? new Set(availableSeries.value.map((item) => item.key))
       : new Set()
 }
 
@@ -631,26 +763,25 @@ watch(
     seriesIconURLs.value,
     tokens.value,
     chartControls.value,
+    props.totalOnly,
   ],
   () => requestRender(),
   { deep: false },
 )
 
 const groupState = new Map<string, { start: number; end: number; hidden: Set<string> }>()
-watch(
-  () => props.groupBy,
-  (next, previous) => {
-    groupState.set(previous, {
-      start: zoomStart.value,
-      end: zoomEnd.value,
-      hidden: new Set(hiddenSeries.value),
-    })
-    const stored = groupState.get(next)
-    hiddenSeries.value = stored?.hidden ?? new Set([TOTAL_SERIES_KEY])
-    zoomStart.value = stored?.start ?? 0
-    zoomEnd.value = stored?.end ?? 100
-  },
-)
+const viewKey = computed(() => (props.totalOnly ? 'total' : props.groupBy))
+watch(viewKey, (next, previous) => {
+  groupState.set(previous, {
+    start: zoomStart.value,
+    end: zoomEnd.value,
+    hidden: new Set(hiddenSeries.value),
+  })
+  const stored = groupState.get(next)
+  hiddenSeries.value = stored?.hidden ?? new Set(next === 'total' ? [] : [TOTAL_SERIES_KEY])
+  zoomStart.value = stored?.start ?? 0
+  zoomEnd.value = stored?.end ?? 100
+})
 
 function releaseChart(): void {
   if (chart) {
@@ -689,6 +820,22 @@ onUnmounted(() => {
 
 <template>
   <div class="trend-visual">
+    <div class="floating-trend-heading">
+      <slot name="heading" />
+      <div class="trend-tools">
+        <slot name="actions" />
+        <button
+          type="button"
+          class="trend-controls-toggle"
+          :aria-expanded="chartControls"
+          :aria-label="label('Zoom and series controls', '缩放与图例控制')"
+          @click="chartControls = !chartControls"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+        </button>
+      </div>
+    </div>
+    <slot name="summary" />
     <div class="floating-trend-plot" :class="{ 'floating-trend-plot--controls': chartControls }">
       <div
         ref="chartRef"
@@ -696,6 +843,13 @@ onUnmounted(() => {
         role="img"
         :aria-label="label('Token usage by time', '各时段 Token 用量')"
       ></div>
+      <FloatingTokenSparkline
+        v-if="totalOnly && stats.totalTokens > 0 && !hiddenSeries.has(TOTAL_SERIES_KEY)"
+        class="floating-trend-sparkline"
+        :stats="totalSparklineStats"
+        :height="totalSparklineHeight"
+        :insets="totalSparklineInsets"
+      />
       <div v-if="loading && stats.points.length === 0" class="chart-state">
         {{ label('Loading usage…', '正在加载用量…') }}
       </div>
@@ -709,10 +863,15 @@ onUnmounted(() => {
     <div class="trend-legend-row">
       <div class="trend-legend" :aria-label="label('Chart series', '图表系列')">
         <button
-          v-for="item in seriesItems.filter((item) => item.key !== TOTAL_SERIES_KEY)"
+          v-for="item in legendItems"
           :key="item.key"
           class="legend-chip"
-          :class="{ muted: hiddenSeries.has(item.key) }"
+          type="button"
+          :class="{
+            muted: hiddenSeries.has(item.key),
+            'legend-chip--total': item.key === TOTAL_SERIES_KEY,
+          }"
+          :title="item.label"
           :aria-pressed="!hiddenSeries.has(item.key)"
           :aria-describedby="item.details?.length && legendPoint ? legendTooltipId : undefined"
           @mouseenter="showLegendDetails($event, item)"
@@ -722,16 +881,21 @@ onUnmounted(() => {
           @blur="legendPoint = null"
           @click="toggleSeries(item.key)"
         >
-          <template v-if="item.key !== TOTAL_SERIES_KEY">
-            <img
-              v-if="seriesLogo(item.key)"
+          <span
+            v-if="item.key !== TOTAL_SERIES_KEY && item.key !== otherKey"
+            class="legend-brand"
+            aria-hidden="true"
+          >
+            <AgentMark
+              v-if="groupBy === 'agent'"
               class="legend-logo"
-              :src="seriesLogo(item.key)"
-              alt=""
+              :agent="item.key"
+              :size="12"
             />
-            <i v-else :style="{ backgroundColor: item.color }"></i>
-          </template>
-          <i v-else :style="{ backgroundColor: item.color }"></i>
+            <ModelMark v-else class="legend-logo" :model="item.key" :size="12" />
+            <i :style="{ backgroundColor: item.color }"></i>
+          </span>
+          <i v-else :style="{ backgroundColor: item.color }" aria-hidden="true"></i>
           <span class="legend-label">{{ item.label }}</span>
         </button>
       </div>
@@ -741,23 +905,15 @@ onUnmounted(() => {
         :point="legendPoint"
         @dismiss="legendPoint = null"
       />
-      <slot name="actions" />
-      <button
-        class="trend-controls-toggle"
-        :aria-expanded="chartControls"
-        :aria-label="label('Zoom and series controls', '缩放与图例控制')"
-        @click="chartControls = !chartControls"
-      >
-        <span class="material-symbols-outlined">tune</span>
-      </button>
     </div>
     <div v-if="chartControls" class="zoom-footer">
       <div class="zoom-copy">
-        <span>{{ visibleResolution }}</span>
+        <span v-if="!totalOnly">{{ visibleResolution }}</span>
         <span>{{ visibleRangeLabel }}</span>
       </div>
       <div class="zoom-actions">
         <button
+          v-if="!totalOnly"
           :aria-pressed="!hiddenSeries.has(TOTAL_SERIES_KEY)"
           @click="toggleSeries(TOTAL_SERIES_KEY)"
         >

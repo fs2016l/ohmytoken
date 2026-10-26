@@ -1,4 +1,14 @@
 import type { TokenPlanProviderId } from './token-plan'
+import { renewalDisplayDateTime, type RenewalTimeZone } from './plan-renewal-time'
+export {
+  RENEWAL_TIME_ZONES,
+  DEFAULT_RENEWAL_TIME_ZONE,
+  isRenewalTimeZone,
+  isRenewalTime,
+  renewalDisplayDateTime,
+  renewalTimestamp,
+  type RenewalTimeZone,
+} from './plan-renewal-time'
 
 export type RenewalCycle = 'monthly' | 'quarterly' | 'yearly' | 'custom'
 export interface PlanRenewalInput {
@@ -6,6 +16,8 @@ export interface PlanRenewalInput {
   name: string
   providerId: TokenPlanProviderId | 'other'
   renewOn: string
+  renewTime?: string
+  timeZone?: RenewalTimeZone
   cycle: RenewalCycle
   intervalDays: number | null
   notes: string
@@ -21,13 +33,19 @@ export interface PlanRenewal extends PlanRenewalInput {
 export interface PlanRenewalOccurrence {
   renewal: PlanRenewal
   date: string
+  time: string
+  sourceDate: string
 }
 export interface PlanRenewalsAPI {
   planRenewalsList(): Promise<PlanRenewal[]>
   planRenewalsSave(input: PlanRenewalInput): Promise<PlanRenewal[]>
   planRenewalsDelete(id: string): Promise<PlanRenewal[]>
   planRenewalsReorder(ids: string[]): Promise<PlanRenewal[]>
-  planRenewalsComplete(id: string, renewOn: string): Promise<PlanRenewal[]>
+  planRenewalsComplete(
+    id: string,
+    renewOn: string,
+    timeZone?: RenewalTimeZone,
+  ): Promise<PlanRenewal[]>
 }
 
 /** Only opaque hex colors are accepted for user-controlled calendar styling. */
@@ -44,7 +62,18 @@ export function parseRenewalDate(value: unknown): Date | null {
   return date.toISOString().slice(0, 10) === value ? date : null
 }
 
-export function localRenewalDate(date = new Date()): string {
+export function localRenewalDate(date = new Date(), timeZone?: RenewalTimeZone): string {
+  if (timeZone) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date)
+    const value = (type: Intl.DateTimeFormatPartTypes): string =>
+      parts.find((part) => part.type === type)!.value
+    return `${value('year')}-${value('month')}-${value('day')}`
+  }
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
@@ -83,10 +112,12 @@ type RenewalSchedule = PlanRenewalInput & { anchorOn?: string }
 export function renewalCountdown(
   item: RenewalSchedule,
   today: string,
+  displayZone?: RenewalTimeZone,
 ): { days: number; fraction: number } | null {
   const due = parseRenewalDate(item.renewOn),
     anchor = parseRenewalDate(item.anchorOn ?? item.renewOn)
-  const days = renewalDaysUntil(item.renewOn, today)
+  const dueDate = displayZone ? renewalDisplayDateTime(item, displayZone).date : item.renewOn
+  const days = renewalDaysUntil(dueDate, today)
   if (!due || !anchor || !Number.isFinite(days)) return null
   let duration: number
   if (item.cycle === 'custom') {
@@ -101,6 +132,16 @@ export function renewalCountdown(
       index = month % 12
     const day = Math.min(anchor.getUTCDate(), new Date(Date.UTC(year, index + 1, 0)).getUTCDate())
     duration = (due.getTime() - Date.UTC(year, index, day)) / 86_400_000
+  }
+  if (displayZone) {
+    const previous = new Date(due.getTime() - duration * 86400000).toISOString().slice(0, 10)
+    duration = Math.max(
+      1,
+      renewalDaysUntil(
+        dueDate,
+        renewalDisplayDateTime({ ...item, renewOn: previous }, displayZone).date,
+      ),
+    )
   }
   return { days, fraction: Math.max(0, Math.min(1, days / duration)) }
 }
@@ -140,6 +181,32 @@ function* occurrenceDates(item: RenewalSchedule, from: string, to: string): Gene
 /** Paid dates disappear; future occurrences retain the original billing day, including month ends. */
 export function renewalOccurrenceDates(item: RenewalSchedule, from: string, to: string): string[] {
   return [...occurrenceDates(item, from, to)]
+}
+
+/** Expand in the billing time zone first, then project each actual event into the viewing zone. */
+export function renewalOccurrences(
+  item: PlanRenewal,
+  from: string,
+  to: string,
+  displayZone: RenewalTimeZone,
+): PlanRenewalOccurrence[] {
+  const start = parseRenewalDate(from),
+    end = parseRenewalDate(to)
+  if (!start || !end || from > to) return []
+  const shifted = (date: Date, days: number): string => {
+    const value = new Date(date.getTime() + days * 86400000)
+    return value.getUTCFullYear() < 1000
+      ? '1000-01-01'
+      : value.getUTCFullYear() > 9999
+        ? '9999-12-31'
+        : value.toISOString().slice(0, 10)
+  }
+  return [...occurrenceDates(item, shifted(start, -2), shifted(end, 2))].flatMap((sourceDate) => {
+    const display = renewalDisplayDateTime({ ...item, renewOn: sourceDate }, displayZone)
+    return display.date >= from && display.date <= to
+      ? [{ renewal: item, ...display, sourceDate }]
+      : []
+  })
 }
 
 /** Skip overdue periods and return the first scheduled date strictly after the completed due date/today. */

@@ -8,6 +8,9 @@ import {
 
 /** transcript 只保留轮次和用量需要的字段，不在内存中留存消息内容。 */
 export type AntigravityTranscriptRow = {
+  type?: string
+  status?: string
+  hasTools?: boolean
   stepIndex?: number
   userInput: boolean
   usage?: AntigravityUsage
@@ -28,6 +31,9 @@ export function readAntigravityTranscript(file: string): AntigravityTranscriptRo
     }
     if (!isObject(value)) continue
     rows.push({
+      type: typeof value.type === 'string' ? value.type : undefined,
+      status: typeof value.status === 'string' ? value.status : undefined,
+      hasTools: Array.isArray(value.tool_calls) && value.tool_calls.length > 0,
       stepIndex: count(value.step_index),
       userInput: value.type === 'USER_INPUT' && value.source === 'USER_EXPLICIT',
       usage: transcriptUsage(value),

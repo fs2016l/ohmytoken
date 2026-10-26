@@ -1,6 +1,5 @@
 /** 读取 Zed 线程库并生成托管模型的统一用量记录。 */
 import { existsSync } from 'fs'
-import { createRequire } from 'module'
 import Database from 'better-sqlite3'
 import { usageEvidence } from '../cost/usage-evidence'
 import type {
@@ -22,16 +21,22 @@ import {
 import { normalizeScanContext } from './incremental-utils'
 import { normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
+import { decodeUtf8, decompressZstd } from '../lib/zstd-json'
 
 const ZED_HOSTED_PROVIDER = 'zed.dev'
-/** zstd 解码后的单条线程上限，超过时跳过该记录。 */
+/** 超过上限或解码失败时中止扫描，保留旧统计。 */
 const MAX_ZED_THREAD_JSON_BYTES = 32 * 1024 * 1024
 
 export class ZedScanner implements AgentScanner {
   readonly agentName = 'zed'
+  private readonly dbCandidates: () => readonly string[]
+
+  constructor(dbCandidates: () => readonly string[] = getZedThreadsDbCandidates) {
+    this.dbCandidates = dbCandidates
+  }
 
   private resolveDbPath(): string | null {
-    return getZedThreadsDbCandidates().find(existsSync) ?? null
+    return this.dbCandidates().find(existsSync) ?? null
   }
 
   isAvailable(): boolean {
@@ -59,14 +64,14 @@ export class ZedScanner implements AgentScanner {
         db,
         "SELECT name FROM sqlite_master WHERE type='table' AND name='threads'",
       )
-      if (tables.length === 0) return { records, sessions: [], apiCalls }
+      if (tables.length === 0) throw new Error('threads 表不存在，已中止扫描')
 
       const columns = new Set<string>()
       for (const row of queryAll(db, 'PRAGMA table_info(threads)')) {
         const name = row.name
         if (typeof name === 'string') columns.add(name.toLowerCase())
       }
-      if (!columns.has('id') || !columns.has('data')) return { records, sessions: [], apiCalls }
+      if (!columns.has('id') || !columns.has('data')) throw new Error('threads 表结构不受支持')
 
       const selectCols = ['id', 'data']
       if (columns.has('data_type')) selectCols.push('data_type')
@@ -77,15 +82,15 @@ export class ZedScanner implements AgentScanner {
 
       for (const row of queryAll(db, `SELECT ${selectCols.join(', ')} FROM threads`)) {
         const threadId = dbString(row.id)
-        if (!threadId) continue
+        if (!threadId) throw new Error('线程缺少 id')
 
         let threadJson: unknown
         try {
           threadJson = decodeZedThreadPayload(row.data_type, row.data)
-        } catch {
-          continue
+        } catch (error) {
+          throw new Error(`线程 ${threadId} 解码失败: ${(error as Error).message}`)
         }
-        if (!isObject(threadJson)) continue
+        if (!isObject(threadJson)) throw new Error(`线程 ${threadId} 不是有效对象`)
         if (threadJson.imported === true) continue
 
         const model = isObject(threadJson.model) ? threadJson.model : null
@@ -211,27 +216,25 @@ function zedTokenField(value: Record<string, unknown>, field: string): number {
 
 /** 按 data_type 解码线程内容。 */
 function decodeZedThreadPayload(dataType: DbValue, data: DbValue): unknown {
-  const type = typeof dataType === 'string' ? dataType.toLowerCase() : 'json'
+  const type = typeof dataType === 'string' ? dataType.trim().toLowerCase() : 'json'
+  if (!['json', '', 'zstd'].includes(type)) throw new Error(`未知 data_type: ${type}`)
   if (!(data instanceof Uint8Array) && !Buffer.isBuffer(data)) {
     if (typeof data === 'string') {
+      if (type === 'zstd') throw new Error('zstd payload must be a BLOB')
       if (Buffer.byteLength(data, 'utf8') > MAX_ZED_THREAD_JSON_BYTES) {
         throw new Error('json payload too large')
       }
       return JSON.parse(data)
     }
-    return null
+    throw new Error('线程缺少 payload')
   }
   const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data)
   if (type === 'json' || type === '') {
     if (bytes.length > MAX_ZED_THREAD_JSON_BYTES) throw new Error('json payload too large')
-    return JSON.parse(bytes.toString('utf8'))
+    return JSON.parse(decodeUtf8(bytes))
   }
   if (type === 'zstd') {
-    const decompressed = zstdDecompress(bytes)
-    if (decompressed.length > MAX_ZED_THREAD_JSON_BYTES) {
-      throw new Error('zstd payload too large')
-    }
-    return JSON.parse(decompressed.toString('utf8'))
+    return JSON.parse(decodeUtf8(decompressZstd(bytes, MAX_ZED_THREAD_JSON_BYTES)))
   }
   return null
 }
@@ -247,18 +250,6 @@ function zedProjectPath(pathsValue: DbValue, orderValue: DbValue): string | unde
     .map((value) => Number.parseInt(value.trim(), 10))
     .filter((value) => Number.isInteger(value) && value >= 0 && value < paths.length)
   return normalizeCollectedProjectPath(paths[order[0] ?? 0])
-}
-
-function zstdDecompress(bytes: Buffer): Buffer {
-  // 当前运行时不支持 zstd 时，由调用方跳过该记录
-  const nodeRequire = createRequire(__filename)
-  const zlib = nodeRequire('zlib') as typeof import('zlib') & {
-    zstdDecompressSync?: (input: Uint8Array) => Uint8Array
-  }
-  if (typeof zlib.zstdDecompressSync !== 'function') {
-    throw new Error('zstd unsupported')
-  }
-  return Buffer.from(zlib.zstdDecompressSync(bytes))
 }
 
 function zedJsonTimestamp(thread: Record<string, unknown>): number {

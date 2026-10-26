@@ -2,6 +2,7 @@ import type { ReplayAPI } from '../shared/replay'
 import type { DiscoveryNativeAPI } from '../shared/discovery-ui'
 import type { ThirdPartyNoticesAPI } from '../shared/third-party-notices'
 import type { ScanRefreshAPI } from '../shared/scan-refresh'
+import type { CodexScanScopeAPI } from '../shared/codex-scan-scope'
 import type { ModelIconAPI } from '../shared/model-icons'
 import type { NetworkMonitorAPI } from './network-monitor-api'
 import type { WindowMaterialAPI } from '../shared/window-material'
@@ -173,6 +174,7 @@ export interface AppAPI
     WindowMaterialAPI,
     WindowChromeAPI,
     ScanRefreshAPI,
+    CodexScanScopeAPI,
     ModelIconAPI {
   accountFavoritesList(refresh?: boolean): Promise<AccountFavoritesState>
   accountFavoriteSet(
@@ -365,13 +367,10 @@ export interface AppAPI
   /** 用户从系统托盘触发检查更新。 */
   onTrayCheckUpdateRequested(callback: () => void): () => void
 
-  /** 检查更新（向 com 后端 latest.yml 拉取并对比版本） */
-  checkForUpdates(): Promise<{
-    hasUpdate: boolean
-    version?: string
-    releaseDate?: string
-    releaseNotes?: string | null
-  }>
+  /** 主进程统一查询软件版本；启动检查可保持静默。 */
+  checkForUpdates(
+    options?: import('../shared/updater').UpdateCheckOptions,
+  ): Promise<import('../shared/updater').UpdateCheckResult>
 
   /** 下载更新（autoDownload=false 时由用户手动触发） */
   downloadUpdate(): Promise<void>

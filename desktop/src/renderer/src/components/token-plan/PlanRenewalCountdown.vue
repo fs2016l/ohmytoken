@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { renewalCountdown, renewalStatus, type PlanRenewal } from '../../../../shared/plan-renewals'
+import {
+  renewalCountdown,
+  renewalStatus,
+  renewalDisplayDateTime,
+  type PlanRenewal,
+  type RenewalTimeZone,
+} from '../../../../shared/plan-renewals'
 import { useI18n } from '../../i18n/useI18n'
 import { useRenewalLabels } from '../../composables/useRenewalLabels'
 
-const props = defineProps<{ item: PlanRenewal; today: string }>()
+const props = defineProps<{ item: PlanRenewal; today: string; timeZone: RenewalTimeZone }>()
 const { label, currentLang } = useI18n()
 const { statusText } = useRenewalLabels()
-const countdown = computed(() => renewalCountdown(props.item, props.today))
+const countdown = computed(() => renewalCountdown(props.item, props.today, props.timeZone))
+const due = computed(() => renewalDisplayDateTime(props.item, props.timeZone).date)
 const days = computed(() => countdown.value?.days ?? null)
-const tone = computed(() =>
-  countdown.value ? renewalStatus(props.item.renewOn, props.today) : 'unknown',
-)
+const tone = computed(() => (countdown.value ? renewalStatus(due.value, props.today) : 'unknown'))
 const description = computed(() =>
   countdown.value
-    ? statusText(props.item, props.today)
+    ? statusText({ renewOn: due.value }, props.today)
     : label('Renewal date unavailable', '续费日期不可用'),
 )
 const number = computed(() => {

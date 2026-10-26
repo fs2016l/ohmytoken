@@ -41,6 +41,8 @@ export interface DesktopHeartbeatResult {
   serverTime: number
   announcementRevision: string
   onlineWindowSeconds: number
+  /** Older Cloud deployments omit this optional publication fingerprint. */
+  updateRevision?: string | null
 }
 
 export interface DesktopMessageEventInput {

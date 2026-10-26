@@ -15,6 +15,7 @@ import { planRenewalsAPI } from './plan-renewals-api'
 import { discoveryUiAPI } from './discovery-ui-api'
 import { thirdPartyNoticesAPI } from './third-party-notices-api'
 import { scanRefreshAPI } from './scan-refresh-api'
+import { codexScanScopeAPI } from './codex-scan-scope-api'
 import { networkMonitorAPI } from './network-monitor-api'
 import { windowMaterialAPI } from './window-material-api'
 import { windowChromeAPI } from './window-chrome-api'
@@ -119,6 +120,7 @@ const api = {
   ...discoveryUiAPI,
   ...floatingResizeAPI,
   ...scanRefreshAPI,
+  ...codexScanScopeAPI,
   ...windowChromeAPI,
   ...windowMaterialAPI,
   ...replayAPI,
@@ -412,19 +414,11 @@ const api = {
       ipcRenderer.removeListener(IPC.TRAY_CHECK_UPDATE_REQUESTED, listener)
     }
   },
-  /** 检查更新（向 com 后端 latest.yml 拉取并对比版本） */
-  checkForUpdates: (): Promise<{
-    hasUpdate: boolean
-    version?: string
-    releaseDate?: string
-    releaseNotes?: string | null
-  }> =>
-    ipcRenderer.invoke(IPC.UPDATE_CHECK) as Promise<{
-      hasUpdate: boolean
-      version?: string
-      releaseDate?: string
-      releaseNotes?: string | null
-    }>,
+  /** 主进程统一查询软件版本；启动检查可保持静默。 */
+  checkForUpdates: (
+    options?: import('../shared/updater').UpdateCheckOptions,
+  ): Promise<import('../shared/updater').UpdateCheckResult> =>
+    ipcRenderer.invoke(IPC.UPDATE_CHECK, options),
   /** 下载更新（autoDownload=false 时由用户手动触发） */
   downloadUpdate: (): Promise<void> => ipcRenderer.invoke(IPC.UPDATE_DOWNLOAD) as Promise<void>,
   getUpdateState: (): Promise<import('../shared/updater').UpdateState> =>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { iconGroups, iconStackLayout, type IconGroup } from '../../utils/icon-stack-layout'
+import { claimIconStackHover, releaseIconStackHover } from '../../utils/icon-stack-hover'
 import { useI18n } from '../../i18n/useI18n'
 import { formatTokens } from '../../utils/format'
 import type { ChartTooltipData } from '../../utils/chart-tooltip'
@@ -128,6 +129,7 @@ function removePositionListeners(): void {
 
 function closeAllIcons(): void {
   cancelClose()
+  activeIndex.value = null
   allIconsOpen.value = false
   allIconsPositioned.value = false
   hideItemTooltip()
@@ -137,10 +139,12 @@ function closeAllIcons(): void {
 function hideItemTooltip(): void {
   hoveredItem.value = null
   tooltipPoint.value = null
+  if (!allIconsOpen.value) releaseIconStackHover(closeAllIcons)
 }
 
 function showItemTooltip(item: IconGroup, event: PointerEvent): void {
   if (event.pointerType === 'touch') return
+  claimIconStackHover(closeAllIcons)
   hoveredItem.value = item
   tooltipPoint.value = { x: event.clientX, y: event.clientY }
 }
@@ -182,6 +186,7 @@ function positionAllIcons(): void {
 
 async function openAllIcons(): Promise<void> {
   if (!needsGrid.value) return
+  claimIconStackHover(closeAllIcons)
   cancelClose()
   if (allIconsOpen.value) return
   allIconsPositioned.value = false
@@ -424,6 +429,17 @@ defineExpose({
   border-top: 0;
   border-left: 0;
 }
+/* Cover the gap so entering this list cannot hover a table row behind it. */
+.icon-stack__all::after {
+  content: '';
+  position: absolute;
+  inset: -8px 0 auto;
+  height: 8px;
+}
+.icon-stack__all--above::after {
+  top: auto;
+  bottom: -8px;
+}
 .icon-stack__all--positioned {
   visibility: visible;
   pointer-events: auto;
@@ -468,6 +484,9 @@ defineExpose({
 .icon-stack-pop-leave-to {
   opacity: 0;
   transform: translateY(-6px) scale(0.96);
+}
+.icon-stack-pop-leave-active {
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .icon-stack,

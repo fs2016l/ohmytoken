@@ -9,6 +9,7 @@ import { localFavoriteKey } from '../../shared/local-favorites'
 import { ensureLocalFavoriteSchema } from './local-favorite-schema'
 import { normalizeLatestGeneration } from '../../shared/generation-timing'
 import { normalizeLatestTurnFirstToken } from '../../shared/turn-timing'
+import { normalizeLatestSessionTurn } from '../../shared/session-turn-view'
 
 const LIMIT = 10_000
 const hasControlCharacters = (value: string): boolean =>
@@ -89,6 +90,7 @@ function cleanSnapshot(
     apiCallCountComplete: value.apiCallCountComplete === false ? false : undefined,
     latestGeneration: normalizeLatestGeneration(value.latestGeneration),
     latestTurnFirstToken: normalizeLatestTurnFirstToken(value.latestTurnFirstToken),
+    latestTurn: normalizeLatestSessionTurn(value.latestTurn, target.id),
     turns:
       value.turns && Number.isSafeInteger(value.turns.count) && value.turns.count >= 0
         ? { count: value.turns.count, complete: value.turns.complete === true }

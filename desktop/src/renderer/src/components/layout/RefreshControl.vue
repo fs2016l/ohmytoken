@@ -43,7 +43,7 @@ watch(busy, (running, wasRunning) => {
   if (running) {
     clearSuccess()
     localError.value = ''
-  } else if (wasRunning && !error.value) {
+  } else if (wasRunning && !error.value && !scan.result.value?.cancelled) {
     succeeded.value = true
     successTimer = setTimeout(() => {
       succeeded.value = false
@@ -66,7 +66,9 @@ const buttonLabel = computed(() =>
   busy.value
     ? (progress.value?.mode ?? requestedMode.value) === 'full'
       ? label('Full refresh', '全量刷新中')
-      : label('Updating', '更新中')
+      : progress.value?.historyStage === 'backfill'
+        ? label('Loading history', '补全历史中')
+        : label('Updating', '更新中')
     : error.value
       ? label('Update issue', '部分未更新')
       : succeeded.value
@@ -300,8 +302,8 @@ onUnmounted(() => {
           class="refresh-full-action"
           :title="
             label(
-              'Re-read all local history. This may take longer.',
-              '重新读取全部本地历史，耗时可能较长',
+              'Re-read local usage and choose the Codex date range.',
+              '重新读取本地数据，并选择 Codex 的统计日期范围',
             )
           "
           @click="refresh('full')"
@@ -337,6 +339,14 @@ onUnmounted(() => {
           <p class="refresh-phase" role="status">
             <template v-if="busy && (progress?.mode ?? requestedMode) === 'full'">
               {{ label('Full refresh', '全量刷新') }} ·
+            </template>
+            <template v-else-if="busy && progress?.historyStage">
+              {{
+                progress.historyStage === 'recent'
+                  ? label('This month first', '先读本月')
+                  : label('Earlier history', '补全历史')
+              }}
+              ·
             </template>
             {{ phase }}
             <template v-if="busy && progress?.agent">· {{ getAgentName(progress.agent) }}</template>
@@ -394,7 +404,22 @@ onUnmounted(() => {
           />
           <footer>
             <template v-if="busy">
-              {{ label('You can keep using your existing data.', '当前仍可查看和操作已有数据。') }}
+              {{
+                progress?.historyStage === 'recent'
+                  ? label(
+                      'This month appears first; earlier history follows in the background.',
+                      '本月数据会先显示，更早的历史随后在后台补全。',
+                    )
+                  : progress?.historyStage === 'backfill'
+                    ? label(
+                        'This month is ready; earlier history is loading in the background.',
+                        '本月数据已可查看，更早的历史正在后台补全。',
+                      )
+                    : label(
+                        'You can keep using your existing data.',
+                        '当前仍可查看和操作已有数据。',
+                      )
+              }}
             </template>
             <small>
               {{ label('Updates local Token usage only.', '仅更新本地 Token 用量数据。') }}

@@ -1,5 +1,5 @@
 .replay-page {
-  --replay-stage-height: clamp(280px, calc(100vh - 608px), 460px);
+  --replay-stage-height: clamp(280px, calc(100vh - 664px), 460px);
 }
 .replay-page .page-surface-content {
   display: flex;
@@ -16,7 +16,7 @@
 .replay-heading h1 {
   margin: 0 0 5px;
   font-size: var(--type-title);
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.6px;
 }
 .replay-heading p {
@@ -193,7 +193,7 @@
   right: 10px;
   top: 10px;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 11px;
   color: #e7edf8;
   background: #13233d99;
   border-radius: 4px;
@@ -284,7 +284,7 @@
   opacity: 0.6;
 }
 .replay-preview-empty strong {
-  font-weight: 550;
+  font-weight: var(--weight-medium);
   font-size: 15px;
 }
 .replay-preview-empty p {
@@ -301,7 +301,7 @@
 .replay-settings h2 {
   margin: 0 0 13px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
 }
 .replay-settings fieldset {
   display: flex;
@@ -499,7 +499,7 @@
 }
 .replay-fixed-setting > span {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .replay-checkbox {
   display: flex;
@@ -515,7 +515,7 @@
 }
 .replay-checkbox > span {
   margin-left: auto;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 .replay-codec {
@@ -532,7 +532,7 @@
   justify-content: space-between;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   margin-bottom: 12px;
 }
 .replay-size-hint strong {
@@ -564,7 +564,7 @@
 .replay-export-message {
   margin: 8px 0 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
   min-height: 30px;
 }
@@ -607,11 +607,11 @@
 .replay-history h2 {
   margin: 0;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
 }
 .replay-count {
   color: var(--primary-soft-text);
-  font-size: 10px;
+  font-size: 11px;
   border-radius: 5px;
   background: var(--primary-soft);
   padding: 2px 6px;
@@ -688,7 +688,7 @@
   background: #111e34b3;
   border-radius: 4px;
   padding: 2px 5px;
-  font-size: 9px;
+  font-size: 11px;
 }
 .replay-record-status {
   position: absolute;
@@ -698,7 +698,7 @@
   background: var(--bg-elevated);
   border-radius: 4px;
   padding: 3px 6px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .replay-record-status.failed {
   color: var(--error);
@@ -743,7 +743,7 @@
 .replay-history-meta {
   line-height: 16px;
   margin: 6px 0 0;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
@@ -759,7 +759,7 @@
   justify-content: space-between;
   gap: 6px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   min-height: 25px;
 }
 .replay-history-body footer > div {

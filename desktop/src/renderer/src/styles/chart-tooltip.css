@@ -9,15 +9,16 @@
   background: var(--surface);
   box-shadow: var(--shadow-popover);
   color: var(--text);
-  font-family: var(--font-ui);
+  font-family: var(--font-sans);
   font-size: 12px;
   line-height: 20px;
   white-space: normal;
   pointer-events: none;
+  font-weight: 400;
 }
 .chart-tooltip-title {
   overflow-wrap: anywhere;
-  font-weight: 600;
+  font-weight: 500;
 }
 .chart-tooltip-subtitle,
 .chart-tooltip-note {

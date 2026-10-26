@@ -21,6 +21,7 @@ import {
 import { normalizeScanContext } from './incremental-utils'
 import { tokenBuckets, tokenCount } from './token-usage'
 import { gooseGenerationTimingReader } from './goose-generation-timing'
+import { readGooseLatestTurn } from './database-turn-states'
 
 export class GooseScanner implements AgentScanner {
   readonly agentName = 'goose'
@@ -38,6 +39,7 @@ export class GooseScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    const latestTurns: import('../../shared/models').SessionTurnState[] = []
     const scanContext = normalizeScanContext(context)
     void scanContext
     const records: TokenUsageRecord[] = []
@@ -99,6 +101,8 @@ export class GooseScanner implements AgentScanner {
           reasoningTokens: total > input + output ? total - input - output : 0,
         })
         const model = gooseModelFromConfig(modelConfigJson)
+        const latestTurn = readGooseLatestTurn(db, sessionId, model)
+        if (latestTurn) latestTurns.push(latestTurn)
         const createdAtValue = parseGooseCreatedAt(row.created_at)
         const hasCreatedAt =
           (typeof createdAtValue === 'number' && createdAtValue > 0) ||
@@ -138,7 +142,7 @@ export class GooseScanner implements AgentScanner {
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns }
   }
 }
 

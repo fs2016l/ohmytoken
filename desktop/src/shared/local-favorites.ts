@@ -24,6 +24,7 @@ export type FavoriteSessionSnapshot = Pick<
   | 'apiCallCountComplete'
   | 'turns'
   | 'latestGeneration'
+  | 'latestTurn'
   | 'latestTurnFirstToken'
 > & { childCount: number }
 export interface LocalFavorite extends LocalFavoriteTarget {
@@ -63,6 +64,7 @@ export function sessionFavoriteSnapshot(session: TokenUsageUserSession): Favorit
     apiCallCountComplete: session.apiCallCountComplete,
     turns: session.turns,
     latestGeneration: session.latestGeneration,
+    latestTurn: session.latestTurn,
     latestTurnFirstToken: session.latestTurnFirstToken,
     childCount: session.children.length,
   }

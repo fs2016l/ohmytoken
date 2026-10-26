@@ -39,6 +39,7 @@ parentPort.on('message', (event) => {
           entry: join(__dirname, 'agent-scan-worker.js'),
           concurrency: agentConcurrency,
         },
+        recentFirst: true,
         onProgress: (progress) =>
           parentPort.postMessage({ type: 'scan-progress', requestId: request.requestId, progress }),
       })

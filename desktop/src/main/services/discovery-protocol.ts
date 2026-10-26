@@ -25,7 +25,7 @@ export function registerDiscoveryScheme(): void {
     },
     {
       scheme: 'omt-model-icon',
-      privileges: { standard: true, secure: true, supportFetchAPI: true },
+      privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
     },
   ])
 }

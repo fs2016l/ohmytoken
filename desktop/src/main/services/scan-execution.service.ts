@@ -43,7 +43,10 @@ export async function performScanWithScanners(
       if (scanner.isAvailable())
         plans.push({
           scanner,
-          plan: buildAgentScanPlan(scanner.agentName, requestedMode, startedAt),
+          plan: buildAgentScanPlan(scanner.agentName, requestedMode, startedAt, {
+            recentFirst: execution.recentFirst,
+            codexScope: options.codexScope,
+          }),
         })
     } catch (error) {
       errors.push(`${scanner.agentName}: ${(error as Error).message}`)
@@ -58,7 +61,15 @@ export async function performScanWithScanners(
   const rebuilding =
     plans.length > 0 &&
     (requestedMode === 'full' || (empty && plans.every(({ plan }) => plan.context.mode === 'full')))
-  progress.update({ rebuilding, totalAgents: plans.length }, true)
+  const historyStage = plans.some(({ plan }) => plan.stage === 'recent')
+    ? 'recent'
+    : plans.some(({ plan }) => plan.stage === 'backfill')
+      ? 'backfill'
+      : undefined
+  progress.update(
+    { rebuilding, totalAgents: plans.length, ...(historyStage ? { historyStage } : {}) },
+    true,
+  )
   let staging: ScanStaging | undefined
   let committed = false
   try {
@@ -239,7 +250,12 @@ export async function performScanWithScanners(
     true,
   )
   const earliest = incrementalStarts.length ? Math.min(...incrementalStarts) : undefined
+  const scanned = new Set(scannedAgents)
+  const historyPendingAgents = plans
+    .filter(({ scanner, plan }) => plan.stage === 'recent' && scanned.has(scanner.agentName))
+    .map(({ scanner }) => scanner.agentName)
   return {
+    ...(historyPendingAgents.length ? { historyPendingAgents } : {}),
     scanTime: isoLocalDateTime(),
     mode: requestedMode,
     ...(earliest

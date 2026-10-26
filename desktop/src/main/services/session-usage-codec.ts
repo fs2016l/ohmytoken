@@ -10,6 +10,7 @@ import { usageCallTime } from './usage-call-time'
 import { encodeTurnData } from './session-turn-codec'
 import { normalizeGenerationTiming } from '../../shared/generation-timing'
 import type { GenerationTiming } from '../../shared/models'
+import { makeSessionTurnUsage, type SessionTurnUsage } from './session-latest-turn-storage'
 
 export const TOKEN_FIELDS = [
   'inputTokens',
@@ -167,6 +168,7 @@ export function decodeSecondData(data: Buffer): SecondUsage[] {
 }
 
 export interface SessionUsageAggregate {
+  turnUsage?: SessionTurnUsage[]
   session: TokenUsageSession
   costs: UsageCostRollup
   data: SessionDataRow
@@ -207,6 +209,10 @@ export function aggregateSessionUsage(
     title: metadata?.title,
   }
   const groups = new Map<string, UsageCostGroup>()
+  const turnGroups = new Map<
+    string,
+    { calls: TokenUsageApiCall[]; groups: Map<string, UsageCostGroup>; legacy: number }
+  >()
   const seconds = new Map<string, SecondUsage>()
   const projects = new Map<
     string,
@@ -281,10 +287,19 @@ export function aggregateSessionUsage(
       evidence: call.evidence ? parseUsageEvidence(JSON.stringify(call.evidence)) : undefined,
     }
     const { min, max, reportedCost: _reported, ...assessment } = estimateUsageCost(normalized)
+    let turnGroup = call.turn ? turnGroups.get(call.turn.id) : undefined
+    if (call.turn && !turnGroup) {
+      turnGroup = { calls: [], groups: new Map(), legacy: 0 }
+      turnGroups.set(call.turn.id, turnGroup)
+    }
+    if (turnGroup) {
+      turnGroup.calls.push(call)
+      if (!normalized.evidence) turnGroup.legacy++
+    }
     if (!normalized.evidence) legacy++
     const groupKey = JSON.stringify(assessment)
     if (!normalized.evidence) projectData.legacy++
-    for (const target of [groups, projectData.groups]) {
+    for (const target of [groups, projectData.groups, ...(turnGroup ? [turnGroup.groups] : [])]) {
       const group = target.get(groupKey) ?? {
         ...assessment,
         agent: call.agent,
@@ -305,6 +320,12 @@ export function aggregateSessionUsage(
   return {
     session,
     costs,
+    turnUsage: [...turnGroups.values()].map((turn) =>
+      makeSessionTurnUsage(
+        turn.calls,
+        summarizeCostGroups([...turn.groups.values()], PRICE_CATALOG_VERSION, turn.legacy),
+      ),
+    ),
     projects: [...projects].map(([projectPath, data]) => ({
       projectPath,
       tokens: data.tokens,

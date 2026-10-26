@@ -21,7 +21,7 @@ interface EdgeOptions {
   displays: () => EdgeDisplay[]
   cursor: () => EdgePoint
   changed: (state: FloatingEdgeState) => void
-  restoreLimits: () => void
+  restoreLimits: (bounds?: EdgeBounds) => void
   now?: () => number
   reducedMotion?: () => boolean
   inset?: () => number
@@ -95,9 +95,10 @@ export class FloatingEdgeController {
     clearInterval(this.timer)
     this.timer = undefined
   }
-  private place(bounds: EdgeBounds): void {
+  private place(bounds: EdgeBounds, restoreLimits = false): void {
     this.internal = true
     try {
+      if (restoreLimits) this.options.restoreLimits(bounds)
       this.window.setBounds(bounds)
     } finally {
       this.internal = false
@@ -147,7 +148,7 @@ export class FloatingEdgeController {
       this.placeNative(hiddenEdgeBounds(this.normal, this.state.edge, this.inset), true)
     } else {
       this.window.setMinimumSize(1, 1)
-      this.window.setMaximumSize(900, 1100)
+      this.window.setMaximumSize(900, this.area.height)
       this.place(this.visibleStrip)
       this.setViewport(true)
     }
@@ -192,7 +193,13 @@ export class FloatingEdgeController {
     this.displayId = display.id
     this.area = display.workArea
     this.normal = fitEdgeBounds(bounds, this.area, this.state.edge)
-    if (bounds.x !== this.normal.x || bounds.y !== this.normal.y) this.place(this.normal)
+    if (
+      bounds.x !== this.normal.x ||
+      bounds.y !== this.normal.y ||
+      bounds.width !== this.normal.width ||
+      bounds.height !== this.normal.height
+    )
+      this.place(this.normal)
   }
 
   tick(): void {
@@ -307,9 +314,8 @@ export class FloatingEdgeController {
     this.publish()
   }
   private finishReveal(): void {
-    this.place(this.normal)
+    this.place(this.normal, true)
     if (this.state.nativeMotion || this.options.compositorMotion) this.window.setShape?.([])
-    this.options.restoreLimits()
     if (!this.state.nativeMotion && !this.options.compositorMotion) this.window.setResizable(true)
     this.clearAnimation()
     delete this.state.viewport
@@ -323,7 +329,9 @@ export class FloatingEdgeController {
     if (this.state.hidden) {
       if (this.options.compositorMotion) this.window.setShape([])
       else if (!this.state.nativeMotion) this.place(this.normal)
-      this.window.showInactive()
+      // Edge hiding clips/moves a visible HWND. Showing it again can raise it
+      // above an active screenshot overlay even without acquiring focus.
+      if (!this.window.isVisible()) this.window.showInactive()
     }
     this.state.hidden = false
     this.setViewport()
@@ -341,14 +349,16 @@ export class FloatingEdgeController {
       this.state.edge = null
       this.stop()
     }
-    this.area = (display ?? this.options.display(this.normal)).workArea
-    this.normal = fitEdgeBounds(
-      this.state.hidden ? this.normal : this.window.getBounds(),
-      this.area,
-      this.state.edge,
-    )
-    if (this.state.hidden && this.state.edge) this.placeHidden()
-    else this.place(this.normal)
+    const bounds = this.state.hidden ? this.normal : this.window.getBounds()
+    this.area = (display ?? this.options.display(bounds)).workArea
+    this.normal = fitEdgeBounds(bounds, this.area, this.state.edge)
+    if (this.state.hidden && this.state.edge) {
+      if (this.state.nativeMotion || this.options.compositorMotion) {
+        this.window.setMinimumSize(this.normal.width, this.normal.height)
+        this.window.setMaximumSize(this.normal.width, this.normal.height)
+      }
+      this.placeHidden()
+    } else this.place(this.normal, true)
     this.publish()
   }
   dispose(): void {

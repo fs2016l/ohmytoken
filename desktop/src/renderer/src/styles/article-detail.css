@@ -93,7 +93,7 @@
   color: var(--text);
   font-size: 32px;
   line-height: 1.4;
-  font-weight: 650;
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.025em;
   overflow-wrap: anywhere;
 }

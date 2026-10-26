@@ -10,7 +10,7 @@ import type {
   TokenUsageApiCall,
   TokenUsageRecord,
 } from './types'
-import { getGeminiTmpDir } from '../lib/paths'
+import { getGeminiTmpDirCandidates } from '../lib/paths'
 import { readUtf8Lines } from '../lib/line-reader'
 import {
   buildRecordsFromSessions,
@@ -23,18 +23,22 @@ import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incre
 import { normalizeGeminiStyleUsage, type ExclusiveTokenUsage } from './gemini-style-usage'
 import { createProjectPathLookup } from './project-metadata'
 import { extractProjectPath } from './project-path'
+import { claimSourcePath } from './source-path'
+import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker } from './latest-turn-tracker'
 
 export class GeminiScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'gemini'
 
+  private readonly tmpDirs: () => readonly string[]
+
+  constructor(tmpDirs: () => readonly string[] = getGeminiTmpDirCandidates) {
+    this.tmpDirs = tmpDirs
+  }
+
   isAvailable(): boolean {
-    const tmpDir = getGeminiTmpDir()
-    try {
-      if (!statSync(tmpDir).isDirectory()) return false
-    } catch {
-      return false
-    }
-    return listGeminiFiles(tmpDir).length > 0
+    return this.tmpDirs().some((dir) => isDirectory(dir) && listGeminiFiles(dir).length > 0)
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -42,37 +46,34 @@ export class GeminiScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
-    const tmpDir = getGeminiTmpDir()
-
-    let isDir = false
-    try {
-      isDir = statSync(tmpDir).isDirectory()
-    } catch {
-      isDir = false
-    }
-    if (!isDir) return { records, sessions: [], apiCalls }
-
-    const projectPathFor = createProjectPathLookup(dirname(tmpDir))
-    for (const file of listGeminiFiles(tmpDir)) {
-      if (!shouldScanFile(file, scanContext)) continue
-      try {
-        if (file.endsWith('.jsonl')) {
-          this.parseJsonlStream(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
-        } else {
-          this.parseSessionJson(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
+    const visitedFiles = new Set<string>()
+    // 默认旧目录先读，配置中的当前目录后读；同一调用不重复累计。
+    for (const tmpDir of [...this.tmpDirs()].reverse()) {
+      if (!isDirectory(tmpDir)) continue
+      const projectPathFor = createProjectPathLookup(dirname(tmpDir))
+      for (const file of listGeminiFiles(tmpDir)) {
+        if (!claimSourcePath(visitedFiles, file)) continue
+        if (!shouldScanFile(file, scanContext)) continue
+        try {
+          if (file.endsWith('.jsonl')) {
+            this.parseJsonlStream(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
+          } else {
+            this.parseSessionJson(file, tmpDir, scanContext, apiCalls, projectPathFor(file))
+          }
+        } catch (e) {
+          throw new Error(`Gemini 会话文件不可读 (${file}): ${(e as Error).message}`)
         }
-      } catch (e) {
-        throw new Error(`Gemini 会话文件不可读 (${file}): ${(e as Error).message}`)
       }
     }
 
     replaceDuplicateGeminiCalls(apiCalls)
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns: this.latestTurns.values() }
   }
 
   /** 解析单个 JSON 会话文件。 */
@@ -102,9 +103,17 @@ export class GeminiScanner implements AgentScanner {
       (typeof root.sessionId === 'string' && root.sessionId) || fileSessionId(file, tmpDir)
     const fallbackMtime = fileMtimeMs(file)
     const before = apiCalls.length
+    let turn: ConversationTurn | undefined
 
     messages.forEach((message, index) => {
       if (!isObject(message)) return
+      if (
+        (message.type === 'user' || message.role === 'user') &&
+        isUserPrompt(message.content ?? message.parts)
+      ) {
+        turn = conversationTurn(message.id ?? `user:${index}`)
+        this.latestTurns.start(sessionId, turn?.id, message.timestamp, false)
+      }
       const tokens = message.tokens
       if (!isObject(tokens)) return
       const model = typeof message.model === 'string' && message.model ? message.model : 'unknown'
@@ -124,6 +133,7 @@ export class GeminiScanner implements AgentScanner {
         timestampValue,
         usage,
         extractProjectPath(message) ?? projectPath,
+        turn,
       )
     })
 
@@ -169,6 +179,7 @@ export class GeminiScanner implements AgentScanner {
     let streamSessionId = sessionId
     let streamModel = 'unknown'
     let directLines = 0
+    let turn: ConversationTurn | undefined
     const statsByModel = new Map<
       string,
       { usage: ExclusiveTokenUsage; timestampValue: string | number }
@@ -189,6 +200,10 @@ export class GeminiScanner implements AgentScanner {
       else if (typeof obj.session_id === 'string' && obj.session_id)
         streamSessionId = obj.session_id
       if (typeof obj.model === 'string' && obj.model) streamModel = obj.model
+      if ((obj.type === 'user' || obj.role === 'user') && isUserPrompt(obj.content ?? obj.parts)) {
+        turn = conversationTurn(obj.id ?? `user:${lineIndex}`)
+        this.latestTurns.start(streamSessionId, turn?.id, obj.timestamp, false)
+      }
 
       const usage = readGeminiUsageFromLine(obj)
       if (usage) {
@@ -209,6 +224,7 @@ export class GeminiScanner implements AgentScanner {
           timestampValue,
           usage,
           projectPath,
+          turn,
         )
         continue
       }
@@ -332,10 +348,12 @@ function pushGeminiApiCall(
   timestampValue: string | number,
   usage: ExclusiveTokenUsage,
   projectPath?: string,
+  turn?: ConversationTurn,
 ): void {
   const fallbackDate = 'unknown'
   const { timestamp, rawTimestamp } = timestampsFromValue(timestampValue, fallbackDate)
   const apiCall: TokenUsageApiCall = {
+    turn,
     ...(projectPath ? { projectPath } : {}),
     agent: agentName,
     apiCallId,
@@ -408,7 +426,17 @@ function optionalTokenValue(source: Record<string, unknown>, keys: string[]): nu
 function replaceDuplicateGeminiCalls(apiCalls: TokenUsageApiCall[]): void {
   const byId = new Map<string, TokenUsageApiCall>()
   for (const apiCall of apiCalls) byId.set(apiCall.apiCallId, apiCall)
-  apiCalls.splice(0, apiCalls.length, ...byId.values())
+  apiCalls.length = 0
+  for (const call of byId.values()) apiCalls.push(call)
+}
+
+function isDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
 }
 
 function fileSessionId(file: string, tmpDir: string): string {
@@ -432,13 +460,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** 返回扫描目录中可识别的记录文件。 */
 function listGeminiFiles(root: string): string[] {
   const out: string[] = []
-  const walk = (dir: string, isRoot = false): void => {
+  const walk = (dir: string): void => {
     let entries: Dirent[]
     try {
       entries = readdirSync(dir, { withFileTypes: true })
     } catch (e) {
-      if (isRoot) throw new Error(`Gemini tmp 目录不可读: ${(e as Error).message}`)
-      return
+      throw new Error(`Gemini tmp 目录不可读 (${dir}): ${(e as Error).message}`)
     }
     for (const entry of entries) {
       const full = join(dir, entry.name)
@@ -463,6 +490,6 @@ function listGeminiFiles(root: string): string[] {
       }
     }
   }
-  walk(root, true)
+  walk(root)
   return out.sort()
 }

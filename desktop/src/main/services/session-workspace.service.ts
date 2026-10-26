@@ -21,9 +21,14 @@ import {
   priceCatalogRevision,
 } from '../cost/price-catalog'
 import { readSessionTurnCounts } from './session-turns'
+import { readLatestSessionTurns } from './session-latest-turn-storage'
+import { sessionTurnView } from '../../shared/session-turn-view'
+import { combineCostRollups } from '../../shared/cost-rollup'
 import { readWithUsageCosts } from './usage-cost.service'
 
 interface Entry {
+  latestTurnKnown?: boolean
+  latestTurnUsageAvailable?: boolean
   agent: string
   rootSessionId: string
   title: string
@@ -80,7 +85,7 @@ function indexFor(filter: SessionWorkspaceFilter, committedRead: boolean): Index
   const db = openDatabase()
   const { whereSql, params } = buildSessionWhere(filter)
   const search = buildSessionSearchScore(filter.query, hasProjectScope(filter))
-  const key = JSON.stringify([whereSql, params, search.params])
+  const key = JSON.stringify([whereSql, params, search.params, filter.turnScope])
   const version = JSON.stringify([
     priceCatalogRevision(),
     db
@@ -198,10 +203,42 @@ function indexFor(filter: SessionWorkspaceFilter, committedRead: boolean): Index
     const cost = costs.get(JSON.stringify([entry.agent, entry.rootSessionId]))?.finish()
     entry.cost = entry.missingCost && !cost?.pricedRecords ? undefined : cost
   }
-  const summaryCost = allCosts.finish()
+  let summaryCost = allCosts.finish()
+  if (filter.turnScope === 'latest') {
+    const latest = readLatestSessionTurns(
+      db,
+      values.map((e) => ({ agent: e.agent, sessionId: e.rootSessionId })),
+    )
+    for (const entry of values) {
+      const turn = latest.get(JSON.stringify([entry.agent, entry.rootSessionId]))
+      entry.latestTurnKnown = Boolean(turn)
+      entry.latestTurnUsageAvailable = turn?.usageAvailable === true
+      entry.tokens = turn?.totalTokens ?? 0
+      entry.input = turn?.inputTokens ?? 0
+      entry.output = turn?.outputTokens ?? 0
+      entry.cache = (turn?.cacheReadTokens ?? 0) + (turn?.cacheWriteTokens ?? 0)
+      entry.reasoning = turn?.reasoningTokens ?? 0
+      entry.calls = turn?.apiCallCount ?? 0
+      entry.callsComplete = turn?.usageAvailable === true && turn.apiCallCountComplete
+      entry.model = turn?.models[0] ?? ''
+      entry.cost = turn?.costSummary
+      if (turn) entry.recent = Math.max(entry.recent, turn.updatedAtMs)
+    }
+    summaryCost = combineCostRollups(
+      values.flatMap((e) => (e.cost ? [e.cost] : [])),
+      PRICE_CATALOG_VERSION,
+    )
+    anyMissingCost = values.some((e) => !e.cost)
+  }
   const result: Index = {
     entries: values,
     summary: {
+      ...(filter.turnScope === 'latest'
+        ? {
+            latestTurnUsageMissing: values.filter((entry) => !entry.latestTurnUsageAvailable)
+              .length,
+          }
+        : {}),
       totalTokens: values.reduce((sum, entry) => sum + entry.tokens, 0),
       apiCallCount: values.reduce((sum, entry) => sum + entry.calls, 0),
       apiCallCountComplete: values.every((entry) => entry.callsComplete),
@@ -284,6 +321,7 @@ export function readSessionWorkspace(
     }
     if (sort === 'cost') return costValue(entry, filter.costExchangeRate)
     if (sort === 'turns') {
+      if (filter.turnScope === 'latest') return entry.latestTurnKnown ? 1 : null
       if (entry.calls === 0 && entry.tokens === 0) return 0
       const count = index.turns?.get(JSON.stringify([entry.agent, entry.rootSessionId]))
       return count?.complete ? count.count : null
@@ -311,7 +349,12 @@ export function readSessionWorkspace(
     items: readUserSessionsByKeys(
       filter,
       ordered.slice((page - 1) * pageSize, page * pageSize),
-    ).map((item) => (baseline ? { ...item, comparisonTokens: prior(item) } : item)),
+    ).map((item) =>
+      sessionTurnView(
+        baseline ? { ...item, comparisonTokens: prior(item) } : item,
+        filter.turnScope === 'latest' ? 'latest' : 'all',
+      ),
+    ),
     page,
     pageSize,
     total,

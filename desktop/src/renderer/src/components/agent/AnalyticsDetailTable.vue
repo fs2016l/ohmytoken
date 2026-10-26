@@ -775,13 +775,15 @@ async function exportRows(): Promise<void> {
 .workspace-table td.time-column {
   color: var(--text);
   font-size: 12px;
+  font-family: var(--font-sans);
+  font-weight: 400;
 }
 .workspace-table .expand-column {
   padding-inline: 8px;
 }
 .workspace-table .date-cell,
 .workspace-table .date-cell .row-name {
-  font-family: var(--font-number);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
 }
 .workspace-table th.name-column:first-child,

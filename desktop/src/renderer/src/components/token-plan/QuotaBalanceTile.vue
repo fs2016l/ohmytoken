@@ -84,11 +84,12 @@ defineProps<{
   display: flex;
   align-items: center;
   gap: 3px;
-  height: 16px;
+  min-height: 18px;
   color: var(--text-muted);
-  font-family: var(--font-number);
-  font-size: 11px;
-  line-height: 16px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 400;
   white-space: nowrap;
 }
 .quota-balance__foot .material-symbols-outlined {

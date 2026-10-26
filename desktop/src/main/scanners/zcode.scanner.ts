@@ -1,5 +1,6 @@
 /** Z Code 扫描器：model_usage 为权威源，全量时补齐尚未迁移的 message 历史。 */
 import { existsSync } from 'fs'
+import { readZCodeTurnStates } from './database-turn-states'
 import Database from 'better-sqlite3'
 import { usageEvidence } from '../cost/usage-evidence'
 import { formatDateFromMs } from '../lib/date-utils'
@@ -116,7 +117,7 @@ export class ZCodeScanner implements AgentScanner {
         this.agentName,
         sessions.filter((session) => session.totalTokens > 0),
       )
-      return { records, sessions, apiCalls }
+      return { records, sessions, apiCalls, latestTurns: readZCodeTurnStates(db) }
     } catch (error) {
       throw new Error(`ZCode 扫描失败: ${(error as Error).message}`)
     } finally {

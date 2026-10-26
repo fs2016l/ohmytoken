@@ -4,6 +4,7 @@ import type { UsageTrendStats } from '@shared/models'
 export type FloatingPresetRange = '1h' | '5h' | '24h' | '7d'
 export type FloatingTrendRange = FloatingPresetRange | 'custom'
 export type FloatingTrendGroup = 'agent' | 'model'
+export type FloatingTrendDisplay = FloatingTrendGroup | 'total'
 
 const STORAGE_KEY = 'floating-token-preferences'
 const DEFAULT_RANGE: FloatingPresetRange = '5h'
@@ -20,6 +21,7 @@ interface StoredTrendPreferences {
   range: FloatingTrendRange
   baselineAt: number | null
   groupBy: FloatingTrendGroup
+  displayMode: FloatingTrendDisplay
   sessionsExpanded: boolean
 }
 
@@ -47,10 +49,12 @@ function loadPreferences(): StoredTrendPreferences {
     ) as Partial<StoredTrendPreferences>
     const baselineAt = isBaseline(parsed.baselineAt) ? parsed.baselineAt : null
     const range = normalizeRange(parsed.range)
+    const groupBy = isGroup(parsed.groupBy) ? parsed.groupBy : DEFAULT_GROUP
     return {
       range: range === 'custom' && baselineAt === null ? DEFAULT_RANGE : range,
       baselineAt,
-      groupBy: isGroup(parsed.groupBy) ? parsed.groupBy : DEFAULT_GROUP,
+      groupBy,
+      displayMode: parsed.displayMode === 'total' ? 'total' : groupBy,
       sessionsExpanded: parsed.sessionsExpanded !== false,
     }
   } catch {
@@ -58,6 +62,7 @@ function loadPreferences(): StoredTrendPreferences {
       range: DEFAULT_RANGE,
       baselineAt: null,
       groupBy: DEFAULT_GROUP,
+      displayMode: DEFAULT_GROUP,
       sessionsExpanded: true,
     }
   }
@@ -86,6 +91,14 @@ export function useFloatingTokenTrend() {
   const range = ref<FloatingTrendRange>(stored.range)
   const baselineAt = ref(stored.baselineAt)
   const groupBy = ref<FloatingTrendGroup>(stored.groupBy)
+  const totalView = ref(stored.displayMode === 'total')
+  const displayMode = computed<FloatingTrendDisplay>({
+    get: () => (totalView.value ? 'total' : groupBy.value),
+    set: (value) => {
+      totalView.value = value === 'total'
+      if (value !== 'total') groupBy.value = value
+    },
+  })
   const sessionsExpanded = ref(stored.sessionsExpanded)
   const stats = shallowRef<UsageTrendStats>(emptyStats(stored.groupBy))
   const isLoading = ref(false)
@@ -107,12 +120,13 @@ export function useFloatingTokenTrend() {
         range: range.value,
         baselineAt: baselineAt.value,
         groupBy: groupBy.value,
+        displayMode: displayMode.value,
         sessionsExpanded: sessionsExpanded.value,
       }),
     )
   }
 
-  watch([range, baselineAt, groupBy, sessionsExpanded], persistPreferences)
+  watch([range, baselineAt, groupBy, totalView, sessionsExpanded], persistPreferences)
 
   function applyBaseline(timestamp: number): void {
     if (!isBaseline(timestamp)) return
@@ -153,6 +167,7 @@ export function useFloatingTokenTrend() {
     baselineAt,
     applyBaseline,
     groupBy,
+    displayMode,
     sessionsExpanded,
     stats,
     isLoading,

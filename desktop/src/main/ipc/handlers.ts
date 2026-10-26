@@ -28,6 +28,8 @@ import { registerReplayHandlers } from './replay-handlers'
 import { registerPlanRenewalHandlers } from './plan-renewals-handlers'
 import { registerThirdPartyNoticesHandlers } from './third-party-notices-handlers'
 import { registerScanRefreshHandlers } from './scan-refresh-handlers'
+import { registerCodexScanScopeHandlers } from './codex-scan-scope-handlers'
+import { performScopedScan } from '../services/codex-scan-scope.service'
 import { registerNetworkMonitorHandlers } from './network-monitor-handlers'
 import { registerDiscoveryUiHandlers } from './discovery-ui-handlers'
 import { registerWindowMaterialIpc } from '../services/window-material.service'
@@ -84,12 +86,7 @@ import {
   reportDiagnosticError,
 } from '../services/diagnostic-log.service'
 import { getAuthSession, submitDesktopFeedback } from '../services/desktop-api.service'
-import {
-  getScanProgress,
-  performScan,
-  resumeBackgroundScan,
-  stopBackgroundScan,
-} from '../services/scan.service'
+import { getScanProgress, resumeBackgroundScan, stopBackgroundScan } from '../services/scan.service'
 import {
   startAgentHeartbeat,
   stopAgentHeartbeat,
@@ -250,6 +247,7 @@ function wrapHandler<TArgs extends unknown[], TResult>(
  *                    （macOS activate 重建窗口后无需重新 register）
  */
 export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
+  registerCodexScanScopeHandlers(windowGetter)
   registerDiscoveryUiHandlers(windowGetter)
   registerScanRefreshHandlers()
   registerReplayHandlers(windowGetter)
@@ -510,7 +508,7 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
   // 扫描：POST /api/scan
   ipcMain.handle(
     IPC.SCAN_PERFORM,
-    wrapHandler((_event, options?: ScanOptions) => performScan(options)),
+    wrapHandler((_event, options?: ScanOptions) => performScopedScan(options)),
   )
 
   // 总览：GET /api/stats/overview（from/to 可选）
@@ -827,10 +825,12 @@ export function registerIpcHandlers(windowGetter: MainWindowGetter): void {
     wrapHandler((_event, id: string, query: QuotaDetailQuery) => queryTokenPlanDetails(id, query)),
   )
 
-  // 检查更新：向 com 后端拉取 latest.yml 并对比当前版本
+  // 主进程统一协调启动、手动及心跳检查；安装前仍单独校验 latest.yml。
   ipcMain.handle(
     IPC.UPDATE_CHECK,
-    wrapHandler(async () => checkForUpdates()),
+    wrapHandler(async (_event, options?: import('../../shared/updater').UpdateCheckOptions) =>
+      checkForUpdates({ silent: options?.silent === true }),
+    ),
   )
 
   // 下载更新：autoDownload=false 时由用户在 UI 上手动触发

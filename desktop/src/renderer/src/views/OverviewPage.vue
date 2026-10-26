@@ -137,6 +137,18 @@ async function retry(): Promise<void> {
               <span>
                 {{ label('All time', '累计') }}
                 <AnimatedNumber :value="fixed.data.value?.grandTotal" :format="{ compact: true }" />
+                <small
+                  v-if="fixed.data.value?.historyPending"
+                  class="overview-history-pending"
+                  :title="
+                    label(
+                      'Earlier history is loading in the background; the total will update.',
+                      '更早的历史正在后台补全，累计值会随之更新。',
+                    )
+                  "
+                >
+                  {{ label('Loading history', '历史补全中') }}
+                </small>
               </span>
             </header>
             <div class="period-figures">
@@ -347,6 +359,11 @@ header .workspace-link {
 }
 .overview-figures header > span {
   font-size: 11px;
+}
+.overview-history-pending {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--text-soft);
 }
 .period-figures {
   display: grid;

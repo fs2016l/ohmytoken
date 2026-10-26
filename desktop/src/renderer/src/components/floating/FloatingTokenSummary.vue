@@ -3,9 +3,9 @@ import { computed } from 'vue'
 import type { UsageTrendStats } from '@shared/models'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
 import TokenShare from '../base/TokenShare.vue'
-import UpdatedAt from '../base/UpdatedAt.vue'
+import RelativeUpdatedAt from '../base/RelativeUpdatedAt.vue'
 import { useI18n } from '../../i18n/useI18n'
-import { compactTokenLine } from '../../utils/floating-summary'
+import FloatingTokenSparkline from './FloatingTokenSparkline.vue'
 
 const props = defineProps<{
   stats: UsageTrendStats
@@ -16,7 +16,6 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ expand: [] }>()
 const { label } = useI18n()
-const line = computed(() => compactTokenLine(props.stats))
 const breakdown = computed(() => [
   { id: 'input' as const, name: label('Input', '输入'), value: props.stats.inputTokens },
   { id: 'output' as const, name: label('Output', '输出'), value: props.stats.outputTokens },
@@ -37,6 +36,9 @@ const breakdown = computed(() => [
   <div class="floating-summary floating-token-summary">
     <div class="floating-summary-heading">
       <strong>{{ rangeTitle }}</strong>
+      <span class="floating-summary-updated" :class="{ 'is-stale': failed }">
+        <RelativeUpdatedAt v-if="updatedAt" :timestamp="updatedAt" />
+      </span>
     </div>
     <button
       class="floating-summary-total"
@@ -51,17 +53,7 @@ const breakdown = computed(() => [
         />
         <small>tokens</small>
       </span>
-      <svg v-if="ready" viewBox="0 0 160 50" preserveAspectRatio="none" aria-hidden="true">
-        <path :d="`${line} L160,50 L0,50 Z`" fill="currentColor" opacity="0.1" />
-        <path
-          :d="line"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.75"
-          stroke-linejoin="round"
-          vector-effect="non-scaling-stroke"
-        />
-      </svg>
+      <FloatingTokenSparkline v-if="ready" :stats="stats" />
     </button>
     <div class="floating-summary-breakdown">
       <div v-for="item in breakdown" :key="item.id">
@@ -85,7 +77,7 @@ const breakdown = computed(() => [
             : undefined
         "
       >
-        <UpdatedAt v-if="updatedAt" :timestamp="updatedAt" />
+        <RelativeUpdatedAt v-if="updatedAt" :timestamp="updatedAt" />
         <template v-else>
           {{
             ready

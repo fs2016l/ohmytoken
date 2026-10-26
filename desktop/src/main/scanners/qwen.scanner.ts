@@ -10,7 +10,7 @@ import type {
   TokenUsageApiCall,
   TokenUsageRecord,
 } from './types'
-import { getQwenProjectsDir } from '../lib/paths'
+import { getQwenProjectsDirCandidates } from '../lib/paths'
 import { readUtf8Lines } from '../lib/line-reader'
 import {
   buildRecordsFromSessions,
@@ -27,21 +27,25 @@ import {
 } from './incremental-utils'
 import { normalizeGeminiStyleUsage, type ExclusiveTokenUsage } from './gemini-style-usage'
 import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
 import { createProjectPathLookup } from './project-metadata'
 import { extractProjectPath } from './project-path'
 import { QwenGenerationTiming, type QwenTimingCandidate } from './qwen-generation-timing'
+import { claimSourcePath } from './source-path'
 
 export class QwenScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'qwen'
+  private readonly projectDirs: (projects?: readonly string[]) => readonly string[]
+
+  constructor(
+    projectDirs: (projects?: readonly string[]) => readonly string[] = getQwenProjectsDirCandidates,
+  ) {
+    this.projectDirs = projectDirs
+  }
 
   isAvailable(): boolean {
-    const projectsDir = getQwenProjectsDir()
-    try {
-      if (!statSync(projectsDir).isDirectory()) return false
-    } catch {
-      return false
-    }
-    return listQwenJsonlFiles(projectsDir).length > 0
+    return this.projectDirs().some((dir) => isDirectory(dir) && listQwenJsonlFiles(dir).length > 0)
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -49,32 +53,49 @@ export class QwenScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
-    const projectsDir = getQwenProjectsDir()
-
-    let isDir = false
-    try {
-      isDir = statSync(projectsDir).isDirectory()
-    } catch {
-      isDir = false
-    }
-    if (!isDir) return { records, sessions: [], apiCalls }
-
-    const projectPathFor = createProjectPathLookup(dirname(projectsDir))
-    for (const file of listQwenJsonlFiles(projectsDir)) {
-      if (!shouldScanFile(file, scanContext)) continue
-      try {
-        this.parseFile(file, projectsDir, scanContext, apiCalls, projectPathFor(file))
-      } catch (e) {
-        throw new Error(`Qwen 会话文件不可读 (${file}): ${(e as Error).message}`)
+    const messageIdentities = new Map<TokenUsageApiCall, string>()
+    const visitedFiles = new Set<string>()
+    const pending = [...this.projectDirs()].reverse()
+    const visited = new Set<string>()
+    const projects = new Set<string>()
+    for (const projectsDir of pending) {
+      if (visited.has(projectsDir)) continue
+      visited.add(projectsDir)
+      if (!isDirectory(projectsDir)) continue
+      const projectPathFor = createProjectPathLookup(dirname(projectsDir))
+      for (const file of listQwenJsonlFiles(projectsDir)) {
+        if (!claimSourcePath(visitedFiles, file)) continue
+        if (!shouldScanFile(file, scanContext)) continue
+        try {
+          this.parseFile(
+            file,
+            projectsDir,
+            scanContext,
+            apiCalls,
+            projectPathFor(file),
+            (project) => projects.add(project),
+            messageIdentities,
+          )
+        } catch (e) {
+          throw new Error(`Qwen 会话文件不可读 (${file}): ${(e as Error).message}`)
+        }
       }
+      for (const call of apiCalls) if (call.projectPath) projects.add(call.projectPath)
+      for (const candidate of this.projectDirs([...projects]))
+        if (!visited.has(candidate)) pending.push(candidate)
     }
+
+    if (this.projectDirs === getQwenProjectsDirCandidates)
+      getQwenProjectsDirCandidates([...projects], true)
+    deduplicateQwenCalls(apiCalls, messageIdentities)
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns: this.latestTurns.values() }
   }
 
   private parseFile(
@@ -83,6 +104,8 @@ export class QwenScanner implements AgentScanner {
     context: ScannerScanContext,
     apiCalls: TokenUsageApiCall[],
     projectPath?: string,
+    observeProject?: (path: string) => void,
+    messageIdentities?: Map<TokenUsageApiCall, string>,
   ): void {
     const fallbackSessionId = qwenPathSessionId(file, projectsDir)
     let fallbackMtime = 0
@@ -93,8 +116,10 @@ export class QwenScanner implements AgentScanner {
     }
     let messageIndex = 0
     let turn: ConversationTurn | undefined
+    let currentPromptId: unknown
     const timings = new QwenGenerationTiming()
     const candidates: QwenTimingCandidate[] = []
+    if (projectPath) observeProject?.(projectPath)
 
     for (const { line, lineIndex } of readUtf8Lines(file)) {
       if (!line) continue
@@ -107,9 +132,35 @@ export class QwenScanner implements AgentScanner {
       if (!isObject(obj)) continue
       timings.record(obj, fallbackSessionId)
       projectPath = extractProjectPath(obj) ?? projectPath
+      if (projectPath) observeProject?.(projectPath)
       if (obj.type === 'user' && isObject(obj.message) && isUserPrompt(obj.message.parts)) {
-        if (!obj.provenance || obj.provenance === 'real_user')
+        if (!obj.provenance || obj.provenance === 'real_user') {
           turn = conversationTurn(obj.uuid ?? `user:${lineIndex}`, obj.isSidechain !== true)
+          currentPromptId = obj.promptId
+          if (turn?.userInitiated)
+            this.latestTurns.start(
+              typeof obj.sessionId === 'string' ? obj.sessionId : fallbackSessionId,
+              turn.id,
+              obj.timestamp,
+              typeof currentPromptId === 'string',
+            )
+        }
+      }
+      if (obj.type === 'system' && obj.subtype === 'turn_result' && isObject(obj.systemPayload)) {
+        const payload = obj.systemPayload
+        const status = turnStatusFromReason(payload.state)
+        if (
+          status &&
+          turn?.userInitiated &&
+          currentPromptId &&
+          payload.promptId === currentPromptId
+        )
+          this.latestTurns.finish(
+            typeof obj.sessionId === 'string' ? obj.sessionId : fallbackSessionId,
+            status,
+            payload.endedAt,
+            turn?.id,
+          )
       }
       if (obj.type !== 'assistant') continue
       const usageMetadata = obj.usageMetadata
@@ -151,6 +202,7 @@ export class QwenScanner implements AgentScanner {
         turn,
         projectPath,
       )
+      if (typeof obj.uuid === 'string' && obj.uuid) messageIdentities?.set(call, obj.uuid)
       candidates.push({
         call,
         parentUuid: typeof obj.parentUuid === 'string' ? obj.parentUuid : '',
@@ -168,6 +220,54 @@ export class QwenScanner implements AgentScanner {
         apiCalls.push(call)
     }
   }
+}
+
+function isDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
+  }
+}
+
+/** 同一会话的迁移副本沿用原调用身份；有歧义的尾部分支不能静默覆盖。 */
+function deduplicateQwenCalls(
+  calls: TokenUsageApiCall[],
+  identities: Map<TokenUsageApiCall, string>,
+): void {
+  const byId = new Map<string, TokenUsageApiCall>()
+  const byMessage = new Map<string, string>()
+  for (const call of calls) {
+    const previous = byId.get(call.apiCallId)
+    const uuid = identities.get(call)
+    const previousUuid = previous && identities.get(previous)
+    if (uuid) {
+      const messageKey = JSON.stringify([call.sessionId, uuid])
+      const previousId = byMessage.get(messageKey)
+      if (previousId && previousId !== call.apiCallId)
+        throw new Error(`Qwen 同一消息的调用序号发生变化，已中止扫描: ${call.apiCallId}`)
+      byMessage.set(messageKey, call.apiCallId)
+    }
+    if (
+      previous &&
+      ((uuid && previousUuid && uuid !== previousUuid) ||
+        [
+          'model',
+          'timestamp',
+          'inputTokens',
+          'outputTokens',
+          'cacheReadTokens',
+          'cacheWriteTokens',
+          'reasoningTokens',
+          'totalTokens',
+        ].some((key) => previous[key] !== call[key]))
+    )
+      throw new Error(`Qwen 同一调用存在不同转录，已中止扫描: ${call.apiCallId}`)
+    byId.set(call.apiCallId, call)
+  }
+  calls.length = 0
+  for (const call of byId.values()) calls.push(call)
 }
 
 function qwenApiCall(
@@ -229,13 +329,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function listQwenJsonlFiles(root: string): string[] {
   const out: string[] = []
-  const walk = (dir: string, isRoot = false): void => {
+  const walk = (dir: string): void => {
     let entries: Dirent[]
     try {
       entries = readdirSync(dir, { withFileTypes: true })
     } catch (e) {
-      if (isRoot) throw new Error(`Qwen projects 目录不可读: ${(e as Error).message}`)
-      return
+      throw new Error(`Qwen projects 目录不可读 (${dir}): ${(e as Error).message}`)
     }
     for (const entry of entries) {
       const full = join(dir, entry.name)
@@ -243,6 +342,6 @@ function listQwenJsonlFiles(root: string): string[] {
       else if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(full)
     }
   }
-  walk(root, true)
+  walk(root)
   return out.sort()
 }

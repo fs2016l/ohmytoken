@@ -121,6 +121,15 @@ export function validateScannerUsageDetails(agent: string, details: ScannerUsage
     ids.add(call.apiCallId)
     validateBuckets(agent, call, `API 调用 ${call.apiCallId}`)
   }
+  for (const replacement of details.apiCallReplacements ?? []) {
+    if (
+      !replacement.previousApiCallId?.trim() ||
+      replacement.previousApiCallId === replacement.apiCallId ||
+      ids.has(replacement.previousApiCallId) ||
+      !ids.has(replacement.apiCallId)
+    )
+      throw new Error(`${agent} API 调用身份替换无效`)
+  }
 
   for (const session of details.sessions) {
     validateIdentity(agent, session, '会话')

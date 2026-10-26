@@ -258,6 +258,8 @@ export function installModelIconProtocol(): void {
         headers: {
           'Content-Type': icon.contentType,
           'Content-Length': String(bytes.length),
+          // Public, digest-verified images may be sampled for theme-aware monochrome rendering.
+          'Access-Control-Allow-Origin': '*',
           'Cache-Control': 'public, max-age=31536000, immutable',
           'X-Content-Type-Options': 'nosniff',
           'Content-Security-Policy': "default-src 'none'",

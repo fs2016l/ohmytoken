@@ -4,6 +4,7 @@ import type { MonitorSnapshot, MonitorFileAssociation } from '@shared/network-mo
 import { use } from 'echarts/core'
 import { MarkPointComponent } from 'echarts/components'
 import WorkspaceChart from '../base/WorkspaceChart.vue'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useChartTokens } from '../../composables/useChartTokens'
 import { useI18n } from '../../i18n/useI18n'
 import { monitorBytes } from '../../utils/network-monitor-display'
@@ -12,6 +13,7 @@ use([MarkPointComponent])
 const props = defineProps<{ points: MonitorSnapshot['trend']; events?: MonitorFileAssociation[] }>()
 const { label } = useI18n()
 const tokens = useChartTokens()
+const { getChartText } = useChartTheme()
 const option = computed(() => ({
   grid: { left: 6, right: 12, top: 18, bottom: 4, containLabel: true },
   xAxis: {
@@ -19,15 +21,16 @@ const option = computed(() => ({
     splitNumber: 4,
     axisTick: { show: false },
     axisLine: { show: false },
-    axisLabel: { color: tokens.value['--text-soft'], fontSize: 10, formatter: '{HH}:{mm}:{ss}' },
+    axisLabel: { color: tokens.value['--text-soft'], fontSize: 11, formatter: '{HH}:{mm}:{ss}' },
   },
   yAxis: {
     type: 'value',
     min: 0,
     splitNumber: 3,
     axisLabel: {
+      ...getChartText('number'),
       color: tokens.value['--text-soft'],
-      fontSize: 10,
+      fontSize: 11,
       formatter: (value: number) => `${monitorBytes(value)}/s`,
     },
     splitLine: { lineStyle: { color: tokens.value['--border'], type: 'dotted' } },
@@ -74,7 +77,7 @@ const option = computed(() => ({
               position: 'top',
               formatter: label('Suspected', '疑似事件'),
               color: '#ad6915',
-              fontSize: 10,
+              fontSize: 11,
             },
             data: (props.events ?? [])
               .filter(

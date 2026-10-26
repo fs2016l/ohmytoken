@@ -4,11 +4,11 @@ import type { CodexParseRequest, CodexParseReply } from './scanners/codex-parse-
 
 if (!parentPort) throw new Error('日志解析线程缺少通信端口')
 const port = parentPort
-port.on('message', (request: CodexParseRequest) => {
+port.on('message', async (request: CodexParseRequest) => {
   let reply: CodexParseReply
   try {
     const parser = new CodexScanner(request.state ? [request.state] : [])
-    const session = parser.parseRolloutWithCursor(request.file, request.context)
+    const session = await parser.parseRolloutWithCursor(request.file, request.context)
     reply = {
       index: request.index,
       result: { session, sourceStates: parser.takeScanStateUpdates() },

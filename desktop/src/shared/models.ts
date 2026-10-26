@@ -91,7 +91,53 @@ export interface LatestTurnFirstToken {
  * 会话级 Token 用量汇总。
  * 一条记录代表某个智能体中一个会话在某个模型下的汇总用量。
  */
+export type SessionTurnScope = 'all' | 'latest'
+export type SessionTurnStatus = 'running' | 'completed' | 'interrupted' | 'failed' | 'waiting'
+
+/** One actual session's latest user turn; missing lifecycle evidence leaves status absent. */
+export interface SessionTurnState {
+  reportedUsage?: Pick<
+    LatestSessionTurn,
+    | 'inputTokens'
+    | 'outputTokens'
+    | 'cacheReadTokens'
+    | 'cacheWriteTokens'
+    | 'reasoningTokens'
+    | 'totalTokens'
+    | 'apiCallCount'
+    | 'apiCallCountComplete'
+    | 'models'
+    | 'modelTotals'
+    | 'costSummary'
+  >
+  latestGeneration?: LatestGeneration
+  sessionId: string
+  turnId: string
+  startedAtMs: number
+  updatedAtMs: number
+  status?: SessionTurnStatus
+}
+
+export interface LatestSessionTurn extends SessionTurnState {
+  usageAvailable: boolean
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  reasoningTokens: number
+  totalTokens: number
+  apiCallCount: number
+  apiCallCountComplete: boolean
+  models: string[]
+  modelTotals: Record<string, number>
+  costSummary?: import('./usage-cost').UsageCostRollup
+  latestGeneration?: LatestGeneration
+  latestTurnFirstToken?: LatestTurnFirstToken
+}
+
 export interface TokenUsageSession {
+  latestTurn?: LatestSessionTurn
+  turnScope?: SessionTurnScope
   latestGeneration?: LatestGeneration
   latestTurnFirstToken?: LatestTurnFirstToken
   turns?: { count: number; complete: boolean }
@@ -205,6 +251,7 @@ export type SessionSort =
   | 'change'
   | 'recent'
 export interface SessionWorkspaceFilter extends UsageDetailPageFilter {
+  turnScope?: SessionTurnScope
   sortBy?: SessionSort
   sortDirection?: 'asc' | 'desc'
   /** Display exchange rate, used only for comparable cost ordering. */
@@ -213,6 +260,7 @@ export interface SessionWorkspaceFilter extends UsageDetailPageFilter {
   comparison?: { from: string; to: string }
 }
 export interface SessionWorkspaceSummary {
+  latestTurnUsageMissing?: number
   totalTokens: number
   apiCallCount: number
   apiCallCountComplete: boolean
@@ -306,9 +354,12 @@ export interface UsageTrendStats {
 
 /** Scanner 详细扫描结果，records 保持旧日聚合口径 */
 export interface ScannerUsageDetails {
+  latestTurns?: SessionTurnState[]
   records: TokenUsageRecord[]
   sessions: TokenUsageSession[]
   apiCalls: TokenUsageApiCall[]
+  /** 原生请求身份取代旧快照身份；目标调用必须包含在本批中。 */
+  apiCallReplacements?: Array<{ previousApiCallId: string; apiCallId: string }>
   /** 成功完整读取的会话按整会话对账；不在本批来源中的会话仍保留历史。 */
   completeSessionIds?: string[]
   /** 原生响应自带计时和用量，但没有与用量表共享的请求 ID 时独立传递。 */
@@ -322,12 +373,16 @@ export type ScanMode = 'incremental' | 'full'
 
 export interface ScanOptions {
   mode?: ScanMode
+  /** 仅约束 Codex；由主进程的统计范围选择提供。 */
+  codexScope?: import('./codex-scan-scope').CodexScanScope
 }
 
 /**
  * 扫描结果（对应 Java: ScanResult.java）
  */
 export interface ScanResult {
+  /** 用户关闭统计范围选择时不启动扫描。 */
+  cancelled?: boolean
   scanTime: string // ISO_LOCAL_DATE_TIME
   mode?: ScanMode
   /** 本次增量扫描最早回看到的时间；全量扫描为空。 */
@@ -337,6 +392,8 @@ export interface ScanResult {
   scannedAgents: string[]
   errors: string[]
   detectedAgents: string[]
+  /** 本轮只完成近期窗口、仍需后台补全更早历史的 Agent。 */
+  historyPendingAgents?: string[]
 }
 
 /**
@@ -486,6 +543,8 @@ export interface Overview {
   monthUsage: number
   dateFrom?: string
   dateTo?: string
+  /** 首次扫描后仍在补全本月之前的历史；补全完成前累计值只含已读取部分。 */
+  historyPending?: true
 }
 
 /**

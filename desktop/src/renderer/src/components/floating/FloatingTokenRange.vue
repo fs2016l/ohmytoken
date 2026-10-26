@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import AnchoredPopover from '../base/AnchoredPopover.vue'
 import DesignIcon from '../base/DesignIcon.vue'
-import RollingText from '../base/RollingText.vue'
 import SegmentedControl from '../base/SegmentedControl.vue'
 import FloatingBaselinePicker from './FloatingBaselinePicker.vue'
 import type { FloatingTrendRange } from '../../composables/useFloatingTokenTrend'
@@ -12,8 +11,6 @@ import { localDate, parseDateInput } from '../../utils/date-range'
 const props = defineProps<{
   range: FloatingTrendRange
   baselineAt: number | null
-  rangeTitle: string
-  rangeDescription: string
 }>()
 const emit = defineEmits<{
   'update:range': [value: FloatingTrendRange]
@@ -22,7 +19,6 @@ const emit = defineEmits<{
 const { label } = useI18n()
 const anchor = ref<HTMLElement | null>(null)
 const editorOpen = ref(false)
-const calendarOpen = ref(false)
 const date = ref('')
 const time = ref('')
 const error = ref('')
@@ -41,7 +37,6 @@ function fill(timestamp: number): void {
   error.value = ''
 }
 watch(editorOpen, (value) => {
-  calendarOpen.value = false
   if (value) fill(props.baselineAt ?? Date.now())
 })
 watch([date, time], () => (error.value = ''))
@@ -85,18 +80,15 @@ function apply(): void {
 </script>
 
 <template>
-  <div class="floating-row floating-trend-heading">
-    <RollingText :text="rangeTitle" :title="rangeDescription" />
-    <div ref="anchor" class="floating-range-options">
-      <SegmentedControl
-        :model-value="range"
-        appearance="light"
-        :options="options"
-        :label="label('Time range', '时间范围')"
-        compact
-        @update:model-value="select"
-      />
-    </div>
+  <div ref="anchor" class="floating-range-options">
+    <SegmentedControl
+      :model-value="range"
+      appearance="light"
+      :options="options"
+      :label="label('Time range', '时间范围')"
+      compact
+      @update:model-value="select"
+    />
   </div>
   <AnchoredPopover
     v-model="editorOpen"
@@ -105,7 +97,7 @@ function apply(): void {
     compact
   >
     <form class="floating-baseline-editor" novalidate @submit.prevent="apply">
-      <header v-if="!calendarOpen">
+      <header>
         <strong>{{ label('Custom start', '自定义起点') }}</strong>
         <button
           type="button"
@@ -120,12 +112,11 @@ function apply(): void {
         v-if="editorOpen"
         v-model:date="date"
         v-model:time="time"
-        v-model:calendar-open="calendarOpen"
         :today="today"
         :invalid="Boolean(error)"
       />
-      <p v-if="error && !calendarOpen" class="floating-baseline-error" role="alert">{{ error }}</p>
-      <footer v-if="!calendarOpen">
+      <p v-if="error" class="floating-baseline-error" role="alert">{{ error }}</p>
+      <footer>
         <div class="floating-baseline-shortcuts">
           <button
             type="button"
@@ -161,20 +152,24 @@ function apply(): void {
 </template>
 
 <style scoped>
-.floating-trend-heading {
-  min-width: 0;
-  height: var(--control-height-compact);
-  color: var(--text-muted);
-  font-size: 13px;
-}
-.floating-trend-heading > .rolling-text {
-  flex: 1;
-}
 .floating-range-options {
-  flex: none;
+  min-width: 0;
+  margin-bottom: 12px;
+}
+.floating-range-options :deep(.selection-control) {
+  width: 100%;
+  --selection-height: 32px;
 }
 .floating-range-options :deep(.selection-option) {
-  padding-inline: 7px;
+  flex: 1 1 0;
+  padding-inline: 3px;
+  font-size: 12px;
+}
+.floating-range-options :deep(.selection-pill) {
+  background: var(--primary-soft);
+}
+.floating-range-options :deep(.selection-inverted) {
+  color: var(--primary-soft-text);
 }
 .floating-baseline-editor {
   width: 246px;
@@ -195,8 +190,8 @@ function apply(): void {
   justify-content: space-between;
 }
 .floating-baseline-editor header strong {
-  font-size: 12px;
-  font-weight: 550;
+  font-size: 13px;
+  font-weight: 600;
 }
 .floating-baseline-editor footer {
   height: 28px;
@@ -207,7 +202,7 @@ function apply(): void {
   min-height: 0;
   padding-inline: 8px;
   border-radius: 5px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .floating-baseline-editor .floating-baseline-close {
   width: 20px;

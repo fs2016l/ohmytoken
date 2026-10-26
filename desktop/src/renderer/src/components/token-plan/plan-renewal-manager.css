@@ -101,6 +101,9 @@
   font-size: 12px;
   line-height: 18px;
 }
+.renewal-time-zone {
+  flex: none;
+}
 .renewal-add .material-symbols-outlined {
   font-size: 16px;
 }

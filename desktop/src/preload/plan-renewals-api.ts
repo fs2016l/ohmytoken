@@ -7,6 +7,6 @@ export const planRenewalsAPI: PlanRenewalsAPI = {
   planRenewalsSave: (input) => ipcRenderer.invoke(IPC.PLAN_RENEWALS_SAVE, input),
   planRenewalsDelete: (id) => ipcRenderer.invoke(IPC.PLAN_RENEWALS_DELETE, id),
   planRenewalsReorder: (ids) => ipcRenderer.invoke(IPC.PLAN_RENEWALS_REORDER, ids),
-  planRenewalsComplete: (id, renewOn) =>
-    ipcRenderer.invoke(IPC.PLAN_RENEWALS_COMPLETE, { id, renewOn }),
+  planRenewalsComplete: (id, renewOn, timeZone) =>
+    ipcRenderer.invoke(IPC.PLAN_RENEWALS_COMPLETE, { id, renewOn, timeZone }),
 }

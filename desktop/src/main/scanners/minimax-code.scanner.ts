@@ -35,6 +35,7 @@ import { extractProjectPath, normalizeCollectedProjectPath } from './project-pat
 import { tokenBuckets } from './token-usage'
 import { readMiniMaxLatestGenerations } from './minimax-generation-timing'
 import { miniMaxTurnReader } from './minimax-turns'
+import { readMiniMaxTurnStates } from './database-turn-states'
 import { miniMaxModelHistoryReader } from './minimax-model-history'
 import { latestGeneration } from '../../shared/generation-timing'
 import type { LatestGeneration } from '../../shared/models'
@@ -56,6 +57,7 @@ type SessionMetadata = {
 type UsageTableName = 'token_usage' | 'local_runtime_token_usage'
 
 export class MiniMaxCodeScanner implements AgentScanner {
+  private latestTurns: import('../../shared/models').SessionTurnState[] = []
   readonly agentName = 'minimax-code'
 
   private resolveDbPaths(): string[] {
@@ -78,6 +80,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns = []
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
@@ -136,6 +139,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
       sessions,
       apiCalls: batchApiCalls,
       latestGenerations: [...generationBySessionId.values()],
+      latestTurns: this.latestTurns,
     }
   }
 
@@ -259,6 +263,7 @@ export class MiniMaxCodeScanner implements AgentScanner {
           ).values(),
         ]
       }
+      this.latestTurns.push(...readMiniMaxTurnStates(db, latestGenerations))
       for (const row of usageRows) {
         const ts = toLong(row.ts)
         const rowModel = hasModel && typeof row.model === 'string' ? row.model.trim() : ''

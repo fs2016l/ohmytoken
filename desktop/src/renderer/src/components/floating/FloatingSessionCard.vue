@@ -8,6 +8,8 @@ import type { FloatingSessionItem } from '../../composables/useFloatingSessions'
 import SessionCost from '../agent/SessionCost.vue'
 import SessionTurns from '../agent/SessionTurns.vue'
 import GenerationMetrics from '../agent/GenerationMetrics.vue'
+import SessionTurnStatus from '../agent/SessionTurnStatus.vue'
+import { hasTurnUsage } from '@shared/session-turn-view'
 import AnimatedNumber from '../base/AnimatedNumber.vue'
 import TokenShare from '../base/TokenShare.vue'
 import RollingText from '../base/RollingText.vue'
@@ -115,7 +117,11 @@ const relativeActivity = computed(() => {
       >
         <RollingText :text="displayTitle" />
       </button>
-      <AnimatedNumber :value="session.totalTokens" :format="{ compact: true }" :replay="false" />
+      <AnimatedNumber
+        :value="hasTurnUsage(session) ? session.totalTokens : null"
+        :format="{ compact: true }"
+        :replay="false"
+      />
       <FavoriteButton
         class="session-favorite"
         :target="{ type: 'session', agent: session.agent, id: session.rootSessionId }"
@@ -128,8 +134,14 @@ const relativeActivity = computed(() => {
           <RollingText :text="modelText" :title="allModels" />
         </span>
         <span class="session-status">
+          <SessionTurnStatus
+            v-if="session.turnScope === 'latest'"
+            :status="session.latestTurn?.status"
+          />
           <span class="session-activity">{{ relativeActivity }}</span>
-          <span v-if="delta && delta > 0" class="session-delta">+{{ formatTokens(delta) }}</span>
+          <span v-if="session.turnScope !== 'latest' && delta && delta > 0" class="session-delta">
+            +{{ formatTokens(delta) }}
+          </span>
         </span>
       </div>
     </div>
@@ -138,7 +150,7 @@ const relativeActivity = computed(() => {
       :sample="session.latestGeneration"
       :turn-first-token="session.latestTurnFirstToken"
       :agent="session.agent"
-      :token-delta="delta"
+      :token-delta="session.turnScope === 'latest' ? undefined : delta"
       :motion-available="!unavailable && !dragging"
       floating
     />
@@ -154,39 +166,42 @@ const relativeActivity = computed(() => {
         </p>
         <p v-if="models.length > 1" class="session-models">
           <span>{{ label('Models', '模型') }}</span>
-          {{ allModels }}
+          <span>{{ allModels }}</span>
         </p>
-        <div class="token-grid">
-          <div class="token-cell token-cell--total">
-            <span>{{ label('Total', '总计') }}</span>
-            <strong>{{ formatTokens(session.totalTokens) }}</strong>
-          </div>
+        <p v-if="!hasTurnUsage(session)" class="session-stale">
+          {{ label('No usage recorded for this turn yet.', '尚未读到这一轮的用量记录') }}
+        </p>
+        <div v-else class="token-grid">
           <div class="token-cell">
             <span>{{ label('Input', '输入') }}</span>
             <strong>
               <span>{{ formatTokens(session.inputTokens) }}</span>
-              <TokenShare :usage="session" bucket="input" />
+              <TokenShare :usage="session" bucket="input" plain />
             </strong>
           </div>
           <div class="token-cell">
             <span>{{ label('Output', '输出') }}</span>
             <strong>
               <span>{{ formatTokens(session.outputTokens) }}</span>
-              <TokenShare :usage="session" bucket="output" />
+              <TokenShare :usage="session" bucket="output" plain />
             </strong>
           </div>
           <div class="token-cell">
             <span>{{ label('Cache', '缓存') }}</span>
             <strong>
               <span>{{ formatTokens(cacheTokens) }}</span>
-              <TokenShare :usage="session" bucket="cache" />
+              <TokenShare :usage="session" bucket="cache" plain />
             </strong>
           </div>
-          <div class="token-cell token-cell--cost">
-            <span>{{ label('API equivalent', 'API 参考费用') }}</span>
-            <SessionCost :summary="session.costSummary" variant="metric" />
+          <div class="token-cell">
+            <span>{{ label('Reasoning', '推理') }}</span>
+            <strong>
+              <span>{{ formatTokens(session.reasoningTokens) }}</span>
+              <TokenShare :usage="session" bucket="reasoning" plain />
+            </strong>
           </div>
         </div>
+        <SessionCost class="session-cost-section" :summary="session.costSummary" />
         <div class="session-footer">
           <SessionTurns :turns="session.turns" />
           <span>
@@ -197,12 +212,14 @@ const relativeActivity = computed(() => {
             }}
           </span>
           <span>{{ session.childCount }} {{ label('child sessions', '个子会话') }}</span>
-          <span v-if="session.reasoningTokens > 0">
-            {{ label('Reasoning', '推理') }} {{ formatTokens(session.reasoningTokens) }}
-            <TokenShare :usage="session" bucket="reasoning" />
-          </span>
         </div>
-        <CopyText :value="session.rootSessionId" :label="label('Copy session ID', '复制会话 ID')" />
+        <div class="session-id" :title="session.rootSessionId">
+          <span aria-hidden="true">ID</span>
+          <CopyText
+            :value="session.rootSessionId"
+            :label="label('Copy session ID', '复制会话 ID')"
+          />
+        </div>
       </div>
     </CollapseRegion>
   </article>

@@ -15,6 +15,7 @@ html:root {
   --font-system-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   --font-sans: var(--font-system-sans);
   --font-display: var(--font-sans);
+  --font-ui: var(--font-sans);
   --font-mono: var(--font-system-mono);
   --font-number: var(--font-sans);
   --tracking-body: 0;
@@ -35,14 +36,13 @@ html:root {
   --leading-title: 36px;
   --type-display: 40px;
   --leading-display: 52px;
-  --weight-ui: 500;
-  --weight-regular: var(--weight-ui);
-  --weight-medium: var(--weight-ui);
-  --weight-semibold: var(--weight-ui);
-  --weight-display: var(--weight-ui);
-  --weight-mono-regular: var(--weight-ui);
-  --weight-mono-medium: var(--weight-ui);
-  --weight-mono-semibold: var(--weight-ui);
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-display: var(--weight-semibold);
+  --weight-mono-regular: 400;
+  --weight-mono-medium: 500;
+  --weight-mono-semibold: 600;
 
   /* Startup fallback. useTheme installs the full shared palette before mounting UI. */
   --bg-base: #f5f7fb;
@@ -169,70 +169,70 @@ html:root[data-ui-font='system'] {
   --tracking-body: 0;
   --tracking-heading: -0.01em;
   --tracking-display: -0.018em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='inter'] {
-  --font-sans: 'OMT Inter', 'OMT Noto Sans SC';
+  --font-sans: 'OMT Inter', 'OMT Noto Sans SC', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: -0.004em;
   --tracking-heading: -0.018em;
   --tracking-display: -0.026em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='noto-sans-sc'] {
-  --font-sans: 'OMT Noto Sans SC', 'OMT Source Han Sans CN';
+  --font-sans: 'OMT Noto Sans SC', 'OMT Source Han Sans CN', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: -0.006em;
   --tracking-display: -0.012em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='ibm-plex-sans'] {
-  --font-sans: 'OMT IBM Plex Sans', 'OMT Noto Sans SC';
+  --font-sans: 'OMT IBM Plex Sans', 'OMT Noto Sans SC', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: -0.008em;
   --tracking-display: -0.012em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='source-sans-3'] {
-  --font-sans: 'OMT Source Sans 3', 'OMT Source Han Sans CN';
+  --font-sans: 'OMT Source Sans 3', 'OMT Source Han Sans CN', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: -0.008em;
   --tracking-display: -0.014em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='source-han-sans'] {
-  --font-sans: 'OMT Source Han Sans CN', 'OMT Source Sans 3';
+  --font-sans: 'OMT Source Han Sans CN', 'OMT Source Sans 3', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: -0.006em;
   --tracking-display: -0.008em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='source-serif-4'] {
-  --font-sans: 'OMT Source Serif 4', 'OMT Source Han Serif CN';
+  --font-sans: 'OMT Source Serif 4', 'OMT Source Han Serif CN', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: -0.006em;
   --tracking-display: -0.01em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-ui-font='source-han-serif'] {
-  --font-sans: 'OMT Source Han Serif CN', 'OMT Source Serif 4';
+  --font-sans: 'OMT Source Han Serif CN', 'OMT Source Serif 4', var(--font-system-sans);
   --font-display: var(--font-sans);
   --tracking-body: 0;
   --tracking-heading: 0;
   --tracking-display: -0.006em;
-  --weight-display: var(--weight-ui);
+  --weight-display: var(--weight-semibold);
 }
 
 html:root[data-code-font='system'] {

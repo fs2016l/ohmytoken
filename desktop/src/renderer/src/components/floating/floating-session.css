@@ -17,6 +17,9 @@
   cursor: grab;
   touch-action: pan-y;
 }
+.session-card--expanded {
+  border-color: var(--primary-border);
+}
 .floating-session-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto 24px;
@@ -60,6 +63,10 @@
 .session-title:focus-visible {
   outline: 2px solid var(--primary-border);
   outline-offset: 3px;
+}
+.session-card--expanded .session-title,
+.session-card--expanded .session-title :deep(.rolling-text__line) {
+  text-decoration: none;
 }
 .session-favorite {
   width: 24px;
@@ -117,59 +124,147 @@
 }
 .session-expanded {
   margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 .session-models {
-  margin: 0 0 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
   font-size: 11px;
+  line-height: 16px;
   overflow-wrap: anywhere;
 }
-.session-models > span {
-  margin-inline-end: 6px;
+.session-models > span:first-child {
+  flex: none;
   color: var(--text-muted);
+}
+.session-models > span:last-child {
+  min-width: 0;
 }
 .token-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 0;
 }
 .token-cell {
   min-width: 0;
+  padding-inline-end: 14px;
 }
-.token-cell > span:not(.session-cost) {
+.token-cell:nth-child(even) {
+  padding-inline: 14px 0;
+  border-inline-start: 1px solid var(--border);
+}
+.token-cell > span {
   display: block;
+  margin-bottom: 3px;
   color: var(--text-muted);
   font-size: 11px;
+  line-height: 16px;
 }
 .token-cell > strong {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 6px;
   font-family: var(--font-number);
-  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
   font-weight: 500;
+  line-height: 20px;
   white-space: nowrap;
 }
 .token-cell > strong .token-share {
+  color: var(--text-soft);
   font-size: 11px;
+  font-weight: 400;
 }
-.token-cell--cost {
+.session-expanded > .session-cost-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(65%);
+  align-items: baseline;
+  gap: 2px 8px;
+  margin-top: 12px;
+  padding-block: 10px;
+  border-block: 1px solid var(--border);
+  font-size: 11px;
+  line-height: 18px;
+}
+.session-cost-section :deep(b) {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: right;
+  white-space: normal;
+  font-weight: 600;
+}
+.session-cost-section :deep(.session-cost__note) {
   grid-column: 1 / -1;
+  font-size: 11px;
 }
 .session-footer {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin: 8px 0;
+  margin: 10px 0;
   color: var(--text-muted);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.session-footer > * {
+  min-width: 0;
+  padding-inline: 6px;
+}
+.session-footer > * + * {
+  border-inline-start: 1px solid var(--border);
 }
 .session-stale {
   color: var(--warning);
   font-size: 11px;
-  margin-bottom: 8px;
+  margin: 0 0 10px;
 }
-.session-expanded :deep(.copy-text) {
+.session-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-base);
+  color: var(--text-soft);
   font-size: 11px;
-  padding: 8px;
+}
+.session-id > span {
+  flex: none;
+}
+.session-id :deep(.copy-text) {
+  flex: 1;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+.session-id :deep(code) {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.session-id :deep(button) {
+  align-self: center;
+  border-radius: 3px;
+}
+.session-id :deep(button:hover) {
+  color: var(--primary);
+}
+.session-id :deep(button:focus-visible) {
+  outline: 2px solid var(--primary-border);
+  outline-offset: 2px;
 }
 .session-card--dragging {
   background: var(--primary-soft);

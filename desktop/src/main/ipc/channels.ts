@@ -33,6 +33,9 @@ export const IPC = {
   SCAN_PERFORM: 'scan:perform',
   SCAN_PROGRESS: 'scan:progress',
   SCAN_STATUS: 'scan:status',
+  CODEX_SCAN_SCOPE_READ: 'scan:codex-scope:read',
+  CODEX_SCAN_SCOPE_RESOLVE: 'scan:codex-scope:resolve',
+  CODEX_SCAN_SCOPE_CHANGED: 'scan:codex-scope:changed',
   SCAN_REFRESH_READ: 'scan:refresh:read',
   SCAN_REFRESH_CONFIGURE: 'scan:refresh:configure',
   SCAN_REFRESH_ACTIVE: 'scan:refresh:active',
@@ -145,7 +148,7 @@ export const IPC = {
   FLOATING_WINDOW_OPEN_WORKSPACE: 'floating-window:openWorkspace',
   WORKSPACE_NAVIGATION_PENDING: 'workspace:navigationPending',
   WORKSPACE_NAVIGATION_TAKE: 'workspace:navigationTake',
-  /** 检查更新（向 com 后端 latest.yml 拉取并对比版本） */
+  /** 通过主进程查询 com 软件版本信息 */
   UPDATE_CHECK: 'update:check',
   /** 下载更新（autoDownload=false 时由用户手动触发） */
   UPDATE_DOWNLOAD: 'update:download',

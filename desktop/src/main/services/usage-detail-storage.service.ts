@@ -43,6 +43,7 @@ import { PRICE_CATALOG_VERSION } from '../cost/price-catalog'
 import { usageCallTime } from './usage-call-time'
 import { attachSessionTurns } from './session-turns'
 import { attachSessionGeneration } from './session-generation-read'
+import { attachLatestSessionTurns } from './session-latest-turn-storage'
 import { storeLatestTurnFirstTokens } from './session-turn-timing-storage'
 import {
   storeLatestGenerationCalls,
@@ -332,6 +333,7 @@ export function insertApiCallRows(
 export function listUsageSessions(filter: UsageDetailFilter): TokenUsageSession[] {
   const sessions = selectSessionRows(filter).map(rowToSession)
   attachSessionGeneration(openDatabase(), sessions)
+  attachLatestSessionTurns(openDatabase(), sessions)
   for (const session of sessions)
     attachSessionTurns(openDatabase(), [session], {
       ...filter,
@@ -768,6 +770,7 @@ function buildUserSessions(rows: UsageSessionRow[]): TokenUsageUserSession[] {
     })
     .sort(compareUserSessionRecent)
   attachSessionGeneration(openDatabase(), userSessions, true)
+  attachLatestSessionTurns(openDatabase(), userSessions)
   return userSessions
 }
 

@@ -12,6 +12,9 @@ import {
   shouldScanFile,
 } from './incremental-utils'
 import { parseWorkBuddyProviderUsage } from './workbuddy-usage'
+import { LatestTurnTracker } from './latest-turn-tracker'
+import { isUserPrompt } from './conversation-turn'
+import { readWorkBuddyTurnEnds } from './workbuddy-turns'
 import { usageEvidence } from '../cost/usage-evidence'
 import { extractProjectPath } from './project-path'
 import {
@@ -34,6 +37,7 @@ interface ProjectPathInfo {
 }
 
 export interface WorkBuddyProjectScanResult {
+  latestTurns: import('../../shared/models').SessionTurnState[]
   apiCalls: TokenUsageApiCall[]
   /** 根会话级来源仲裁：存在 project 明细的根不能再混入 trace 聚合。 */
   coveredRootSessionIds: Set<string>
@@ -55,9 +59,12 @@ export function loadWorkBuddyProjectScan(
   context?: ScannerScanContext,
   projectsDir = getWorkBuddyProjectsDir(),
 ): WorkBuddyProjectScanResult {
-  if (!existsSync(projectsDir)) return { apiCalls: [], coveredRootSessionIds: new Set() }
+  if (!existsSync(projectsDir))
+    return { apiCalls: [], coveredRootSessionIds: new Set(), latestTurns: [] }
 
   const scanContext = normalizeScanContext(context)
+  const latestTurns = new LatestTurnTracker()
+  const endings = readWorkBuddyTurnEnds(join(dirname(projectsDir), 'logs'), scanContext.sinceMs)
   const timings = readWorkBuddyGenerationTimings(
     join(dirname(projectsDir), 'logs'),
     isIncrementalContext(scanContext) ? scanContext.sinceMs : undefined,
@@ -86,16 +93,28 @@ export function loadWorkBuddyProjectScan(
     const hasRecentTiming = [...(projectRequestIds.get(jsonlFile) ?? [])].some((id) =>
       recentRequestIds.has(id),
     )
-    if (!shouldScanFile(jsonlFile, scanContext) && !hasRecentTiming) continue
+    const hasTurnEnd = endings.some(
+      (end) => end.sessionId === projectPathInfo(projectsDir, jsonlFile).sessionId,
+    )
+    if (!shouldScanFile(jsonlFile, scanContext) && !hasRecentTiming && !hasTurnEnd) continue
     apiCalls.push(
-      ...parseProjectJsonlFile(agentName, projectsDir, jsonlFile, sessions, scanContext, timings),
+      ...parseProjectJsonlFile(
+        agentName,
+        projectsDir,
+        jsonlFile,
+        sessions,
+        scanContext,
+        timings,
+        latestTurns,
+      ),
     )
   }
   const deduplicated = deduplicateApiCalls(apiCalls)
   for (const apiCall of deduplicated) {
     coveredRootSessionIds.add(apiCall.rootSessionId ?? apiCall.sessionId)
   }
-  return { apiCalls: deduplicated, coveredRootSessionIds }
+  for (const end of endings) latestTurns.finish(end.sessionId, end.status, end.timestamp)
+  return { apiCalls: deduplicated, coveredRootSessionIds, latestTurns: latestTurns.values() }
 }
 
 export function normalizeWorkBuddyModel(model: string): string {
@@ -109,6 +128,7 @@ export function parseProjectJsonlFile(
   sessions: ReadonlyMap<string, WorkBuddySessionInfo>,
   context: ScannerScanContext,
   timings: WorkBuddyTimingIndex,
+  latestTurns = new LatestTurnTracker(),
 ): TokenUsageApiCall[] {
   const pathInfo = projectPathInfo(projectsDir, jsonlFile)
   const apiCalls: TokenUsageApiCall[] = []
@@ -116,6 +136,19 @@ export function parseProjectJsonlFile(
   const requestIds = new Set<string>()
   try {
     for (const { line, lineIndex } of readUtf8Lines(jsonlFile)) {
+      let row: Record<string, unknown> | undefined
+      try {
+        row = JSON.parse(line) as Record<string, unknown>
+      } catch {
+        /* trailing partial record */
+      }
+      const sessionId = row ? jsonlSessionId(row, pathInfo, relativeFile, lineIndex) : ''
+      if (row?.type === 'message' && row.role === 'user' && isUserPrompt(row.content))
+        latestTurns.start(
+          sessionId,
+          typeof row.id === 'string' ? row.id : `user:${lineIndex}`,
+          row.timestamp,
+        )
       const apiCall = parseProjectJsonlLine({
         agentName,
         relativeFile,
@@ -126,6 +159,10 @@ export function parseProjectJsonlFile(
         timings,
         requestIds,
       })
+      if (apiCall) {
+        const turn = latestTurns.get(apiCall.sessionId)
+        if (turn) apiCall.turn = { id: turn.turnId, userInitiated: !pathInfo.subAgentName }
+      }
       if (
         apiCall &&
         (isApiCallInWindow(apiCall, context) ||

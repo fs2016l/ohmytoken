@@ -2,18 +2,24 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import {
   renewalMonthDates,
-  renewalOccurrenceDates,
+  renewalOccurrences,
   renewalStatus,
   parseRenewalDate,
   type PlanRenewal,
   type PlanRenewalOccurrence,
+  type RenewalTimeZone,
 } from '../../../../shared/plan-renewals'
 import { useI18n } from '../../i18n/useI18n'
 import { useRenewalLabels } from '../../composables/useRenewalLabels'
 import { renewalColorStyle } from '../../utils/renewal-colors'
 import VendorMark from '../base/VendorMark.vue'
 
-const props = defineProps<{ items: PlanRenewal[]; today: string; busy: boolean }>()
+const props = defineProps<{
+  items: PlanRenewal[]
+  today: string
+  busy: boolean
+  timeZone: RenewalTimeZone
+}>()
 const emit = defineEmits<{ edit: [item: PlanRenewal] }>()
 const { label, currentLang } = useI18n()
 const { providerName, cycleText, statusText } = useRenewalLabels()
@@ -36,10 +42,10 @@ const events = computed(() => {
     to = days.value.at(-1)
   if (!from || !to) return result
   for (const item of props.items) {
-    for (const date of renewalOccurrenceDates(item, from, to)) {
-      const day = result.get(date) ?? []
-      day.push({ renewal: item, date })
-      result.set(date, day)
+    for (const event of renewalOccurrences(item, from, to, props.timeZone)) {
+      const day = result.get(event.date) ?? []
+      day.push(event)
+      result.set(event.date, day)
     }
   }
   return result
@@ -99,6 +105,13 @@ onMounted(() => {
 })
 onUnmounted(() => resizeObserver?.disconnect())
 watch([activeDate, monthCount], revealSelectedDate, { flush: 'post' })
+watch(
+  () => props.today,
+  (today, previous) => {
+    // Follow local month boundaries until the user explicitly selects a date/month.
+    if (!selectedDate.value && month.value === previous.slice(0, 7)) month.value = today.slice(0, 7)
+  },
+)
 function changeMonth(delta: number): void {
   const date = parseRenewalDate(`${month.value}-01`)!
   date.setUTCMonth(date.getUTCMonth() + delta)
@@ -194,11 +207,11 @@ function countText(day: string): string {
           >
             <span
               v-for="event in events.get(day)!.slice(0, 2)"
-              :key="event.renewal.id"
+              :key="`${event.renewal.id}:${event.sourceDate}`"
               class="renewal-calendar-event"
               :class="`renewal-tone--${renewalStatus(event.date, today)}`"
               :style="renewalColorStyle(event.renewal.color)"
-              :title="`${providerName(event.renewal.providerId)} · ${event.renewal.name} · ${event.date}`"
+              :title="`${providerName(event.renewal.providerId)} · ${event.renewal.name} · ${event.date} ${event.time}`"
             >
               <VendorMark
                 :provider="event.renewal.providerId"
@@ -239,7 +252,7 @@ function countText(day: string): string {
         :class="{ 'is-single': selected.length === 1, 'is-pair': selected.length === 2 }"
         :aria-label="countText(activeDate)"
       >
-        <li v-for="event in selected" :key="event.renewal.id">
+        <li v-for="event in selected" :key="`${event.renewal.id}:${event.sourceDate}`">
           <button
             type="button"
             class="renewal-day-item"
@@ -264,7 +277,7 @@ function countText(day: string): string {
               >
                 {{ providerName(event.renewal.providerId) }} · {{ cycleText(event.renewal) }}
               </span>
-              <span>{{ statusText({ renewOn: event.date }, today) }}</span>
+              <span>{{ event.time }} · {{ statusText({ renewOn: event.date }, today) }}</span>
             </span>
             <span class="material-symbols-outlined renewal-day-edit" aria-hidden="true">edit</span>
           </button>

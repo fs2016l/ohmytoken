@@ -3,6 +3,7 @@ import { IPC } from '../ipc/channels'
 import { HeartbeatLoop } from './heartbeat-loop'
 import { remoteUnavailableMessage } from './remote-availability'
 import { getOhmytokenApiBase } from './server-config.service'
+import { checkForHeartbeatUpdate } from './updater.service'
 import {
   sendDesktopHeartbeat,
   syncDesktopMessages,
@@ -30,6 +31,9 @@ const loop = new HeartbeatLoop({
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) window.webContents.send(IPC.ANNOUNCEMENTS_CHANGED)
     }
+  },
+  onHeartbeat: (heartbeat) => {
+    void checkForHeartbeatUpdate(heartbeat.updateRevision)
   },
   afterHeartbeat: () => queueReceiptFlush(),
   onError: (error) =>

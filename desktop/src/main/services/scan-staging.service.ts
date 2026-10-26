@@ -11,6 +11,7 @@ import { openUsageDatabase, withUsageDatabase } from './sqlite-storage.service'
 import { prepareScanImport, removeUsageQueryIndexes } from './scan-import-schema'
 import { mergeStagedGenerationSamples } from './session-generation-storage'
 import { mergeStagedTurnFirstTokens } from './session-turn-timing-storage'
+import { mergeStagedTurnStates } from './session-latest-turn-storage'
 
 interface StagedAgent {
   agent: string
@@ -18,13 +19,16 @@ interface StagedAgent {
   records: ScannerUsageDetails['records']
   sessions: ScannerUsageDetails['sessions']
   completeSessionIds?: ScannerUsageDetails['completeSessionIds']
+  apiCallReplacements?: ScannerUsageDetails['apiCallReplacements']
   latestGenerations?: ScannerUsageDetails['latestGenerations']
   latestTurnFirstTokens?: ScannerUsageDetails['latestTurnFirstTokens']
+  latestTurns?: ScannerUsageDetails['latestTurns']
   sourceStates: ScanSourceStateUpdate[]
   chunks: number
 }
 
 const COPY_TABLES = [
+  'usage_turn_usage',
   'usage_session_projects',
   'usage_session_data',
   'usage_api_calls',
@@ -103,8 +107,10 @@ export class ScanStaging {
       records: details.records,
       sessions: details.sessions,
       completeSessionIds: details.completeSessionIds,
+      apiCallReplacements: details.apiCallReplacements,
       latestGenerations: details.latestGenerations,
       latestTurnFirstTokens: details.latestTurnFirstTokens,
+      ...(details.latestTurns ? { latestTurns: details.latestTurns } : {}),
       sourceStates,
       chunks,
     }
@@ -127,7 +133,9 @@ export class ScanStaging {
         records: stored.records,
         sessions: stored.sessions,
         apiCalls,
+        ...(stored.latestTurns ? { latestTurns: stored.latestTurns } : {}),
         ...(stored.completeSessionIds ? { completeSessionIds: stored.completeSessionIds } : {}),
+        ...(stored.apiCallReplacements ? { apiCallReplacements: stored.apiCallReplacements } : {}),
         ...(stored.latestGenerations ? { latestGenerations: stored.latestGenerations } : {}),
         ...(stored.latestTurnFirstTokens
           ? { latestTurnFirstTokens: stored.latestTurnFirstTokens }
@@ -333,4 +341,5 @@ export function copyStagedTables(
   }
   mergeStagedGenerationSamples(target, agents, schema)
   mergeStagedTurnFirstTokens(target, agents, schema)
+  mergeStagedTurnStates(target, agents, schema)
 }

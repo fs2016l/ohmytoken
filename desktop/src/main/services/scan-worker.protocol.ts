@@ -1,4 +1,5 @@
 import type { ScanOptions, ScanResult } from '../../shared/models'
+import { isCodexScanScope } from '../../shared/codex-scan-scope'
 import { isScanProgress, type ScanProgress } from '../../shared/scan-progress'
 
 export interface ScanWorkerRequest {
@@ -34,7 +35,10 @@ export function isScanWorkerRequest(value: unknown): value is ScanWorkerRequest 
   if (request.type !== 'scan' || !Number.isSafeInteger(request.requestId)) return false
   if (typeof request.scanId !== 'string' || !request.scanId) return false
   if (!request.options || typeof request.options !== 'object') return false
-  return request.options.mode === 'incremental' || request.options.mode === 'full'
+  return (
+    (request.options.mode === 'incremental' || request.options.mode === 'full') &&
+    (request.options.codexScope === undefined || isCodexScanScope(request.options.codexScope))
+  )
 }
 
 export function isScanWorkerResponse(value: unknown): value is ScanWorkerResponse {

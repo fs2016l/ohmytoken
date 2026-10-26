@@ -1,14 +1,17 @@
 import { computed, ref, watch } from 'vue'
 import { useLocalFavorites } from './useLocalFavorites'
-import type { TokenUsageUserSession } from '@shared/models'
+import type { TokenUsageUserSession, SessionTurnScope } from '@shared/models'
+import { sessionTurnView } from '@shared/session-turn-view'
 
 const STORAGE_KEY = 'floating-session-preferences'
-export const floatingLatestCountOptions = [1, 3, 5, 10] as const
+export const floatingLatestCountOptions = [1, 3, 5, 10, 50] as const
 const DEFAULT_LATEST_COUNT = 5
-const MAX_LATEST_COUNT = 10
+const MAX_LATEST_COUNT = 50
 const AUTO_REFRESH_MS = 30_000
 
 export interface FloatingSessionItem {
+  latestTurn?: TokenUsageUserSession['latestTurn']
+  turnScope?: SessionTurnScope
   latestGeneration?: TokenUsageUserSession['latestGeneration']
   latestTurnFirstToken?: TokenUsageUserSession['latestTurnFirstToken']
   turns?: TokenUsageUserSession['turns']
@@ -40,6 +43,8 @@ interface PinnedSessionRecord {
 }
 
 interface StoredPreferences {
+  pinnedTurnScope?: SessionTurnScope
+  latestTurnScope?: SessionTurnScope
   latestCount: number
   pinned: PinnedSessionRecord[]
 }
@@ -61,6 +66,7 @@ export function floatingSessionKey(agent: string, rootSessionId: string): string
 
 function fromUserSession(session: TokenUsageUserSession): FloatingSessionItem {
   return {
+    latestTurn: session.latestTurn,
     latestGeneration: session.latestGeneration,
     latestTurnFirstToken: session.latestTurnFirstToken,
     key: floatingSessionKey(session.agent, session.rootSessionId),
@@ -118,7 +124,12 @@ function loadPreferences(): StoredPreferences {
           ]
         })
       : []
-    return { latestCount: clampLatestCount(parsed.latestCount), pinned }
+    return {
+      latestCount: clampLatestCount(parsed.latestCount),
+      pinned,
+      pinnedTurnScope: parsed.pinnedTurnScope === 'latest' ? 'latest' : 'all',
+      latestTurnScope: parsed.latestTurnScope === 'latest' ? 'latest' : 'all',
+    }
   } catch {
     return { latestCount: DEFAULT_LATEST_COUNT, pinned: [] }
   }
@@ -128,6 +139,8 @@ export function useFloatingSessions() {
   const favorites = useLocalFavorites()
   const stored = loadPreferences()
   const latestCount = ref(stored.latestCount)
+  const pinnedTurnScope = ref<SessionTurnScope>(stored.pinnedTurnScope ?? 'all')
+  const latestTurnScope = ref<SessionTurnScope>(stored.latestTurnScope ?? 'all')
   const pinnedRecords = ref<PinnedSessionRecord[]>(stored.pinned)
   const latestPool = ref<FloatingSessionItem[]>([])
   const liveSessions = ref(new Map<string, FloatingSessionItem>())
@@ -143,7 +156,12 @@ export function useFloatingSessions() {
   function persistPreferences(): void {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ latestCount: latestCount.value, pinned: pinnedRecords.value }),
+      JSON.stringify({
+        latestCount: latestCount.value,
+        pinned: pinnedRecords.value,
+        pinnedTurnScope: pinnedTurnScope.value,
+        latestTurnScope: latestTurnScope.value,
+      }),
     )
   }
 
@@ -152,20 +170,34 @@ export function useFloatingSessions() {
     if (normalized !== value) latestCount.value = normalized
     persistPreferences()
   })
+  watch([pinnedTurnScope, latestTurnScope], persistPreferences)
+
+  function displayed(session: FloatingSessionItem, scope: SessionTurnScope): FloatingSessionItem {
+    return sessionTurnView(
+      {
+        ...session,
+        sessionId: session.rootSessionId,
+        date: 'unknown',
+        model: session.models[0] ?? 'unknown',
+      },
+      scope,
+    )
+  }
 
   const pinnedKeys = computed(() => new Set(pinnedRecords.value.map((record) => record.key)))
 
   const pinnedSessions = computed(() =>
     pinnedRecords.value.flatMap((record) => {
       const session = liveSessions.value.get(record.key) ?? record.snapshot
-      return session ? [session] : []
+      return session ? [displayed(session, pinnedTurnScope.value)] : []
     }),
   )
 
   const latestSessions = computed(() =>
     latestPool.value
       .filter((session) => !pinnedKeys.value.has(session.key))
-      .slice(0, latestCount.value),
+      .slice(0, latestCount.value)
+      .map((session) => displayed(session, latestTurnScope.value)),
   )
 
   const hasSessions = computed(
@@ -186,7 +218,9 @@ export function useFloatingSessions() {
         const cached = liveSessions.value.get(key) ?? previous.get(key)?.snapshot
         const snapshot =
           cached ??
-          (item.snapshot ? { ...item.snapshot, models: [...item.snapshot.models], key } : null)
+          (item.snapshot
+            ? { ...(JSON.parse(JSON.stringify(item.snapshot)) as FloatingSessionItem), key }
+            : null)
         return { key, agent: item.agent, rootSessionId: item.id, snapshot }
       })
   }
@@ -356,6 +390,8 @@ export function useFloatingSessions() {
 
   return {
     latestCount,
+    pinnedTurnScope,
+    latestTurnScope,
     favoriteError: favorites.error,
     missingPinnedCount: computed(() => pinnedRecords.value.length - pinnedSessions.value.length),
     missingPinned: computed(() =>

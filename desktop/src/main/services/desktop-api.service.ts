@@ -7,7 +7,8 @@ import type {
   DesktopHeartbeatResult,
   DesktopUserInfo,
 } from '../../shared/desktop-api'
-import { agentIdentityHeaders } from '../../shared/agent-client'
+import { agentIdentityHeaders, DEVICE_CREDENTIAL_INVALID_CODE } from '../../shared/agent-client'
+import type { UpdateInfo } from '../../shared/updater'
 import {
   forceRefreshAccessToken,
   getAccessToken,
@@ -16,7 +17,10 @@ import {
   getCachedAuthUser,
   rememberAuthUser,
 } from './auth.service'
-import { ensureAgentClientRegistered } from './client-registration.service'
+import {
+  ensureAgentClientRegistered,
+  resolveRefreshedAgentRequestIdentity,
+} from './client-registration.service'
 import { resolveDesktopApiUrl } from './runtime-config.service'
 import { createAuthenticatedRequest } from './authenticated-request'
 
@@ -226,6 +230,46 @@ export async function sendDesktopHeartbeat(): Promise<DesktopHeartbeatResult> {
     throw new Error('心跳响应格式无效')
   }
   return result.data
+}
+
+/** Use the same device-scoped release endpoint as startup/manual checks, without requiring login. */
+export async function fetchDesktopUpdateInfo(lang: string): Promise<UpdateInfo | null> {
+  const url = new URL(await resolveDesktopApiUrl('updateCheck'))
+  url.searchParams.set('lang', lang)
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await sendRequest(
+      url.href,
+      { method: 'GET', cache: 'no-store', redirect: 'error' },
+      null,
+    )
+    const result = await readResult<{
+      hasUpdate?: boolean
+      versionName?: string
+      releaseAt?: string
+      changelog?: string | null
+    }>(response)
+    if (
+      attempt === 0 &&
+      response.status === 401 &&
+      result.code === DEVICE_CREDENTIAL_INVALID_CODE
+    ) {
+      const refreshed = await resolveRefreshedAgentRequestIdentity(async () => null)
+      if (refreshed.status !== 'ready') throw new Error(refreshed.message)
+      continue
+    }
+    if (!response.ok || result.code !== 200 || typeof result.data?.hasUpdate !== 'boolean')
+      throw new Error(result.message || '软件更新查询失败')
+    if (!result.data.hasUpdate) return null
+    const { versionName, releaseAt, changelog } = result.data
+    if (typeof versionName !== 'string' || !/^\d+\.\d+\.\d+$/.test(versionName))
+      throw new Error('软件更新版本信息无效')
+    return {
+      version: versionName,
+      releaseDate: typeof releaseAt === 'string' ? releaseAt : undefined,
+      releaseNotes: typeof changelog === 'string' ? changelog : null,
+    }
+  }
+  throw new Error('软件更新查询凭证无效')
 }
 
 export async function reportDesktopMessageEvent(

@@ -146,14 +146,14 @@ const rows = computed(() => {
 .metric-title {
   display: block;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 18px;
 }
 .metric-value {
   display: block;
-  font-size: 27px;
-  line-height: 36px;
-  font-weight: var(--weight-ui);
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.5px;
   font-family: var(--font-number);
 }
@@ -172,7 +172,7 @@ const rows = computed(() => {
 .metric-note {
   display: block;
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 12px;
   min-height: 18px;
   line-height: 18px;
 }
@@ -193,7 +193,8 @@ const rows = computed(() => {
     font-size: 18px;
   }
   .metric-value {
-    font-size: 23px;
+    font-size: 24px;
+    line-height: 32px;
   }
   .metric-cost {
     font-size: 20px;

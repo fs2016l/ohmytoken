@@ -14,7 +14,7 @@ const { label } = useI18n()
 <template>
   <span class="session-cost" :class="`session-cost--${variant}`">
     <span v-if="variant === 'inline'">{{ label('API equivalent', 'API 参考费用') }}</span>
-    <b v-if="summary" :title="rollupCostLabel(summary, false)">
+    <b v-if="summary" class="session-cost__value" :title="rollupCostLabel(summary, false)">
       {{ summary.pricedRecords ? '≈ ' : '' }}{{ rollupCostLabel(summary) }}
     </b>
     <b v-else>{{ label('Not available', '未提供') }}</b>
@@ -37,7 +37,6 @@ const { label } = useI18n()
 .session-cost--metric,
 .session-cost--table {
   margin-top: 0;
-  font-family: var(--font-number);
   font-size: 13px;
 }
 .session-cost--table {
@@ -48,8 +47,14 @@ const { label } = useI18n()
 }
 .session-cost__note {
   display: block;
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 400;
   color: var(--text-soft);
+}
+.session-cost__value {
+  font-family: var(--font-number);
+  font-variant-numeric: tabular-nums;
 }
 b {
   color: var(--primary);

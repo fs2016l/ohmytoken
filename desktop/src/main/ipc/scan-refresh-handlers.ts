@@ -3,7 +3,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ScanRefreshPreferences } from '../../shared/scan-refresh'
 import { ScanRefreshController } from '../services/scan-refresh-controller'
-import { getScanProgress, onScanProgress, performScan } from '../services/scan.service'
+import { getScanProgress, onScanProgress } from '../services/scan.service'
+import { performScopedScan } from '../services/codex-scan-scope.service'
 import { IPC } from './channels'
 
 export function registerScanRefreshHandlers(): void {
@@ -24,7 +25,7 @@ export function registerScanRefreshHandlers(): void {
       await writeFile(path + '.tmp', JSON.stringify(preferences), { mode: 0o600 })
       await rename(path + '.tmp', path)
     },
-    scan: () => performScan({ mode: 'incremental' }),
+    scan: () => performScopedScan({ mode: 'incremental' }),
     publish: (state) => {
       for (const window of BrowserWindow.getAllWindows()) {
         try {

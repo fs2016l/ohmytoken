@@ -6,11 +6,19 @@
  * minimums used by modern Windows and macOS interfaces.
  */
 
-/* Layered importance keeps component overrides and teleported UI at one weight. */
-@layer uniform-typography {
-  :where(body, body *):not(.material-symbols-outlined) {
-    font-weight: var(--weight-ui) !important;
-  }
+/* Low-specificity defaults preserve each component's semantic hierarchy, including
+ * menus and tooltips teleported outside #app. Never force a weight on descendants. */
+:where(body) {
+  font-weight: var(--weight-regular);
+}
+
+:where(b, strong) {
+  font-weight: var(--weight-semibold);
+}
+
+button,
+th {
+  font-weight: var(--weight-medium);
 }
 
 :where(#app) {
@@ -23,8 +31,7 @@
   font-family: inherit;
 }
 
-:where(#app) button,
-:where(#app) :is(h1, h2, h3, h4, h5, h6, th, .setting-name) {
+:where(#app) :is(h1, h2, h3, h4, h5, h6) {
   font-weight: var(--weight-semibold);
 }
 
@@ -61,28 +68,29 @@
     .alt-price,
     .percentage,
     .page-num,
-    .chart-legend .legend-item,
-    .trend-legend .legend-chip,
-    .chart-hint,
-    .chart-empty,
-    .chart-state,
-    .viewport-copy,
-    .date-tile-new small,
-    .base-date-picker .dp__input,
     .quota-window__value,
     .quota-window__detail,
-    .quota-window__reset,
     .summary-card strong,
     .provider-card__extra-copy strong,
-    .child-token-total,
-    .session-time,
-    time
+    .child-token-total
   ) {
   font-family: var(--font-number);
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings:
     'tnum' 1,
     'lnum' 1;
+}
+
+/* Names and sentences stay in the interface face, even when they contain digits. */
+:where(time, .session-time, .quota-window__reset) {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+:where(.chart-legend, .trend-legend, .chart-hint, .chart-empty, .chart-state, .viewport-copy) {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
 }
 
 :where(#app) :is(small, .eyebrow, .stat-label, .stat-sub, .chart-hint, .catalog-note) {

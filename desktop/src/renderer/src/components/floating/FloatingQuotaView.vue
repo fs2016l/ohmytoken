@@ -23,7 +23,7 @@ import { useI18n } from '../../i18n/useI18n'
 import type { FloatingWorkspace } from '@shared/floating-window'
 import type { TokenPlanConnection } from '@shared/token-plan'
 
-defineProps<{ compact?: boolean }>()
+const props = defineProps<{ compact?: boolean }>()
 const emit = defineEmits<{
   open: [destination: FloatingWorkspace]
   attention: [value: boolean]
@@ -37,7 +37,6 @@ const {
   busy,
   refreshing,
   loadFailed,
-  lastRefreshAt,
   refreshAll,
   refreshConnection,
   refreshInterval,
@@ -92,11 +91,12 @@ const { start: startDrag, stop: stopDrag } = useFloatingCardDrag({
   key: (card) => card.dataset.connection ?? '',
   cards: (card) => [
     ...(card
-      .closest('.floating-quota-list, .floating-follow-list')
+      .closest('.floating-quota-list, .floating-follow-list, .floating-summary-accounts')
       ?.querySelectorAll<HTMLElement>('[data-connection]') ?? []),
   ],
   previewClass: 'floating-quota-drag-preview',
   draggingClass: 'floating-quota-account--dragging',
+  scroll: '.floating-scroll, .dialog-content, .floating-monitor',
   onStart: (id) => {
     dragging.value = id
   },
@@ -111,6 +111,7 @@ const { start: startDrag, stop: stopDrag } = useFloatingCardDrag({
     }
   },
 })
+watch(() => props.compact, stopDrag)
 watch(managing, (open) => {
   if (!open) stopDrag()
 })
@@ -204,13 +205,14 @@ watch(
 <template>
   <section class="floating-pane" :aria-label="label('Quota monitor', '额度监测')">
     <FloatingQuotaSummary
-      v-show="compact"
+      v-if="compact"
       :followed="followed"
       :snapshots="snapshots"
       :failed="loadFailed"
-      :refreshed-at="lastRefreshAt"
       :busy="busy"
-      @expand="emit('expand')"
+      :dragging="dragging"
+      :order-failed="orderFailed"
+      @drag-start="startDrag"
       @manage="manageCompact"
     />
     <div

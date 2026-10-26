@@ -9,7 +9,7 @@
   height: 40px;
   padding: 0 12px;
   background: var(--surface-container);
-  font-weight: 400;
+  font-weight: 500;
   font-size: 12px;
   text-align: left;
 }
@@ -105,11 +105,12 @@
 }
 .usage-workspace-table .recent-cell {
   color: var(--text);
-  font-family: var(--font-number);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   line-height: 20px;
   white-space: nowrap;
+  font-weight: 400;
 }
 .usage-workspace-table .child-row td,
 .usage-workspace-table .project-session-row td {

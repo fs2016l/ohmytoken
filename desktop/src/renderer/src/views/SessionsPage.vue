@@ -20,6 +20,7 @@ import AnimatedNumber from '../components/base/AnimatedNumber.vue'
 import AnimatedCost from '../components/base/AnimatedCost.vue'
 import SessionTable from '../components/agent/SessionTable.vue'
 import SessionDetailCard from '../components/agent/SessionDetailCard.vue'
+import SessionTurnScopeControl from '../components/agent/SessionTurnScopeControl.vue'
 import { useI18n } from '../i18n/useI18n'
 import { usePageState } from '../composables/usePageState'
 import { useRollingDateRange } from '../composables/useRollingDateRange'
@@ -38,6 +39,7 @@ const state = usePageState('sessions', {
   query: '',
   submitted: '',
   collection: 'all',
+  turnScope: 'all' as import('@shared/models').SessionTurnScope,
   agents: [] as string[],
   models: [] as string[],
   projects: [] as string[],
@@ -93,6 +95,7 @@ const favoriteProjects = computed(() =>
   favorites.items.value.filter((item) => item.type === 'project').map((item) => item.id),
 )
 const filter = computed<SessionWorkspaceFilter>(() => ({
+  turnScope: state.turnScope,
   from: state.range.from || undefined,
   to: state.range.to || undefined,
   query: state.submitted,
@@ -154,7 +157,7 @@ watch(
   },
 )
 watch(
-  () => [state.range, state.submitted, state.agents, state.models, state.projects],
+  () => [state.range, state.submitted, state.agents, state.models, state.projects, state.turnScope],
   () => {
     tabs.resetPaging(true)
     scroller.value?.scrollToTop()
@@ -227,6 +230,7 @@ async function retry(): Promise<void> {
         ]"
         :label="label('Session collection', '会话范围')"
       />
+      <SessionTurnScopeControl v-model="state.turnScope" />
       <FilterSelect
         v-model="state.agents"
         :name="label('Agent', 'Agent')"
@@ -275,9 +279,28 @@ async function retry(): Promise<void> {
           <span>
             {{ label('Total tokens', 'Token 总量') }}
             <AnimatedNumber
-              :value="resource.ready.value ? resource.data.value.summary.totalTokens : null"
+              :prefix="
+                resource.data.value.summary.latestTurnUsageMissing &&
+                resource.data.value.summary.latestTurnUsageMissing < resource.data.value.total
+                  ? '≥'
+                  : ''
+              "
+              :value="
+                resource.ready.value &&
+                resource.data.value.summary.latestTurnUsageMissing !== resource.data.value.total
+                  ? resource.data.value.summary.totalTokens
+                  : null
+              "
               :format="{ compact: true }"
             />
+          </span>
+          <span v-if="resource.data.value.summary.latestTurnUsageMissing" class="loading-label">
+            {{
+              label(
+                resource.data.value.summary.latestTurnUsageMissing + ' sessions await turn usage',
+                resource.data.value.summary.latestTurnUsageMissing + ' 个会话尚无本轮用量',
+              )
+            }}
           </span>
           <span>
             {{ label('Estimated cost', '预估花费') }}

@@ -44,20 +44,33 @@ const text = computed(() =>
   bottom: 8px;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 34px;
+  height: calc(var(--control-height) - 8px);
   margin: auto 0;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 0 4px 4px 0;
   background: transparent;
   color: var(--primary-on);
   cursor: pointer;
   transition: background var(--motion-fast, 160ms) var(--motion-ease, ease);
 }
+.floating-quota-style-toggle::before {
+  content: '';
+  position: absolute;
+  top: calc(50% - 7px);
+  left: 0;
+  width: 1px;
+  height: 14px;
+  background: color-mix(in srgb, var(--primary-on) 33%, transparent);
+  pointer-events: none;
+}
 .floating-quota-style-toggle:hover,
 .floating-quota-style-toggle:focus-visible {
   background: color-mix(in srgb, var(--primary-on) 18%, transparent);
+}
+.floating-quota-style-toggle:active {
+  background: color-mix(in srgb, var(--primary-on) 26%, transparent);
 }
 .floating-quota-style-toggle:focus-visible {
   outline: 2px solid var(--primary-on);

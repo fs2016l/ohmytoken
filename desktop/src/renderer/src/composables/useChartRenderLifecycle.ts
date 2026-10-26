@@ -19,15 +19,42 @@ export function useChartRenderLifecycle(
   let frame = 0
   let pending = true
   let disposed = false
+  let renderRevision = 0
+  let fontKey = ''
+  let fontsReady = Promise.resolve()
+
+  function loadChartFonts(): Promise<void> {
+    const style = getComputedStyle(document.documentElement)
+    const labelFont = style.getPropertyValue('--font-sans').trim() || 'sans-serif'
+    const numberFont = style.getPropertyValue('--font-number').trim() || labelFont
+    const key = `${labelFont}|${numberFont}`
+    if (key !== fontKey) {
+      fontKey = key
+      // ECharts caches text measurements. Its first layout must not measure a
+      // fallback face and keep those widths after the selected font arrives.
+      fontsReady = Promise.all([
+        document.fonts.load(`400 12px ${labelFont}`, 'Usage 用量'),
+        document.fonts.load(`400 12px ${numberFont}`, '0123456789.KM%'),
+        document.fonts.load(`500 12px ${numberFont}`, '0123456789.KM%'),
+      ]).then(
+        () => undefined,
+        () => undefined, // A missing optional face still permits normal font fallback.
+      )
+    }
+    return fontsReady
+  }
 
   function requestRender(): void {
     pending = true
-    void nextTick(() => {
+    const revision = ++renderRevision
+    void nextTick(async () => {
       if (disposed || !visible.value) return
+      await loadChartFonts()
+      if (disposed || !visible.value || revision !== renderRevision) return
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         frame = 0
-        if (disposed || !visible.value) return
+        if (disposed || !visible.value || revision !== renderRevision) return
         options.chart()?.getZr().animation.resume()
         pending = false
         options.render()
@@ -58,12 +85,17 @@ export function useChartRenderLifecycle(
   onMounted(() => {
     observer = new ResizeObserver(resize)
     if (chartRef.value) observer.observe(chartRef.value)
+    // Canvas text is measured independently of DOM text. Redraw after a bundled
+    // font finishes loading, including later changes made in Appearance settings.
+    document.fonts.addEventListener('loadingdone', requestRender)
+    void document.fonts.ready.then(requestRender)
     requestRender()
   })
   onUnmounted(() => {
     disposed = true
     cancelAnimationFrame(frame)
     observer?.disconnect()
+    document.fonts.removeEventListener('loadingdone', requestRender)
     options.dispose()
   })
   return { requestRender, reduced, visible }

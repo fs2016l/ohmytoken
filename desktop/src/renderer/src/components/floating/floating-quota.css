@@ -2,7 +2,9 @@
   margin-bottom: 10px;
 }
 .floating-quota-heading strong {
-  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
 }
 .floating-quota-heading > span {
   color: var(--text-muted);
@@ -74,8 +76,9 @@
   gap: 6px;
 }
 .floating-quota-identity strong {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
   flex-shrink: 0;
 }
 .floating-quota-name {
@@ -87,6 +90,8 @@
   min-width: 0;
   color: var(--text-muted);
   font-size: 11px;
+  line-height: 16px;
+  font-weight: 400;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -139,6 +144,8 @@
   color: var(--text-soft);
   font-family: var(--font-number);
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
   white-space: nowrap;
 }
 .floating-quota-balance .material-symbols-outlined {

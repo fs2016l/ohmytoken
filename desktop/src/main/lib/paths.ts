@@ -1,9 +1,9 @@
 /**
  * 跨平台路径解析工具（对应 Java 各 Scanner 中的路径逻辑）
  */
-import { existsSync, readFileSync, readdirSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { homedir, platform } from 'os'
-import { basename, dirname, join, resolve } from 'path'
+import { basename, dirname, isAbsolute, join, resolve } from 'path'
 
 export function getHome(): string {
   return homedir()
@@ -31,7 +31,15 @@ function getLocalAppData(): string {
 
 /** ~/.claude/projects */
 export function getClaudeProjectsDir(): string {
-  return join(homedir(), '.claude', 'projects')
+  return getClaudeProjectsDirCandidates()[0]
+}
+
+export function getClaudeProjectsDirCandidates(): string[] {
+  const configured = process.env.CLAUDE_CONFIG_DIR?.trim()
+  return uniquePaths([
+    ...(configured ? [join(resolveUserPath(configured), 'projects')] : []),
+    join(homedir(), '.claude', 'projects'),
+  ])
 }
 
 /** Claude 桌面端为 Code 会话保存标题与派生关系的目录；MSIX 安装可能重定向到包目录。 */
@@ -122,7 +130,8 @@ export function getCodexCleanupArchiveDir(): string {
  * 对应 Java OpenCodeScanner.getDatabasePath()
  */
 export function getOpencodeDbCandidates(): string[] {
-  const candidates: string[] = []
+  const configured = process.env.OPENCODE_DB?.trim()
+  const candidates: string[] = configured ? [resolveUserPath(configured)] : []
   const seen = new Set<string>()
   for (const directory of getOpencodeDataDirCandidates()) {
     for (const file of listOpencodeDatabases(directory)) {
@@ -132,13 +141,17 @@ export function getOpencodeDbCandidates(): string[] {
       candidates.push(file)
     }
   }
-  return candidates
+  return uniquePaths(candidates)
 }
 
 /** OpenCode CLI/桌面端数据根目录，即使数据库未创建也保留作为 JSON 候选。 */
 export function getOpencodeDataDirCandidates(): string[] {
   const home = homedir()
-  const directories = [join(home, '.local', 'share', 'opencode')]
+  const xdg = process.env.XDG_DATA_HOME?.trim()
+  const directories = [
+    ...(xdg ? [join(resolveUserPath(xdg), 'opencode')] : []),
+    join(home, '.local', 'share', 'opencode'),
+  ]
   if (isWindows()) {
     directories.push(join(getAppData(), 'ai.opencode.desktop'))
     directories.push(join(getLocalAppData(), 'opencode'))
@@ -149,7 +162,7 @@ export function getOpencodeDataDirCandidates(): string[] {
     directories.push(join(home, '.config', 'ai.opencode.desktop'))
     directories.push(join(home, '.local', 'share', 'ai.opencode.desktop'))
   }
-  return [...new Set(directories)]
+  return uniquePaths(directories)
 }
 
 export function getOpencodeMessageDirCandidates(): string[] {
@@ -281,6 +294,11 @@ function getKimiDesktopConfigDir(): string {
   return join(home, '.config', 'kimi-desktop')
 }
 
+/** Kimi Work 桌面端手动重命名的会话标题，独立于可重定向的运行时目录。 */
+export function getKimiWorkTitleOverridesFile(): string {
+  return join(getKimiDesktopConfigDir(), 'kimi-agent', 'conversation-titles.json')
+}
+
 /** 从 daimon-storage.json 文本提取 shareDir；损坏或字段无效时返回空串。 */
 export function kimiWorkShareDirFromStorageText(text: string): string {
   let obj: unknown
@@ -373,9 +391,20 @@ export function getKimiCodeSessionsSources(): KimiCodeSessionsSource[] {
 
 /** Gemini CLI 会话根目录。 */
 export function getGeminiTmpDir(): string {
+  return getGeminiTmpDirCandidates()[0]
+}
+
+/** 覆写 home 后仍保留默认历史；Seatbelt 的运行时与配置目录不同。 */
+export function getGeminiTmpDirCandidates(): string[] {
   const configured = process.env.GEMINI_CLI_HOME?.trim()
-  const root = configured ? resolveUserPath(configured) : join(homedir(), '.gemini')
-  return join(root, 'tmp')
+  const homes = uniquePaths([...(configured ? [resolveUserPath(configured)] : []), homedir()])
+  return uniquePaths(
+    homes.flatMap((home) => {
+      const normal = join(home, '.gemini', 'tmp')
+      const sandbox = join(home, '.cache', '.gemini', 'tmp')
+      return process.env.SANDBOX === 'sandbox-exec' ? [sandbox, normal] : [normal, sandbox]
+    }),
+  )
 }
 
 /** Antigravity 桌面端的本地会话与摘要目录。 */
@@ -385,12 +414,138 @@ export function getAntigravityDataDir(): string {
 
 /** Qwen Code 会话目录。 */
 export function getQwenProjectsDir(): string {
-  return join(homedir(), '.qwen', 'projects')
+  return getQwenProjectsDirCandidates()[0]
+}
+
+export function getQwenHomeDirCandidates(): string[] {
+  const configured = process.env.QWEN_HOME?.trim()
+  return uniquePaths([
+    ...(configured ? [resolveUserPath(configured)] : []),
+    join(homedir(), '.qwen'),
+  ])
+}
+
+/** 相对运行时目录必须基于 CLI 的项目路径，不能用桌面进程的 cwd 猜测。 */
+export function getQwenProjectsDirCandidates(
+  projectRoots: readonly string[] = [],
+  requireResolvedProject = false,
+): string[] {
+  const homes = getQwenHomeDirCandidates()
+  const projects = uniquePaths([...projectRoots, ...homes.flatMap(qwenKnownProjects)])
+  const runtime = process.env.QWEN_RUNTIME_DIR?.trim()
+  let currentRuntime = runtime
+  const roots: string[] = []
+  const addRuntime = (value: string | undefined, project?: string): void => {
+    if (!value) return
+    if (value.startsWith('~') || isAbsolute(value)) roots.push(resolveUserPath(value))
+    else if (project) roots.push(resolve(project, value))
+  }
+  addRuntime(runtime)
+  for (const home of homes) {
+    const globalSetting = readRuntimeOutputDir(join(home, 'settings.json'))
+    if (home === homes[0]) currentRuntime ??= globalSetting
+    addRuntime(globalSetting)
+    for (const project of projects) {
+      addRuntime(runtime, project)
+      addRuntime(
+        readRuntimeOutputDir(join(project, '.qwen', 'settings.json')) ?? globalSetting,
+        project,
+      )
+    }
+  }
+  if (
+    requireResolvedProject &&
+    currentRuntime &&
+    !currentRuntime.startsWith('~') &&
+    !isAbsolute(currentRuntime) &&
+    !projects.length
+  )
+    throw new Error(
+      'Qwen 相对运行时目录缺少项目路径，已中止扫描；请将运行时目录配置为绝对路径或保留项目索引',
+    )
+  return uniquePaths([...roots, ...homes].map((root) => join(root, 'projects')))
+}
+
+/** 只读已注册项目和原生目录标记，不遍历用户磁盘或反解有歧义的目录编码。 */
+function qwenKnownProjects(home: string): string[] {
+  const projects: string[] = []
+  try {
+    const registry = JSON.parse(readFileSync(join(home, 'projects.json'), 'utf8'))
+    if (registry?.projects && typeof registry.projects === 'object')
+      projects.push(...Object.keys(registry.projects).filter(isAbsolute))
+  } catch {
+    /* 索引可选，目录标记或转录也能提供项目路径。 */
+  }
+  try {
+    for (const entry of readdirSync(join(home, 'projects'), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      try {
+        const project = readFileSync(
+          join(home, 'projects', entry.name, '.project_root'),
+          'utf8',
+        ).trim()
+        if (isAbsolute(project)) projects.push(project)
+      } catch {
+        /* 老版本不一定保存目录标记。 */
+      }
+    }
+  } catch {
+    /* 默认历史目录尚未创建。 */
+  }
+  return uniquePaths(projects)
+}
+
+function readRuntimeOutputDir(file: string): string | undefined {
+  try {
+    if (statSync(file).size > 2 * 1024 * 1024) throw new Error('Qwen settings.json 过大')
+    // Qwen 官方设置支持 BOM 和 JSON 注释；保留字符串里的 URL、斜线和转义。
+    const text = readFileSync(file, 'utf8')
+      .replace(/^\uFEFF/, '')
+      .replace(
+        /("(?:\\.|[^"\\])*")|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/g,
+        (_part, quoted) => quoted ?? ' ',
+      )
+    const settings = JSON.parse(text)
+    const value = settings?.advanced?.runtimeOutputDir
+    if (typeof value !== 'string' || !value.trim()) return undefined
+    const expanded = value.trim().replace(/\$(?:(\w+)|{([^}]+)})/g, (match, bare, braced) => {
+      const key = bare || braced
+      return /^(?:SESSION_ID|QWEN_CODE_SESSION_ID)$/i.test(key)
+        ? match
+        : (process.env[key] ?? match)
+    })
+    if (/\$(?:\w+|{[^}]+})/.test(expanded)) throw new Error('Qwen 运行时目录包含未解析的环境变量')
+    return expanded
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw new Error(`Qwen 运行时设置不可读 (${file}): ${(error as Error).message}`)
+  }
 }
 
 /** OpenClaw Agent 转录目录。 */
 export function getOpenClawAgentsDir(): string {
-  return join(homedir(), '.openclaw', 'agents')
+  return getOpenClawAgentsDirCandidates()[0]
+}
+
+export function getOpenClawAgentsDirCandidates(): string[] {
+  const configuredHome = process.env.OPENCLAW_HOME?.trim()
+  const home = configuredHome ? resolveUserPath(configuredHome) : homedir()
+  const configured = process.env.OPENCLAW_STATE_DIR?.trim()
+  const profile = process.env.OPENCLAW_PROFILE?.trim()
+  const suffix =
+    profile && profile.toLowerCase() !== 'default' && /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(profile)
+      ? `-${profile}`
+      : ''
+  const state = configured
+    ? configured.startsWith('~')
+      ? resolve(home, configured.replace(/^~[/\\]?/, ''))
+      : resolveUserPath(configured)
+    : join(home, `.openclaw${suffix}`)
+  return uniquePaths(
+    [state, join(home, '.openclaw'), join(homedir(), '.openclaw'), join(home, '.clawdbot')].map(
+      (root) => join(root, 'agents'),
+    ),
+  )
 }
 
 /** Grok Build 数据根目录。 */

@@ -111,19 +111,21 @@ watch(
   },
   { flush: 'sync' },
 )
-let restoreCollapsed: boolean | null = null
+const restoreCollapsed = ref<boolean | null>(null)
+// The reader needs a larger native window, but must not switch the monitor's layout.
+const compactContent = computed(() => restoreCollapsed.value ?? collapsed.value)
 watch(
   [() => !!announcement.value, ready, busy, announcementLeaving],
   ([reading, initialized, working, leaving]) => {
     if (!initialized || working) return
-    if (reading && restoreCollapsed === null) {
-      restoreCollapsed = collapsed.value
+    if (reading && restoreCollapsed.value === null) {
+      restoreCollapsed.value = collapsed.value
       menu.value = false
-      if (collapsed.value) void changeCollapsed()
-    } else if (!reading && !leaving && restoreCollapsed !== null) {
-      const restore = restoreCollapsed
-      restoreCollapsed = null
-      if (restore !== collapsed.value) void changeCollapsed()
+      if (collapsed.value) void changeCollapsed(false)
+    } else if (!reading && !leaving && restoreCollapsed.value !== null) {
+      const restore = restoreCollapsed.value
+      restoreCollapsed.value = null
+      if (restore !== collapsed.value) void changeCollapsed(false)
     }
   },
 )
@@ -142,8 +144,13 @@ let observer: ResizeObserver | undefined
 let lastCollapsedHeight = 0
 const collapsedHeight = (): number => {
   const style = getComputedStyle(document.body)
+  const overflow =
+    collapsed.value && monitor.value
+      ? Math.max(0, monitor.value.scrollHeight - monitor.value.clientHeight)
+      : 0
   return Math.ceil(
     (panel.value?.getBoundingClientRect().height ?? 240) +
+      overflow +
       parseFloat(style.paddingTop) +
       parseFloat(style.paddingBottom),
   )
@@ -152,6 +159,15 @@ const collapsedHeight = (): number => {
 function rememberTokenView(view: Element | ComponentPublicInstance | null): void {
   // Keep the cached view's refresh method available while the quota tab is active.
   if (view) tokenView.value = view as InstanceType<typeof FloatingTokenView>
+  observeView(view)
+}
+function observeView(view: Element | ComponentPublicInstance | null): void {
+  const element = view instanceof Element ? view : view?.$el
+  if (element instanceof Element) observer?.observe(element)
+}
+function expandView(value: 'token' | 'quota'): void {
+  mode.value = value
+  if (collapsed.value) void changeCollapsed()
 }
 async function refreshAll(): Promise<void> {
   if (!ready.value || busy.value || refreshing.value || tokenView.value?.busy) return
@@ -207,7 +223,7 @@ async function changePin(): Promise<void> {
     busy.value = false
   }
 }
-async function changeCollapsed(): Promise<void> {
+async function changeCollapsed(revealContent = true): Promise<void> {
   if (busy.value) return
   busy.value = true
   issue.value = ''
@@ -218,6 +234,7 @@ async function changeCollapsed(): Promise<void> {
       !previous,
       () => (collapsed.value = !previous),
       () => window.api.setFloatingWindowCollapsed(!previous, collapsedHeight()),
+      revealContent,
     )
     lastCollapsedHeight = collapsedHeight()
   } catch {
@@ -225,6 +242,7 @@ async function changeCollapsed(): Promise<void> {
     issue.value = label('Could not resize the window. Please retry.', '窗口收起失败，请重试。')
   } finally {
     busy.value = false
+    void nextTick(resizeCollapsed)
   }
 }
 async function resizeCollapsed(): Promise<void> {
@@ -298,6 +316,8 @@ onMounted(async () => {
   if (panel.value) {
     observer = new ResizeObserver(() => void resizeCollapsed())
     observer.observe(panel.value)
+    if (header.value) observer.observe(header.value)
+    monitor.value?.querySelectorAll('.floating-pane').forEach((pane) => observer?.observe(pane))
   }
 })
 onUnmounted(() => {
@@ -332,6 +352,7 @@ onUnmounted(() => {
     :aria-hidden="edge.hidden || undefined"
     :class="{
       'floating-window--collapsed': collapsed,
+      'floating-window--compact': compactContent,
       'floating-window--resizing': collapseAnimating,
     }"
   >
@@ -369,16 +390,20 @@ onUnmounted(() => {
         </button>
         <button
           class="floating-icon-button floating-collapse-button"
-          :class="{ 'collapsed-state': collapsed }"
+          :class="{ 'collapsed-state': compactContent }"
           :disabled="!ready || busy || !!announcement || announcementLeaving"
-          :aria-expanded="!collapsed"
+          :aria-expanded="!compactContent"
           :aria-label="
-            collapsed ? label('Expand window', '展开窗口') : label('Collapse window', '收起窗口')
+            compactContent
+              ? label('Expand window', '展开窗口')
+              : label('Collapse window', '收起窗口')
           "
           :title="
-            collapsed ? label('Expand window', '展开窗口') : label('Collapse window', '收起窗口')
+            compactContent
+              ? label('Expand window', '展开窗口')
+              : label('Collapse window', '收起窗口')
           "
-          @click="changeCollapsed"
+          @click="changeCollapsed()"
         >
           <svg class="floating-collapse-glyph" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <path
@@ -493,34 +518,36 @@ onUnmounted(() => {
         :inert="!!announcement"
         :aria-hidden="!!announcement"
       >
-        <div class="floating-tabs">
+        <div v-if="!compactContent" class="floating-tabs">
           <SegmentedControl
             v-model="mode"
             :options="options"
             :label="label('Monitor view', '监测视图')"
-            :compact="collapsed"
           />
-          <FloatingQuotaStyleToggle v-if="mode === 'quota' && !collapsed" />
+          <FloatingQuotaStyleToggle v-if="mode === 'quota'" />
           <i
-            v-if="attention && !collapsed"
+            v-if="attention"
             class="floating-quota-attention"
             :title="label('A followed account has low quota', '有关注账号的额度偏低')"
           />
         </div>
         <KeepAlive>
           <FloatingTokenView
-            v-if="monitorActive && mode === 'token'"
+            v-if="monitorActive && (compactContent || mode === 'token')"
             :ref="rememberTokenView"
-            :compact="collapsed"
+            :compact="compactContent"
             @open="openWorkspace"
-            @expand="collapsed && changeCollapsed()"
+            @expand="expandView('token')"
           />
+        </KeepAlive>
+        <KeepAlive>
           <FloatingQuotaView
-            v-else-if="monitorActive && mode === 'quota'"
-            :compact="collapsed"
+            v-if="monitorActive && (compactContent || mode === 'quota')"
+            :ref="observeView"
+            :compact="compactContent"
             @open="openWorkspace"
             @attention="attention = $event"
-            @expand="collapsed && changeCollapsed()"
+            @expand="expandView('quota')"
           />
         </KeepAlive>
       </div>

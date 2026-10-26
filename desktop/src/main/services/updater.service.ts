@@ -5,7 +5,16 @@ import { recordDiagnosticEvent, reportDiagnosticError } from './diagnostic-log.s
 import { getDesktopRuntimeConfig } from './runtime-config.service'
 import { ResumableUpdateDownload, validateUpdateAsset } from './resumable-update-download'
 import { startUpdateInstallerBridge } from './update-installer-bridge'
-import type { UpdateAsset, UpdateInfo, UpdateState } from '../../shared/updater'
+import type {
+  UpdateAsset,
+  UpdateInfo,
+  UpdateState,
+  UpdateCheckOptions,
+  UpdateCheckResult,
+} from '../../shared/updater'
+import { fetchDesktopUpdateInfo } from './desktop-api.service'
+import { HeartbeatUpdateCheck } from './heartbeat-update-check'
+import { getTrayLanguage } from './tray.service'
 
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = false
@@ -156,39 +165,34 @@ export async function getUpdateState(): Promise<UpdateState> {
   return structuredClone(state)
 }
 
-export interface UpdateCheckResult {
-  hasUpdate: boolean
-  version?: string
-  releaseDate?: string
-  releaseNotes?: string | null
+export function checkForUpdates(options: UpdateCheckOptions = {}): Promise<UpdateCheckResult> {
+  if (checkOperation) return checkOperation
+  checkOperation = heartbeatUpdates
+    .checkManually(options.silent === true)
+    .then(async () => {
+      const snapshot = await getUpdateState()
+      return { hasUpdate: !!snapshot.info, ...snapshot.info, state: snapshot }
+    })
+    .finally(() => {
+      checkOperation = null
+    })
+  return checkOperation
 }
 
-export function checkForUpdates(): Promise<UpdateCheckResult> {
-  if (checkOperation) return checkOperation
-  checkOperation = (async () => {
+const heartbeatUpdates = new HeartbeatUpdateCheck({
+  getState: async () => {
     await restore()
-    if (downloadOperation || ['paused', 'downloaded'].includes(state.status)) {
-      return { hasUpdate: !!state.info, ...state.info }
-    }
-    setStatus('checking')
-    try {
-      await configureUpdaterFeed()
-      const result = await autoUpdater.checkForUpdates()
-      if (!result?.isUpdateAvailable) {
-        publish({ status: 'latest', info: null, progress: null, error: null })
-        return { hasUpdate: false }
-      }
-      const info = infoFromManifest(result.updateInfo)
-      publish({ status: 'available', info, progress: null, error: null })
-      return { hasUpdate: true, ...info }
-    } catch (error) {
-      reportFailure(error, 'update-check')
-      throw error
-    }
-  })().finally(() => {
-    checkOperation = null
-  })
-  return checkOperation
+    if (downloadOperation || preparingInstaller) return { ...state, status: 'checking' }
+    return state
+  },
+  request: () => fetchDesktopUpdateInfo(getTrayLanguage() === 'en' ? 'en-US' : 'zh-CN'),
+  publish,
+  onError: (error) => console.warn('[updater] 后台更新检查失败，下次心跳重试:', error),
+})
+
+/** Silent discovery only: never changes an active download or starts installation. */
+export function checkForHeartbeatUpdate(revision?: string | null): Promise<void> {
+  return heartbeatUpdates.check(revision)
 }
 
 function serializeReleaseNotes(notes: string | unknown[] | null | undefined): string | null {

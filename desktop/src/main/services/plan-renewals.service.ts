@@ -3,6 +3,10 @@ import type Database from 'better-sqlite3'
 import { TOKEN_PLAN_PROVIDER_IDS } from '../../shared/token-plan'
 import {
   localRenewalDate,
+  isRenewalTimeZone,
+  isRenewalTime,
+  DEFAULT_RENEWAL_TIME_ZONE,
+  renewalDisplayDateTime,
   isRenewalColor,
   nextRenewalDate,
   parseRenewalDate,
@@ -29,6 +33,10 @@ export function validatePlanRenewal(input: unknown): PlanRenewalInput {
   if (value.providerId !== 'other' && !TOKEN_PLAN_PROVIDER_IDS.includes(value.providerId))
     throw new Error('Invalid renewal provider')
   if (!parseRenewalDate(value.renewOn)) throw new Error('Invalid renewal date')
+  if (value.renewTime !== undefined && !isRenewalTime(value.renewTime))
+    throw new Error('Invalid renewal time')
+  if (value.timeZone !== undefined && !isRenewalTimeZone(value.timeZone))
+    throw new Error('Invalid renewal time zone')
   if (!['monthly', 'quarterly', 'yearly', 'custom'].includes(value.cycle))
     throw new Error('Invalid renewal cycle')
   if (
@@ -45,6 +53,8 @@ export function validatePlanRenewal(input: unknown): PlanRenewalInput {
     name: value.name.trim(),
     providerId: value.providerId,
     renewOn: value.renewOn,
+    ...(value.renewTime === undefined ? {} : { renewTime: value.renewTime }),
+    ...(value.timeZone === undefined ? {} : { timeZone: value.timeZone }),
     cycle: value.cycle,
     intervalDays: value.cycle === 'custom' ? value.intervalDays : null,
     notes: value.notes.trim(),
@@ -64,6 +74,8 @@ interface Row {
   position: number
   created_at: number
   color: string | null
+  renew_time: string
+  time_zone: PlanRenewal['timeZone']
 }
 
 /** User-entered subscriptions are independent of discovered accounts and cloud availability. */
@@ -79,18 +91,28 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
     notes TEXT NOT NULL,
     position INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
-    color TEXT
+    color TEXT,
+    renew_time TEXT NOT NULL DEFAULT '00:00',
+    time_zone TEXT NOT NULL DEFAULT 'Asia/Shanghai'
   )`)
   const columns = db.prepare('PRAGMA table_info(plan_renewals)').all() as { name: string }[]
   const hasAnchor = columns.some((column) => column.name === 'anchor_on')
   const hasColor = columns.some((column) => column.name === 'color')
-  if (!hasAnchor || !hasColor) {
+  const hasTime = columns.some((column) => column.name === 'renew_time')
+  const hasZone = columns.some((column) => column.name === 'time_zone')
+  if (!hasAnchor || !hasColor || !hasTime || !hasZone) {
     db.transaction(() => {
       if (!hasAnchor) {
         db.exec("ALTER TABLE plan_renewals ADD COLUMN anchor_on TEXT NOT NULL DEFAULT ''")
         db.exec('UPDATE plan_renewals SET anchor_on = renew_on')
       }
       if (!hasColor) db.exec('ALTER TABLE plan_renewals ADD COLUMN color TEXT')
+      if (!hasTime)
+        db.exec("ALTER TABLE plan_renewals ADD COLUMN renew_time TEXT NOT NULL DEFAULT '00:00'")
+      if (!hasZone)
+        db.exec(
+          "ALTER TABLE plan_renewals ADD COLUMN time_zone TEXT NOT NULL DEFAULT 'Asia/Shanghai'",
+        )
     })()
   }
   function list(): PlanRenewal[] {
@@ -101,6 +123,8 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
       name: row.name,
       providerId: row.provider_id,
       renewOn: row.renew_on,
+      renewTime: row.renew_time,
+      timeZone: row.time_zone,
       anchorOn: row.anchor_on,
       cycle: row.cycle,
       intervalDays: row.interval_days,
@@ -118,6 +142,7 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
         if (!current) throw new Error('Renewal no longer exists')
         const anchorOn =
           current.renewOn === value.renewOn &&
+          (value.timeZone === undefined || current.timeZone === value.timeZone) &&
           current.cycle === value.cycle &&
           current.intervalDays === value.intervalDays
             ? current.anchorOn
@@ -125,7 +150,7 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
         const result = db
           .prepare(
             `UPDATE plan_renewals SET
-          name = ?, provider_id = ?, renew_on = ?, anchor_on = ?, cycle = ?, interval_days = ?, notes = ?, color = ?
+          name = ?, provider_id = ?, renew_on = ?, anchor_on = ?, cycle = ?, interval_days = ?, notes = ?, color = ?, renew_time = ?, time_zone = ?
           WHERE id = ?`,
           )
           .run(
@@ -137,6 +162,8 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
             value.intervalDays,
             value.notes,
             value.color === undefined ? current.color : value.color,
+            value.renewTime ?? current.renewTime,
+            value.timeZone ?? current.timeZone,
             value.id,
           )
         if (!result.changes) throw new Error('Renewal no longer exists')
@@ -145,8 +172,8 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
           throw new Error('Renewal limit reached')
         db.prepare(
           `INSERT INTO plan_renewals
-          (id, name, provider_id, renew_on, anchor_on, cycle, interval_days, notes, position, created_at, color)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM plan_renewals), ?, ?)`,
+          (id, name, provider_id, renew_on, anchor_on, cycle, interval_days, notes, position, created_at, color, renew_time, time_zone)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM plan_renewals), ?, ?, ?, ?)`,
         ).run(
           randomUUID(),
           value.name,
@@ -158,6 +185,8 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
           value.notes,
           now().getTime(),
           value.color ?? null,
+          value.renewTime ?? '00:00',
+          value.timeZone ?? DEFAULT_RENEWAL_TIME_ZONE,
         )
       }
     })()
@@ -165,15 +194,23 @@ export function createPlanRenewalStore(db: Database.Database, now = () => new Da
   }
   function complete(input: unknown): PlanRenewal[] {
     if (!input || typeof input !== 'object') throw new Error('Invalid renewal completion')
-    const { id, renewOn } = input as { id: unknown; renewOn: unknown }
+    const { id, renewOn, timeZone } = input as { id: unknown; renewOn: unknown; timeZone?: unknown }
     if (!validId(id) || !parseRenewalDate(renewOn)) throw new Error('Invalid renewal completion')
+    if (timeZone !== undefined && !isRenewalTimeZone(timeZone))
+      throw new Error('Invalid renewal time zone')
     db.transaction(() => {
       const current = list().find((item) => item.id === id)
       if (!current) throw new Error('Renewal no longer exists')
-      const today = localRenewalDate(now())
+      const displayZone = timeZone ?? current.timeZone ?? DEFAULT_RENEWAL_TIME_ZONE
+      const today = localRenewalDate(now(), displayZone)
       // A stale/double click must never advance an already updated subscription again.
-      if (current.renewOn !== renewOn || !renewalIsPending(current.renewOn, today)) return
-      const next = nextRenewalDate(current, today)
+      if (
+        current.renewOn !== renewOn ||
+        !renewalIsPending(renewalDisplayDateTime(current, displayZone).date, today)
+      )
+        return
+      const sourceToday = localRenewalDate(now(), current.timeZone ?? DEFAULT_RENEWAL_TIME_ZONE)
+      const next = nextRenewalDate(current, sourceToday)
       if (!next) throw new Error('No next renewal date in the supported range')
       db.prepare('UPDATE plan_renewals SET renew_on = ? WHERE id = ? AND renew_on = ?').run(
         next,

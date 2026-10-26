@@ -20,11 +20,15 @@ export interface ParserWorkerOptions {
 
 export interface ScannerScanContext {
   mode: ScanMode
+  /** recent 只读取 Codex 最近一个月的未压缩来源，不自动补全历史。 */
+  codexScope?: import('../../shared/codex-scan-scope').CodexScanScope
   storage?: 'session'
   /** 规则升级时合并重读结果，保留来源中已经不存在的历史。 */
   preserveHistory?: boolean
   /** epoch milliseconds；incremental 时为上次成功水位向前回看 5 小时。 */
   sinceMs?: number
+  /** 首次扫描只提交近期窗口；窗口前未写过的来源可跳过，由随后的历史补扫读取。 */
+  deferHistory?: boolean
   scanStartedAtMs: number
   reportProgress?: (progress: ScanWorkProgress) => void
   /** 重建时任一可读来源失败都中止替换，保留此前的完整结果。 */

@@ -8,9 +8,13 @@ import { localDate, parseDateInput } from '../../utils/date-range'
 import SelectionPopover from './SelectionPopover.vue'
 import '../../styles/date-picker.css'
 
-const props = withDefaults(defineProps<{ id: string; label: string; disabled?: boolean }>(), {
-  disabled: false,
-})
+const props = withDefaults(
+  defineProps<{ id: string; label: string; disabled?: boolean; today?: string }>(),
+  {
+    disabled: false,
+    today: undefined,
+  },
+)
 const model = defineModel<string>({ required: true })
 const { label: text, currentLang } = useI18n()
 const { currentTheme } = useTheme()
@@ -23,6 +27,7 @@ const normalized = computed(() => {
   const date = parseDateInput(model.value)
   return date && date >= '1000-01-01' ? date : null
 })
+const calendarToday = computed(() => parseDateInput(props.today ?? '') ?? localDate())
 const dateText = computed({
   get: () => model.value.replaceAll('-', '/'),
   set: (value) => {
@@ -41,7 +46,7 @@ function normalize(): void {
   if (normalized.value) model.value = normalized.value
 }
 function chooseToday(): void {
-  model.value = localDate()
+  model.value = calendarToday.value
   close()
 }
 function close(): void {
@@ -49,7 +54,7 @@ function close(): void {
   input.value?.focus({ preventScroll: true })
 }
 async function opened(panel: HTMLElement): Promise<void> {
-  const date = selection.value ?? new Date()
+  const date = selection.value ?? new Date(`${calendarToday.value}T00:00:00`)
   picker.value?.setMonthYear({ month: date.getMonth(), year: date.getFullYear() })
   await nextTick()
   panel.querySelector<HTMLElement>('[role="gridcell"][aria-selected="true"]')?.focus()
@@ -122,7 +127,10 @@ watch(
       :week-start="1"
       :day-names="currentLang === 'zh' ? ['一', '二', '三', '四', '五', '六', '日'] : undefined"
       :year-first="currentLang === 'zh'"
-      :ui="{ menu: 'workspace-calendar workspace-single-calendar' }"
+      :ui="{
+        menu: 'workspace-calendar workspace-single-calendar',
+        dayClass: (date) => (props.today && localDate(date) === calendarToday ? 'dp__today' : ''),
+      }"
       :formats="{
         month: currentLang === 'zh' ? 'M 月' : 'MMM',
         year: currentLang === 'zh' ? 'yyyy 年' : 'yyyy',
@@ -136,6 +144,7 @@ watch(
         day: (day) => localDate(day.value).replaceAll('-', '/'),
       }"
       :config="{ monthChangeOnScroll: false }"
+      :no-today="Boolean(today)"
       :transitions="false"
       six-weeks
     />

@@ -33,6 +33,7 @@ export function useFloatingCollapseMotion(
     collapsed: boolean,
     apply: () => void,
     resize: () => Promise<boolean>,
+    revealContent = true,
   ): Promise<boolean> {
     const element = panel.value
     if (!element || reduced.value || document.hidden) {
@@ -67,7 +68,8 @@ export function useFloatingCollapseMotion(
         fill: 'forwards',
       })
       animations.add(fold)
-      if (content.value) {
+      // The announcement grid already reveals the same monitor while its row folds away.
+      if (content.value && revealContent) {
         const reveal = content.value.animate(
           [
             { opacity: 0, transform: `translateY(${collapsed ? -6 : 6}px)` },

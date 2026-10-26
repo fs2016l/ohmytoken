@@ -76,7 +76,7 @@ small {
   display: block;
   font-family: var(--font-ui);
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
   line-height: 16px;
 }

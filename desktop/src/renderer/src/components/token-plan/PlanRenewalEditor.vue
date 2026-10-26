@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
-import type { PlanRenewal, PlanRenewalInput, RenewalCycle } from '../../../../shared/plan-renewals'
+import type {
+  PlanRenewal,
+  PlanRenewalInput,
+  RenewalCycle,
+  RenewalTimeZone,
+} from '../../../../shared/plan-renewals'
 import {
   isRenewalColor,
-  localRenewalDate,
   parseRenewalDate,
+  isRenewalTime,
+  renewalDisplayDateTime,
+  DEFAULT_RENEWAL_TIME_ZONE,
 } from '../../../../shared/plan-renewals'
 import { TOKEN_PLAN_PROVIDERS } from '../../config/token-plan-providers'
 import { useI18n } from '../../i18n/useI18n'
@@ -15,15 +22,33 @@ import SingleDateControl from '../base/SingleDateControl.vue'
 import VendorMark from '../base/VendorMark.vue'
 import PlanRenewalColorControl from './PlanRenewalColorControl.vue'
 
-const props = defineProps<{ item: PlanRenewal | null; busy: boolean; error: string }>()
+const props = defineProps<{
+  item: PlanRenewal | null
+  today: string
+  timeZone: RenewalTimeZone
+  busy: boolean
+  error: string
+}>()
 const emit = defineEmits<{ close: []; save: [input: PlanRenewalInput]; remove: [id: string] }>()
 const { label, currentLang } = useI18n()
 const { cycleName, providerName } = useRenewalLabels()
+const initialDate = props.item
+  ? renewalDisplayDateTime(props.item, props.timeZone)
+  : { date: props.today, time: '00:00' }
+const zoneName = computed(() =>
+  props.timeZone === 'America/Los_Angeles'
+    ? label('Los Angeles time', '洛杉矶时间')
+    : props.timeZone === 'Europe/London'
+      ? label('London time', '伦敦时间')
+      : label('Beijing time', '北京时间'),
+)
 const draft = reactive<PlanRenewalInput>({
   ...(props.item ? { id: props.item.id } : {}),
   name: props.item?.name ?? '',
   providerId: props.item?.providerId ?? 'other',
-  renewOn: props.item?.renewOn ?? localRenewalDate(),
+  renewOn: initialDate.date,
+  renewTime: initialDate.time,
+  timeZone: props.timeZone,
   cycle: props.item?.cycle ?? 'monthly',
   intervalDays: props.item?.intervalDays ?? 30,
   notes: props.item?.notes ?? '',
@@ -36,6 +61,7 @@ const valid = computed(
   () =>
     draft.name.trim() &&
     parseRenewalDate(draft.renewOn) &&
+    isRenewalTime(draft.renewTime) &&
     (draft.color == null || isRenewalColor(draft.color)) &&
     (draft.cycle !== 'custom' ||
       (Number.isInteger(draft.intervalDays) &&
@@ -44,7 +70,14 @@ const valid = computed(
 )
 function save(): void {
   if (!valid.value || props.busy) return
-  emit('save', { ...draft, intervalDays: draft.cycle === 'custom' ? draft.intervalDays : null })
+  const input = { ...draft, intervalDays: draft.cycle === 'custom' ? draft.intervalDays : null }
+  // Renaming/recoloring in another viewing zone must not rebase the billing schedule.
+  if (props.item && draft.renewOn === initialDate.date && draft.renewTime === initialDate.time) {
+    input.renewOn = props.item.renewOn
+    input.renewTime = props.item.renewTime ?? '00:00'
+    input.timeZone = props.item.timeZone ?? DEFAULT_RENEWAL_TIME_ZONE
+  }
+  emit('save', input)
 }
 </script>
 
@@ -128,9 +161,25 @@ function save(): void {
           id="renewal-date"
           v-model="draft.renewOn"
           :label="label('Next renewal date', '下次续费日期')"
+          :today="today"
           :disabled="busy"
         />
       </div>
+      <label class="renewal-field" for="renewal-time">
+        <span>{{ label('Renewal time', '续费时间') }}</span>
+        <input
+          id="renewal-time"
+          v-model="draft.renewTime"
+          type="time"
+          step="60"
+          class="workspace-input"
+          :disabled="busy"
+          required
+        />
+      </label>
+      <p class="renewal-editor-hint">
+        {{ label(`Enter the date and time in ${zoneName}.`, `按${zoneName}填写日期和时间。`) }}
+      </p>
       <fieldset class="renewal-cycle" :disabled="busy">
         <legend>{{ label('Renewal cycle', '续费周期') }}</legend>
         <div class="renewal-cycle-options">

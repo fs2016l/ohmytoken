@@ -11,6 +11,7 @@ import { readModelCostRollups, readWithUsageCosts } from './usage-cost.service'
 import { canonicalModelName, PRICE_CATALOG_VERSION } from '../cost/price-catalog'
 import { combineCostRollups } from '../../shared/cost-rollup'
 import { openDatabase } from './sqlite-storage.service'
+import { hasPendingHistory } from './incremental-scan-storage.service'
 import { hasProjectScope } from './session-project-scope'
 import { refreshProjectUsageMetadata } from './session-project-metadata'
 import { readUsageHours, readUsageSeconds } from './session-usage-trend'
@@ -212,7 +213,8 @@ function groupModelAggregates(records: PricedModelAggregate[]): PricedModelAggre
  * 包含 grandTotal / agentTotals / modelTotals / 今日本周本月用量 / 日期范围
  */
 export function getOverview(from?: string | null, to?: string | null): Overview {
-  return summarizeOverview(getApiAggregateRecords(from ?? DEFAULT_FROM, to ?? DEFAULT_TO))
+  const overview = summarizeOverview(getApiAggregateRecords(from ?? DEFAULT_FROM, to ?? DEFAULT_TO))
+  return hasPendingHistory() ? { ...overview, historyPending: true } : overview
 }
 
 /**

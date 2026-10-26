@@ -228,6 +228,13 @@ html[data-theme='dark'] .floating-window {
 .floating-tabs .selection-option {
   flex: 1;
 }
+/* Keep both label color layers aligned beside the inline quota action. */
+.floating-tabs:has(> .floating-quota-style-toggle) .selection-option:last-child > span {
+  padding-right: 26px;
+}
+.floating-tabs:has(> .floating-quota-style-toggle) .floating-quota-attention {
+  translate: -13px 0;
+}
 .floating-quota-attention {
   position: absolute;
   width: 6px;
@@ -383,7 +390,7 @@ html.floating-reorder-active body * {
   height: 32px;
   border-radius: 8px;
 }
-.floating-window--collapsed .floating-header {
+.floating-window--compact .floating-header {
   border-bottom: 0;
 }
 @media (prefers-reduced-motion: reduce) {

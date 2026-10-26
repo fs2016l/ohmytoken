@@ -1,6 +1,11 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
-import { ohmytokenApi, cloudApiUrl } from '../api/http'
-import type { UpdateStatus, UpdateInfo, DownloadProgress, UpdateState } from '@shared/updater'
+import type {
+  UpdateStatus,
+  UpdateInfo,
+  DownloadProgress,
+  UpdateState,
+  UpdateCheckResult,
+} from '@shared/updater'
 export type { UpdateStatus, UpdateInfo, DownloadProgress } from '@shared/updater'
 
 export interface UseUpdaterOptions {
@@ -37,27 +42,6 @@ interface NormalizedUpdaterOptions {
   errorResetMs: number | null
 }
 
-/**
- * bootstrap 中 updateCheck 接口的后端响应体。
- *
- * 注意：字段名以 com 后端实际返回为准（不是 version/releaseDate/releaseNotes）：
- *   - `hasUpdate`     后端字段同名
- *   - `versionName`   后端字段同名（如 "1.2.0"），与 `versionCode`（数字）区分
- *   - `releaseAt`     后端字段同名（ISO 时间字符串）
- *   - `changelog`     后端字段同名（Markdown 字符串，可能为 null）
- *
- * 完整后端返回还含 `forceUpdate` / `versionCode` / `minSupportedVersionCode` / `asset?`，
- * 但本渲染端目前只消费上述 4 个字段（用于 UI 展示新版本信息）。
- */
-interface ReleaseCheckResponse {
-  data?: {
-    hasUpdate?: boolean
-    versionName?: string
-    releaseAt?: string
-    changelog?: string | null
-  }
-}
-
 const defaultOptions: NormalizedUpdaterOptions = {
   versionFallback: '1.0.0',
   guardConcurrent: true,
@@ -88,6 +72,7 @@ function applySnapshot(snapshot: UpdateState): void {
   current.info.value = snapshot.info
   current.progress.value = snapshot.progress
   current.error.value = snapshot.error
+  if (snapshot.status === 'latest') scheduleLatestReset(latestResetMsValue)
 }
 
 function ensureState(): void {
@@ -237,16 +222,15 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
   // 同步 latestResetMs 到模块级缓存，供 subscribeUpdaterEvents 使用
   latestResetMsValue = updaterOptions.latestResetMs
 
-  async function requestReleaseCheck(): Promise<ReleaseCheckResponse['data']> {
-    const res = await ohmytokenApi.get<ReleaseCheckResponse>(await cloudApiUrl('updateCheck'))
-    return res.data?.data
+  async function requestReleaseCheck(silent = false): Promise<UpdateCheckResult> {
+    return window.api.checkForUpdates({ silent })
   }
 
-  function applyAvailableUpdate(data: NonNullable<ReleaseCheckResponse['data']>): void {
+  function applyAvailableUpdate(data: UpdateCheckResult): void {
     state.info.value = {
-      version: data.versionName ?? '',
-      releaseDate: data.releaseAt,
-      releaseNotes: data.changelog,
+      version: data.version ?? '',
+      releaseDate: data.releaseDate,
+      releaseNotes: data.releaseNotes,
     }
     state.status.value = 'available'
   }
@@ -259,9 +243,12 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
    * 进入现有 available → downloading → downloaded → install 状态机。
    */
   async function checkOnStartup(): Promise<void> {
+    const before = stateEventCount
     try {
-      const data = await requestReleaseCheck()
-      if (data?.hasUpdate && state.status.value === 'idle') {
+      const data = await requestReleaseCheck(true)
+      if (before !== stateEventCount) return
+      if (data.state) applySnapshot(data.state)
+      else if (data.hasUpdate && state.status.value === 'idle') {
         applyAvailableUpdate(data)
       }
     } catch (err) {
@@ -306,15 +293,19 @@ export function useUpdater(options?: UseUpdaterOptions): UseUpdaterReturn {
     state.status.value = 'checking'
     state.error.value = null
 
+    const before = stateEventCount
     try {
       const data = await requestReleaseCheck()
-      if (data?.hasUpdate) {
+      if (before !== stateEventCount) return
+      if (data.state) applySnapshot(data.state)
+      else if (data.hasUpdate) {
         applyAvailableUpdate(data)
       } else {
         state.status.value = 'latest'
         scheduleLatestReset(updaterOptions.latestResetMs)
       }
     } catch (err) {
+      if (before !== stateEventCount) return
       // 检查失败：清空旧版本信息，避免 UI 显示过期的新版本号
       state.info.value = null
       state.status.value = 'error'

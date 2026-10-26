@@ -123,6 +123,10 @@ export function setCloseBehavior(behavior: CloseBehavior): CloseBehavior {
   return behavior
 }
 
+export function getTrayLanguage(): AppLanguage {
+  return loadPreferences().language
+}
+
 export function setTrayLanguage(language: string): void {
   if (language !== 'zh' && language !== 'en') return
   if (loadPreferences().language === language) return

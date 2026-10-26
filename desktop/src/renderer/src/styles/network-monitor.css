@@ -97,7 +97,7 @@
   flex: none;
   padding: 3px 8px;
   border-radius: 20px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--warning, #ad6915);
   background: color-mix(in srgb, #eeaa38 15%, var(--surface));
 }
@@ -152,8 +152,8 @@
 }
 .monitor-event-list time {
   margin-left: auto;
-  font-family: var(--font-number);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   color: var(--text-soft);
 }
 .monitor-event-list small {
@@ -211,7 +211,7 @@
 }
 .monitor-event-detail > .monitor-help {
   margin: 14px 0 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 .monitor-association-rules {
   border-top: 1px solid var(--border);
@@ -476,7 +476,7 @@
 }
 .monitor-metrics article > small {
   color: var(--text-soft);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.6;
   margin-top: auto;
 }
@@ -673,7 +673,7 @@
 }
 .monitor-table td small {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-soft);
   margin-top: 5px;
 }
@@ -1152,7 +1152,7 @@ body.floating-reorder-active .monitor-manage-dialog {
 }
 .monitor-members small,
 .monitor-connections small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-soft);
   white-space: nowrap;
 }

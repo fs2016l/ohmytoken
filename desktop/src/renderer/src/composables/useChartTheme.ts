@@ -115,7 +115,11 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
     return getChartColors(activeTheme.value)
   }
 
-  function getChartText(): { color: string; fontFamily: string; fontWeight: number } {
+  function getChartText(role: 'label' | 'number' = 'label'): {
+    color: string
+    fontFamily: string
+    fontWeight: number
+  } {
     // Reading the ref makes ECharts options recompute immediately after a font switch.
     void currentInterfaceFont.value
     void currentNumberFont.value
@@ -124,7 +128,7 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
       color: chartColors().text,
       fontWeight: UI_FONT_WEIGHT,
       fontFamily:
-        rootStyle.getPropertyValue('--font-number').trim() ||
+        rootStyle.getPropertyValue(role === 'number' ? '--font-number' : '--font-sans').trim() ||
         rootStyle.getPropertyValue('--font-sans').trim(),
     }
   }
@@ -148,7 +152,7 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
   ): string {
     const cc = chartColors()
     const items = normalizeTooltipItems(rawItems)
-    let html = `<div style="font-weight:${UI_FONT_WEIGHT};margin-bottom:8px">${escapeHtml(title)}</div>`
+    let html = `<div style="font-family:var(--font-sans);font-weight:500;margin-bottom:8px">${escapeHtml(title)}</div>`
     let total = 0
     let totalSeriesRow = ''
 
@@ -161,13 +165,13 @@ export function useChartTheme(themeRef?: Ref<Theme>) {
       // axis tooltip 中 item.name 是横轴值（如 15:00），系列身份在 seriesName。
       // 优先系列名，确保趋势图显示 Agent/模型，而不是重复显示时间。
       const name = String(item.seriesName || item.name || '')
-      const row = `<div style="display:flex;justify-content:space-between;gap:18px;margin:3px 0"><span>${item.marker || ''} ${escapeHtml(name)}</span><b>${formatTokens(value)}</b></div>`
+      const row = `<div style="display:flex;justify-content:space-between;gap:18px;margin:3px 0;font-family:var(--font-sans);font-weight:400"><span>${item.marker || ''} ${escapeHtml(name)}</span><b style="font-family:var(--font-number);font-weight:500">${formatTokens(value)}</b></div>`
       if (isTotalSeries) totalSeriesRow += row
       else html += row
     })
 
     html += totalSeriesRow
-    html += `<div style="border-top:1px solid ${cc.tooltipDivider};margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;gap:18px"><span>${tr('total')}</span><b style="color:${cc.tooltipTotal}">${formatTokens(total)}</b></div>`
+    html += `<div style="border-top:1px solid ${cc.tooltipDivider};margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;gap:18px;font-family:var(--font-sans);font-weight:400"><span>${tr('total')}</span><b style="color:${cc.tooltipTotal};font-family:var(--font-number);font-weight:600">${formatTokens(total)}</b></div>`
     return html
   }
 

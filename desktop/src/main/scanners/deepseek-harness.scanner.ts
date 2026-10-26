@@ -18,6 +18,7 @@ import {
 } from './detail-utils'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
 import { tokenBuckets } from './token-usage'
 import {
   countValue,
@@ -36,6 +37,7 @@ import {
 } from './deepseek-harness-support'
 
 export class DeepSeekHarnessScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'deepseek-harness'
   private readonly sessionsDirectory: () => string
 
@@ -52,6 +54,7 @@ export class DeepSeekHarnessScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     const scanContext = normalizeScanContext(context)
     const files = listDeepSeekSessionFiles(this.sessionsDirectory())
     const headers = new Map<string, DeepSeekSessionHeader>()
@@ -85,7 +88,13 @@ export class DeepSeekHarnessScanner implements AgentScanner {
     const apiCalls = [...calls.values()].filter((call) => isApiCallInWindow(call, scanContext))
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     applySessionTitles(sessions, titles)
-    return { apiCalls, sessions, records: buildRecordsFromSessions(this.agentName, sessions) }
+    const latestTurns = this.latestTurns.values()
+    return {
+      apiCalls,
+      sessions,
+      records: buildRecordsFromSessions(this.agentName, sessions),
+      ...(latestTurns.length ? { latestTurns } : {}),
+    }
   }
 
   private readSession(
@@ -139,9 +148,20 @@ export class DeepSeekHarnessScanner implements AgentScanner {
         ) {
           const turn = conversationTurn(`turn:${currentTurn}`, !header.parentSessionId)
           if (turn) turns.set(currentTurn, turn)
+          this.latestTurns.start(header.id, turn?.id, row.time)
         }
       }
       if (seeded) continue
+      if (row.type === 'turn/end') {
+        const status = turnStatusFromReason(isObject(data.reason) ? data.reason.kind : data.reason)
+        if (status)
+          this.latestTurns.finish(
+            header.id,
+            status,
+            row.time,
+            `turn:${countValue(data.turn) ?? currentTurn}`,
+          )
+      }
       const compactionId = textValue(data.compactionId)
       if (row.type === 'compaction/start') {
         const owner = countValue(data.turn)

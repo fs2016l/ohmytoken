@@ -9,6 +9,8 @@ import type {
 import FavoriteButton from '../base/FavoriteButton.vue'
 import DropdownChevron from '../base/DropdownChevron.vue'
 import GenerationMetrics from './GenerationMetrics.vue'
+import SessionTurnStatus from './SessionTurnStatus.vue'
+import { hasTurnUsage } from '@shared/session-turn-view'
 import UsageIdentity from './UsageIdentity.vue'
 import UsageAmount from './UsageAmount.vue'
 import UsageCalls from './UsageCalls.vue'
@@ -200,13 +202,32 @@ function select(row: (typeof rows.value)[number]): void {
                 }}
               </small>
             </button>
+            <SessionTurnStatus
+              v-if="row.session.turnScope === 'latest'"
+              :status="row.session.latestTurn?.status"
+            />
           </div>
         </td>
         <td><UsageIdentity v-bind="row.identity" /></td>
-        <td><UsageAmount :tokens="row.session.totalTokens" :cost="row.session.costSummary" /></td>
+        <td>
+          <UsageAmount
+            v-if="hasTurnUsage(row.session)"
+            :tokens="row.session.totalTokens"
+            :cost="row.session.costSummary"
+          />
+          <span
+            v-else
+            class="turn-usage-pending"
+            :title="
+              label('No usage has been recorded for this turn yet.', '尚未读到这一轮的用量记录')
+            "
+          >
+            —
+          </span>
+        </td>
         <td>
           <UsageCalls
-            :calls="row.session.apiCallCount"
+            :calls="hasTurnUsage(row.session) ? row.session.apiCallCount : null"
             :complete="row.session.apiCallCountComplete"
             :turns="row.child ? undefined : row.session.turns"
           />

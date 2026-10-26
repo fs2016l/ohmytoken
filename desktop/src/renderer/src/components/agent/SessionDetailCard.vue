@@ -7,6 +7,8 @@ import TokenBreakdown from '../base/TokenBreakdown.vue'
 import RollingText from '../base/RollingText.vue'
 import UsageIdentity from './UsageIdentity.vue'
 import GenerationMetrics from './GenerationMetrics.vue'
+import SessionTurnStatus from './SessionTurnStatus.vue'
+import { hasTurnUsage } from '@shared/session-turn-view'
 import { useI18n } from '../../i18n/useI18n'
 import { sessionIdentity } from '../../utils/usage-identity'
 import { displayTimestamp } from '../../utils/date-range'
@@ -74,12 +76,29 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
   >
     <div>
       <h2 :title="title"><RollingText :text="title" /></h2>
+      <SessionTurnStatus
+        v-if="session.turnScope === 'latest'"
+        :status="session.latestTurn?.status"
+      />
       <p class="detail-context">
         <span :title="projectLabel"><RollingText :text="projectLabel" /></span>
       </p>
     </div>
-    <span class="detail-caption">{{ label('Tokens in range', '本次用量') }}</span>
-    <AnimatedNumber class="detail-hero" :value="session.totalTokens" :format="{ compact: true }" />
+    <span class="detail-caption">
+      {{
+        session.turnScope === 'latest'
+          ? label('Latest turn usage', '最新轮用量')
+          : label('Tokens in range', '本次用量')
+      }}
+    </span>
+    <AnimatedNumber
+      class="detail-hero"
+      :value="hasTurnUsage(session) ? session.totalTokens : null"
+      :format="{ compact: true }"
+    />
+    <p v-if="!hasTurnUsage(session)" class="detail-context">
+      {{ label('No usage recorded for this turn yet.', '尚未读到这一轮的用量记录') }}
+    </p>
     <div class="detail-cost">
       <span>{{ label('Est. cost', '预估花费') }}</span>
       <strong><AnimatedCost :summary="session.costSummary" :note="false" /></strong>
@@ -95,8 +114,8 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
           "
         >
           <AnimatedNumber
-            :prefix="session.apiCallCountComplete === false ? '≥' : ''"
-            :value="session.apiCallCount"
+            :prefix="hasTurnUsage(session) && session.apiCallCountComplete === false ? '≥' : ''"
+            :value="hasTurnUsage(session) ? session.apiCallCount : null"
             :format="{ compact: true }"
           />
         </strong>
@@ -153,15 +172,21 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
       <h3>{{ label('Agent / model', 'Agent / 模型') }}</h3>
       <UsageIdentity v-bind="identity" labelled />
     </div>
-    <h3>{{ label('Token breakdown', 'Token 构成') }}</h3>
-    <TokenBreakdown :usage="session" />
+    <h3 v-if="hasTurnUsage(session)">{{ label('Token breakdown', 'Token 构成') }}</h3>
+    <TokenBreakdown v-if="hasTurnUsage(session)" :usage="session" />
     <dl class="detail-meta">
       <div>
         <dt>{{ label('Started', '开始') }}</dt>
         <dd>{{ displayTimestamp(session.startedAt) }}</dd>
       </div>
       <div>
-        <dt>{{ label('Ended', '结束') }}</dt>
+        <dt>
+          {{
+            session.turnScope === 'latest'
+              ? label('Last recorded', '最近记录')
+              : label('Ended', '结束')
+          }}
+        </dt>
         <dd>{{ displayTimestamp(session.endedAt) }}</dd>
       </div>
       <div>

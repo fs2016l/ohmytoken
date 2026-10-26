@@ -382,7 +382,7 @@ onDeactivated(() => picker.value?.closeMenu())
   border-radius: 8px;
   background: var(--surface-low);
   color: var(--text);
-  font-family: var(--font-number);
+  font-family: var(--font-sans);
   font-size: 12px;
 }
 .date-range-fields input:focus {

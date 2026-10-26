@@ -34,6 +34,8 @@ import {
 } from './grok-support'
 import { isApiCallInWindow, normalizeScanContext, shouldScanFile } from './incremental-utils'
 import { splitInclusiveTokenBuckets, tokenBuckets } from './token-usage'
+import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
+import { timestampEpochMs } from '../lib/date-utils'
 
 interface GrokActiveTurn {
   baselineTotal: number
@@ -44,6 +46,8 @@ interface GrokActiveTurn {
 }
 
 export class GrokScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
+  private turnIntervals: Array<{ sessionId: string; id: string; start: number; end?: number }> = []
   readonly agentName = 'grok'
 
   isAvailable(): boolean {
@@ -55,6 +59,8 @@ export class GrokScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
+    this.turnIntervals = []
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
@@ -83,6 +89,14 @@ export class GrokScanner implements AgentScanner {
     }
 
     apiCalls.push(...reconcileGrokSources(unifiedCalls, updateCalls))
+    for (const call of apiCalls) {
+      const time = grokCallTimestampMs(call)
+      const matches = this.turnIntervals.filter(
+        (turn) =>
+          turn.sessionId === call.sessionId && time >= turn.start && time <= (turn.end ?? Infinity),
+      )
+      if (matches.length === 1) call.turn = { id: matches[0].id, userInitiated: true }
+    }
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     for (const session of sessions) {
@@ -90,7 +104,7 @@ export class GrokScanner implements AgentScanner {
       if (title) session.title = title
     }
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns: this.latestTurns.values() }
   }
 
   /** 从会话更新记录中读取可用计数。 */
@@ -119,6 +133,7 @@ export class GrokScanner implements AgentScanner {
     let lastTotalTimestamp: string | number = fallbackMtime
     let activeTurn: GrokActiveTurn | null = null
     let turnIndex = 0
+    let currentInterval: (typeof this.turnIntervals)[number] | undefined
 
     const finishTurn = (): void => {
       if (!activeTurn) return
@@ -158,6 +173,26 @@ export class GrokScanner implements AgentScanner {
         if (activeTurn && activeTurn.model === GROK_UNKNOWN_MODEL) activeTurn.model = rowModel
       }
       const timestampValue = extractGrokTimestamp(obj) || fallbackMtime
+      const sourceTime = extractGrokTimestamp(obj)
+      const turnTime = sourceTime ? timestampEpochMs(sourceTime) : 0
+      if (
+        update.sessionUpdate === 'user_message_chunk' &&
+        turnTime &&
+        (!currentInterval || currentInterval.end !== undefined)
+      ) {
+        currentInterval = { sessionId, id: `user:${sessionId}:${turnTime}`, start: turnTime }
+        this.turnIntervals.push(currentInterval)
+        this.latestTurns.start(sessionId, currentInterval.id, turnTime)
+      }
+      if (
+        update.sessionUpdate === 'turn_completed' &&
+        currentInterval &&
+        turnTime >= currentInterval.start
+      ) {
+        currentInterval.end = turnTime
+        const status = turnStatusFromReason(update.stop_reason)
+        if (status) this.latestTurns.finish(sessionId, status, turnTime, currentInterval.id)
+      }
 
       if (update.sessionUpdate === 'user_message_chunk') {
         finishTurn()

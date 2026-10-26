@@ -3,6 +3,7 @@ import type { TokenUsageSession } from '../../shared/models'
 import type { UsageCostRollup } from '../../shared/usage-cost'
 import { combineCostRollups } from '../../shared/cost-rollup'
 import { PRICE_CATALOG_VERSION } from '../cost/price-catalog'
+import { writeSessionTurnUsage } from './session-latest-turn-storage'
 import { insertSessionRows } from './usage-detail-storage.service'
 import { withUsageDatabase } from './sqlite-storage.service'
 import {
@@ -21,6 +22,7 @@ export function storeSessionUsage(db: Database.Database, value: SessionUsageAggr
     (agent, session_id, date, model, first_ms, last_ms, meter_data, second_data, turn_data)
     VALUES (@agent, @session_id, @date, @model, @first_ms, @last_ms, @meter_data, @second_data, @turn_data)`,
   ).run(value.data)
+  writeSessionTurnUsage(db, value.session, value.turnUsage ?? [])
   db.prepare(
     `UPDATE usage_sessions SET cost_revision = ?, cost_summary = ?, api_count_complete = ?
     WHERE agent = ? AND session_id = ? AND date = ? AND model = ?`,
@@ -67,7 +69,12 @@ export function writeSessionProjectUsage(
 }
 
 export function removeSessionUsage(db: Database.Database, agent: string, parts: string[]): void {
-  for (const table of ['usage_sessions', 'usage_session_data', 'usage_session_projects'])
+  for (const table of [
+    'usage_sessions',
+    'usage_session_data',
+    'usage_session_projects',
+    'usage_turn_usage',
+  ])
     db.prepare(
       `DELETE FROM ${table} WHERE agent = ? AND session_id = ? AND date = ? AND model = ?`,
     ).run(agent, ...parts)
@@ -155,7 +162,9 @@ export async function refreshSessionCosts(db: Database.Database): Promise<void> 
       const write = db.prepare(`UPDATE usage_sessions SET cost_revision = ?, cost_summary = ?
         WHERE agent = ? AND session_id = ? AND date = ? AND model = ?`)
       for (const row of rows) {
-        const costs = aggregateSessionUsage(decodeMeterData(row)).costs
+        const value = aggregateSessionUsage(decodeMeterData(row))
+        const costs = value.costs
+        writeSessionTurnUsage(db, value.session, value.turnUsage ?? [])
         write.run(
           PRICE_CATALOG_VERSION,
           JSON.stringify(costs),

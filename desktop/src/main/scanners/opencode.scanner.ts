@@ -2,6 +2,7 @@
 import { createHash } from 'crypto'
 import { conversationTurn } from './conversation-turn'
 import { openCodeTurnReader } from './opencode-turns'
+import { readOpenCodeTurnStates } from './database-turn-states'
 import { openCodeGenerationTiming } from './opencode-generation-timing'
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs'
 import { homedir } from 'os'
@@ -90,6 +91,7 @@ class OpenCodeAccumulator {
       }
       mergeOpenCodeWorkspace(current, entry.call.projectPath)
       mergeOpenCodeTiming(current.call, entry.call)
+      current.call.turn ??= entry.call.turn
       if (
         entry.call.totalTokens > current.call.totalTokens ||
         (entry.call.totalTokens === current.call.totalTokens &&
@@ -98,6 +100,7 @@ class OpenCodeAccumulator {
         const projectPath = current.workspaceConflict ? undefined : current.call.projectPath
         current.call = {
           ...entry.call,
+          turn: current.call.turn,
           generationTiming: current.call.generationTiming,
           ...(projectPath ? { projectPath } : {}),
         }
@@ -150,6 +153,7 @@ export class OpenCodeScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    const latestTurns: import('../../shared/models').SessionTurnState[] = []
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const sessions: TokenUsageSession[] = []
@@ -174,6 +178,7 @@ export class OpenCodeScanner implements AgentScanner {
         const dbRecentSessionIds = new Set<string>()
         db = new Database(dbPath, { readonly: true })
         db.exec('PRAGMA busy_timeout = 5000')
+        latestTurns.push(...readOpenCodeTurnStates(db))
 
         // 新版使用 session_v2；迁移库同时存在两张表时优先使用新版元数据。
         // 早期库也可以只有 message 表。
@@ -291,7 +296,7 @@ export class OpenCodeScanner implements AgentScanner {
       ),
     )
 
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns }
   }
 
   /** 读取生成扫描结果所需的会话元数据。 */
@@ -379,7 +384,13 @@ export class OpenCodeScanner implements AgentScanner {
       const parentSessionId = parentBySessionId.get(rowSessionId) ?? ''
       const rootSessionId = resolveRootSessionId(rowSessionId, parentBySessionId)
       const subAgentName = subAgentColumn ? dbString(row[subAgentColumn]) : ''
-      const title = hasTitle && typeof row.title === 'string' ? row.title.trim() : ''
+      const rawTitle = hasTitle && typeof row.title === 'string' ? row.title.trim() : ''
+      // Match OpenCode's compact label when title generation has not supplied a title.
+      const title =
+        rawTitle.replace(
+          /^(New session|Child session) - \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+          '$1',
+        ) || (table === 'session_v2' ? (parentSessionId ? 'Child session' : 'New session') : '')
       const projectPath = hasDirectory
         ? normalizeCollectedProjectPath(dbString(row.directory))
         : undefined
@@ -797,12 +808,21 @@ export class OpenCodeScanner implements AgentScanner {
     const projectPath = session?.projectPath || embeddedProjectPath
     const subAgentName = resolveOpenCodeAgent(data) || session?.subAgentName
     const cost = readCost(data.cost)
+    const turn = readTurn?.(
+      sessionId,
+      data.parentID,
+      missingRoleIsAssistant ? dbString(row.id) : undefined,
+    )
 
     const apiCall: TokenUsageApiCall = {
       turn:
-        data.summary === true || session?.parentSessionId
+        data.summary === true
           ? conversationTurn(`auto:${String(data.parentID)}`, false)
-          : readTurn?.(sessionId, data.parentID),
+          : session?.parentSessionId
+            ? turn
+              ? { ...turn, userInitiated: false }
+              : conversationTurn(`auto:${String(data.parentID)}`, false)
+            : turn,
       agent: this.agentName,
       apiCallId,
       sessionId,

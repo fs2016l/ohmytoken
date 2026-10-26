@@ -30,6 +30,9 @@ export interface ScanPreview {
   retainedAgents: string[]
 }
 
+/** 首次扫描先读近期（本月）窗口，随后在后台补全更早的历史。 */
+export type ScanHistoryStage = 'recent' | 'backfill'
+
 export interface ScanProgress {
   scanId: string
   sequence: number
@@ -39,6 +42,7 @@ export interface ScanProgress {
   status: 'running' | 'complete' | 'failed'
   phase: ScanPhase
   rebuilding: boolean
+  historyStage?: ScanHistoryStage
   completedAgents: number
   totalAgents: number
   agent?: string
@@ -92,6 +96,9 @@ export function isScanProgress(value: unknown): value is ScanProgress {
     ['running', 'complete', 'failed'].includes(progress.status ?? '') &&
     ['discovering', 'reading', 'writing', 'costs', 'committing'].includes(progress.phase ?? '') &&
     typeof progress.rebuilding === 'boolean' &&
+    (progress.historyStage === undefined ||
+      progress.historyStage === 'recent' ||
+      progress.historyStage === 'backfill') &&
     count(progress.completedAgents) &&
     count(progress.totalAgents) &&
     progress.completedAgents <= progress.totalAgents

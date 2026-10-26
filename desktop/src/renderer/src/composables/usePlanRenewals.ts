@@ -1,5 +1,5 @@
 import { onMounted, ref } from 'vue'
-import type { PlanRenewal, PlanRenewalInput } from '../../../shared/plan-renewals'
+import type { PlanRenewal, PlanRenewalInput, RenewalTimeZone } from '../../../shared/plan-renewals'
 import { useI18n } from '../i18n/useI18n'
 
 export function usePlanRenewals() {
@@ -51,7 +51,7 @@ export function usePlanRenewals() {
     remove: (id: string) => mutate(() => window.api.planRenewalsDelete(id)),
     // Vue ref arrays are proxies; Electron's context bridge requires a plain array.
     reorder: (ids: string[]) => mutate(() => window.api.planRenewalsReorder([...ids])),
-    complete: (item: PlanRenewal) =>
-      mutate(() => window.api.planRenewalsComplete(item.id, item.renewOn)),
+    complete: (item: PlanRenewal, timeZone?: RenewalTimeZone) =>
+      mutate(() => window.api.planRenewalsComplete(item.id, item.renewOn, timeZone)),
   }
 }

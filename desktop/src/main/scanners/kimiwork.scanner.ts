@@ -23,7 +23,11 @@ import type {
   ScannerScanContext,
 } from './types'
 import { readUtf8Lines } from '../lib/line-reader'
-import { getKimiWorkSessionsSources, type KimiWorkSessionsSource } from '../lib/paths'
+import {
+  getKimiWorkSessionsSources,
+  getKimiWorkTitleOverridesFile,
+  type KimiWorkSessionsSource,
+} from '../lib/paths'
 import { formatDateFromMs } from '../lib/date-utils'
 import {
   applySessionTitles,
@@ -37,7 +41,9 @@ import { extractProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
 import { kimiConversationTurn, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
 import { kimiWireGenerationTiming } from './kimi-wire-timing'
+import { readKimiWorkSessionTitles, readKimiWorkTitleOverrides } from './kimiwork-session-titles'
 
 interface ParsedKimiSession {
   sessionId: string
@@ -53,10 +59,21 @@ interface ResolvedKimiSession {
 }
 
 export class KimiWorkScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'kimiwork'
+  private readonly sessionSources: () => readonly KimiWorkSessionsSource[]
+  private readonly titleOverridesFile: () => string
+
+  constructor(
+    sessionSources: () => readonly KimiWorkSessionsSource[] = getKimiWorkSessionsSources,
+    titleOverridesFile: () => string = getKimiWorkTitleOverridesFile,
+  ) {
+    this.sessionSources = sessionSources
+    this.titleOverridesFile = titleOverridesFile
+  }
 
   isAvailable(): boolean {
-    return getKimiWorkSessionsSources().some((source) => existsSync(source.dir))
+    return this.sessionSources().some((source) => existsSync(source.dir))
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -64,14 +81,16 @@ export class KimiWorkScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     if (!this.isAvailable()) return { records, sessions: [], apiCalls: [] }
 
     const parsedFiles: ParsedKimiSession[] = []
-    for (const source of getKimiWorkSessionsSources().filter((candidate) =>
-      existsSync(candidate.dir),
-    )) {
+    const nativeTitles = new Map<string, string>()
+    for (const source of this.sessionSources().filter((candidate) => existsSync(candidate.dir))) {
+      for (const [sessionId, title] of readKimiWorkSessionTitles(source.dir))
+        if (!nativeTitles.has(sessionId)) nativeTitles.set(sessionId, title)
       const wireFiles = listWireJsonlFiles(source.dir).filter((file) =>
         shouldScanFile(file, scanContext),
       )
@@ -82,12 +101,15 @@ export class KimiWorkScanner implements AgentScanner {
       }
     }
     const merged = mergeKimiWorkSessions(parsedFiles)
+    for (const [sessionId, title] of nativeTitles) merged.titleBySessionId.set(sessionId, title)
+    for (const [sessionId, title] of readKimiWorkTitleOverrides(this.titleOverridesFile()))
+      merged.titleBySessionId.set(sessionId, title)
 
     const sessions = buildSessionsFromApiCalls(this.agentName, merged.apiCalls)
     applySessionTitles(sessions, merged.titleBySessionId)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
 
-    return { records, sessions, apiCalls: merged.apiCalls }
+    return { records, sessions, apiCalls: merged.apiCalls, latestTurns: this.latestTurns.values() }
   }
 
   private parseWireFile(
@@ -110,6 +132,7 @@ export class KimiWorkScanner implements AgentScanner {
           !line.includes('context.append_loop_event') &&
           !line.includes('llm.request') &&
           !line.includes('turn.steer') &&
+          !line.includes('turn.ended') &&
           !mayContainSessionTitle(line) &&
           !mayContainProjectPath(line)
         )
@@ -128,6 +151,17 @@ export class KimiWorkScanner implements AgentScanner {
           else if (obj.event.type === 'step.start') completedStep = undefined
         }
         turn = kimiConversationTurn(turn, obj, `prompt:${relative(sessionsDir, file)}:${lineIndex}`)
+        if (['turn.prompt', 'turn.steer'].includes(String(obj.type)) && turn?.userInitiated)
+          this.latestTurns.start(sessionId, turn.id, obj.time)
+        const status = turnStatusFromReason(
+          obj.type === 'turn.ended'
+            ? obj.reason
+            : isObject(obj.event) && obj.event.type === 'step.end'
+              ? obj.event.finishReason
+              : undefined,
+        )
+        if (status && turn?.userInitiated && (!obj.agentId || obj.agentId === 'main'))
+          this.latestTurns.finish(sessionId, status, obj.time, turn.id)
         projectPath = projectPath || extractProjectPath(obj) || ''
         sessionTitle = keepFirstSessionTitle(sessionTitle, extractKimiTitle(obj))
         if (obj.type !== 'usage.record') continue
@@ -199,7 +233,8 @@ export function mergeKimiWorkSessions(parsedFiles: readonly ParsedKimiSession[])
   const apiCalls: TokenUsageApiCall[] = []
   const seenApiCallIds = new Set<string>()
   for (const parsed of parsedFiles) {
-    if (parsed.title) titleBySessionId.set(parsed.sessionId, parsed.title)
+    if (parsed.title && !titleBySessionId.has(parsed.sessionId))
+      titleBySessionId.set(parsed.sessionId, parsed.title)
     for (const call of parsed.apiCalls) {
       if (seenApiCallIds.has(call.apiCallId)) continue
       seenApiCallIds.add(call.apiCallId)
@@ -224,12 +259,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 function extractKimiTitle(obj: Record<string, unknown>): string {
-  if (obj.type === 'turn.prompt') return textFromContent(obj.input)
+  if (obj.type === 'turn.prompt') return stripKimiStateTitlePrefix(textFromContent(obj.input))
 
   if (obj.type !== 'context.append_message') return ''
   const msg = isObject(obj.message) ? obj.message : null
   if (msg === null || msg.role !== 'user') return ''
-  return textFromContent(msg.content)
+  return stripKimiStateTitlePrefix(textFromContent(msg.content))
 }
 
 function textFromContent(value: unknown): string {
@@ -338,7 +373,11 @@ function readKimiState(statePath: string): KimiStateMeta | null {
 
 /** 新版桌面写入的 state 标题带 <meta .../> 系统前缀，仅保留用户可见文本。 */
 function stripKimiStateTitlePrefix(title: string): string {
-  return title.replace(/^(?:<meta\b[^>]*\/?>\s*)+/, '').trim()
+  const text = title.replace(/^(?:<meta\b[^>]*\/?>\s*)+/, '').trim()
+  // 技能启动文本是桌面端注入的指令，不能代替用户的会话标题。
+  return /^User activated the skill "[^"]+"\. Follow the loaded skill instructions\./.test(text)
+    ? ''
+    : text
 }
 
 function conversationDirSessionId(sessionDir: string): string {

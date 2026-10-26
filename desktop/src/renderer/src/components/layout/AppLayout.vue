@@ -21,6 +21,7 @@ import DesignIcon from '../base/DesignIcon.vue'
 import CloseBehaviorDialog from './CloseBehaviorDialog.vue'
 import TrayUpdateDialog from './TrayUpdateDialog.vue'
 import LoginRequiredDialog from './LoginRequiredDialog.vue'
+import CodexScanScopeDialog from './CodexScanScopeDialog.vue'
 
 const { label } = useI18n()
 const MessageDetails = defineAsyncComponent(() => import('../message/MessageDetails.vue'))
@@ -281,6 +282,7 @@ onMounted(() => {
   <CloseBehaviorDialog />
   <TrayUpdateDialog ref="updateDialog" />
   <LoginRequiredDialog />
+  <CodexScanScopeDialog />
 </template>
 <style scoped src="../../styles/app-layout.css"></style>
 <style scoped>

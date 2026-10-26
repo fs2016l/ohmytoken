@@ -38,6 +38,8 @@ export function ensureSessionUsageSchema(db: Database.Database): void {
   }>
   if (!dataColumns.some((column) => column.name === 'turn_data'))
     db.exec('ALTER TABLE usage_session_data ADD COLUMN turn_data BLOB')
+  if (!dataColumns.some((column) => column.name === 'turn_usage_ready'))
+    db.exec('ALTER TABLE usage_session_data ADD COLUMN turn_usage_ready INTEGER NOT NULL DEFAULT 0')
   const projectColumns = new Set(
     (db.prepare('PRAGMA table_info(usage_session_projects)').all() as Array<{ name: string }>).map(
       (column) => column.name,

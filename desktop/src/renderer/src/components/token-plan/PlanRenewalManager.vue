@@ -2,11 +2,14 @@
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue'
 import {
   localRenewalDate,
+  isRenewalTimeZone,
+  renewalDisplayDateTime,
   moveRenewalOrder,
   renewalIsPending,
   renewalStatus,
   type PlanRenewal,
   type PlanRenewalInput,
+  type RenewalTimeZone,
 } from '../../../../shared/plan-renewals'
 import { usePlanRenewals } from '../../composables/usePlanRenewals'
 import { useRenewalLabels } from '../../composables/useRenewalLabels'
@@ -22,16 +25,64 @@ import PlanRenewalCountdown from './PlanRenewalCountdown.vue'
 const { label } = useI18n()
 const { providerName, cycleText, statusText } = useRenewalLabels()
 const { items, loading, busy, error, load, save, remove, reorder, complete } = usePlanRenewals()
-const today = ref(localRenewalDate())
+const TIME_ZONE_KEY = 'plan-renewals-time-zone'
+function savedTimeZone(): RenewalTimeZone {
+  try {
+    const saved = localStorage.getItem(TIME_ZONE_KEY)
+    if (isRenewalTimeZone(saved)) return saved
+  } catch {
+    // Keep the default available when browser storage is unavailable.
+  }
+  return 'Asia/Shanghai'
+}
+const timeZone = ref<RenewalTimeZone>(savedTimeZone())
+const now = ref(new Date())
+const today = computed(() => localRenewalDate(now.value, timeZone.value))
+const timeZones = computed(() => [
+  {
+    value: 'Asia/Shanghai',
+    label: label('Beijing time', '北京时间'),
+    title: label('Beijing', '北京'),
+  },
+  {
+    value: 'America/Los_Angeles',
+    label: label('US time', '美国时间'),
+    title: label('Los Angeles', '洛杉矶'),
+  },
+  {
+    value: 'Europe/London',
+    label: label('Europe time', '欧洲时间'),
+    title: label('London', '伦敦'),
+  },
+])
+function selectTimeZone(value: string | number): void {
+  if (!isRenewalTimeZone(value)) return
+  timeZone.value = value
+  now.value = new Date()
+  try {
+    localStorage.setItem(TIME_ZONE_KEY, value)
+  } catch {
+    // The selection still works for the current view.
+  }
+}
 const filter = ref('all')
 const editorOpen = ref(false),
   editing = ref<PlanRenewal | null>(null)
 const dragging = ref(''),
   previewOrder = ref<string[] | null>(null)
+const displayDates = computed(
+  () => new Map(items.value.map((item) => [item.id, renewalDisplayDateTime(item, timeZone.value)])),
+)
+function displayDate(item: PlanRenewal): { date: string; time: string } {
+  return displayDates.value.get(item.id)!
+}
 const counts = computed(() => ({
-  soon: items.value.filter((item) => renewalStatus(item.renewOn, today.value) === 'soon').length,
-  pending: items.value.filter((item) => renewalIsPending(item.renewOn, today.value)).length,
-  normal: items.value.filter((item) => !renewalIsPending(item.renewOn, today.value)).length,
+  soon: items.value.filter((item) => renewalStatus(displayDate(item).date, today.value) === 'soon')
+    .length,
+  pending: items.value.filter((item) => renewalIsPending(displayDate(item).date, today.value))
+    .length,
+  normal: items.value.filter((item) => !renewalIsPending(displayDate(item).date, today.value))
+    .length,
 }))
 const filters = computed(() => [
   {
@@ -56,7 +107,8 @@ const visible = computed(() =>
   ordered.value.filter(
     (item) =>
       filter.value === 'all' ||
-      (renewalIsPending(item.renewOn, today.value) ? 'pending' : 'normal') === filter.value,
+      (renewalIsPending(displayDate(item).date, today.value) ? 'pending' : 'normal') ===
+        filter.value,
   ),
 )
 function openEditor(item: PlanRenewal | null = null): void {
@@ -125,9 +177,9 @@ function stopClock(): void {
 }
 function startClock(): void {
   stopClock()
-  today.value = localRenewalDate()
+  now.value = new Date()
   clock = setInterval(() => {
-    today.value = localRenewalDate()
+    now.value = new Date()
   }, 60_000)
 }
 onMounted(startClock)
@@ -142,6 +194,7 @@ onUnmounted(stopClock)
 <template>
   <section
     class="renewal-manager"
+    :data-time-zone="timeZone"
     :aria-label="label('Subscription renewals', '套餐续费')"
     :data-window-retain="busy || undefined"
   >
@@ -191,6 +244,14 @@ onUnmounted(stopClock)
             :options="filters"
             :label="label('Renewal status', '续费状态')"
             compact
+          />
+          <SegmentedControl
+            class="renewal-time-zone"
+            :model-value="timeZone"
+            :options="timeZones"
+            :label="label('Event time zone', '事件时区')"
+            compact
+            @update:model-value="selectTimeZone"
           />
           <button
             type="button"
@@ -282,30 +343,30 @@ onUnmounted(stopClock)
                 </div>
               </div>
               <div class="renewal-next" role="cell">
-                <PlanRenewalCountdown :item="item" :today="today" />
+                <PlanRenewalCountdown :item="item" :today="today" :time-zone="timeZone" />
                 <div class="renewal-date">
-                  <time :datetime="item.renewOn">{{ item.renewOn }}</time>
-                  <span>{{ cycleText(item) }}</span>
+                  <time :datetime="displayDate(item).date">{{ displayDate(item).date }}</time>
+                  <span>{{ displayDate(item).time }} · {{ cycleText(item) }}</span>
                 </div>
               </div>
               <div class="renewal-status-cell" role="cell">
                 <span
                   class="renewal-status"
                   :class="
-                    renewalIsPending(item.renewOn, today)
+                    renewalIsPending(displayDate(item).date, today)
                       ? 'renewal-status--pending'
                       : 'renewal-status--normal'
                   "
-                  :title="statusText(item, today)"
+                  :title="statusText({ renewOn: displayDate(item).date }, today)"
                 >
                   {{
-                    renewalIsPending(item.renewOn, today)
+                    renewalIsPending(displayDate(item).date, today)
                       ? label('Pending', '待续费')
                       : label('Normal', '正常')
                   }}
                 </span>
                 <button
-                  v-if="renewalIsPending(item.renewOn, today)"
+                  v-if="renewalIsPending(displayDate(item).date, today)"
                   type="button"
                   class="workspace-button workspace-button--icon renewal-complete"
                   :disabled="busy"
@@ -313,7 +374,7 @@ onUnmounted(stopClock)
                   :title="
                     label('Renewed · advance the next renewal date', '已完成续费，更新下次续费日期')
                   "
-                  @click="complete(item)"
+                  @click="complete(item, timeZone)"
                 >
                   <span class="material-symbols-outlined" aria-hidden="true">check</span>
                 </button>
@@ -344,6 +405,7 @@ onUnmounted(stopClock)
       </section>
       <PlanRenewalCalendar
         :items="ordered"
+        :time-zone="timeZone"
         :today="today"
         :busy="busy || loading"
         @edit="openEditor"
@@ -353,6 +415,8 @@ onUnmounted(stopClock)
       v-if="editorOpen"
       :key="editing?.id ?? 'new'"
       :item="editing"
+      :today="today"
+      :time-zone="timeZone"
       :busy="busy"
       :error="error"
       @close="editorOpen = false"

@@ -17,7 +17,7 @@ import type {
   ScannerScanContext,
 } from './types'
 import { readUtf8Lines } from '../lib/line-reader'
-import { getClaudeDesktopSessionRoots, getClaudeProjectsDir } from '../lib/paths'
+import { getClaudeDesktopSessionRoots, getClaudeProjectsDirCandidates } from '../lib/paths'
 import { extractDate } from '../lib/date-utils'
 import {
   applySessionTitles,
@@ -33,10 +33,12 @@ import { extractProjectPath } from './project-path'
 import { tokenBucketSum, tokenBuckets, type TokenBuckets } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
 import { conversationTurn, isUserPrompt, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker } from './latest-turn-tracker'
 import { ClaudeResponseEstimator } from './claude-generation-timing'
 import { readClaudeDesktopSessions } from './claude-desktop-sessions'
 import { latestGeneration } from '../../shared/generation-timing'
 import type { LatestGeneration } from '../../shared/models'
+import { claimSourcePath } from './source-path'
 
 export class ClaudeCodeScanner implements AgentScanner {
   readonly agentName = 'claude-code'
@@ -52,14 +54,11 @@ export class ClaudeCodeScanner implements AgentScanner {
   }
 
   isAvailable(): boolean {
-    const dir = this.projectsDir ?? getClaudeProjectsDir()
-    try {
-      if (!statSync(dir).isDirectory()) return false
-    } catch {
-      return false
-    }
-    // 任意一个 .jsonl 存在即视为可用
-    return listJsonlFiles(dir).length > 0
+    return this.projectRoots().some((dir) => isDirectory(dir) && listJsonlFiles(dir).length > 0)
+  }
+
+  private projectRoots(): readonly string[] {
+    return this.projectsDir ? [this.projectsDir] : getClaudeProjectsDirCandidates()
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -67,21 +66,19 @@ export class ClaudeCodeScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    const latestTurns = new LatestTurnTracker()
     const scanContext = normalizeScanContext(context)
     const records: TokenUsageRecord[] = []
     const apiCalls: TokenUsageApiCall[] = []
-    const projectsDir = this.projectsDir ?? getClaudeProjectsDir()
-
-    let isDir = false
-    try {
-      isDir = statSync(projectsDir).isDirectory()
-    } catch {
-      isDir = false
-    }
-    if (!isDir) return { records, sessions: [], apiCalls }
-
-    const jsonlFiles = listJsonlFiles(projectsDir).filter((file) =>
-      shouldScanFile(file, scanContext),
+    const visitedFiles = new Set<string>()
+    const jsonlFiles = [...this.projectRoots()].reverse().flatMap((projectsDir) =>
+      isDirectory(projectsDir)
+        ? listJsonlFiles(projectsDir)
+            .filter(
+              (file) => claimSourcePath(visitedFiles, file) && shouldScanFile(file, scanContext),
+            )
+            .map((file) => ({ file, projectsDir }))
+        : [],
     )
 
     const seenIds = new Map<string, TokenUsageApiCall>()
@@ -94,13 +91,14 @@ export class ClaudeCodeScanner implements AgentScanner {
     const callsByAgentId = new Map<string, Set<TokenUsageApiCall>>()
     const agentFinalUsages = new Map<string, AgentFinalUsage[]>()
 
-    for (const file of jsonlFiles) {
+    for (const { file, projectsDir } of jsonlFiles) {
       // 子代理转录可能带自己的名称，不能覆盖主会话标题。
       const subagentFile = relative(projectsDir, file).split(sep).includes('subagents')
       const agentId = subagentFile ? agentIdFromFile(file) : ''
       const estimator = new ClaudeResponseEstimator()
       const fileApiCalls = new Set<TokenUsageApiCall>()
       let turn: ConversationTurn | undefined
+      const messageTurns = new Map<string, ConversationTurn>()
       let fileScopedTitle = ''
       let fileScopedTitleFromSummary = false
       let explicitSessionId = ''
@@ -108,7 +106,12 @@ export class ClaudeCodeScanner implements AgentScanner {
       try {
         for (const { line, lineIndex } of readUtf8Lines(file)) {
           const hasTokenUsage = line.includes('input_tokens') || line.includes('output_tokens')
-          if (!hasTokenUsage && !mayContainSessionTitle(line)) {
+          if (
+            !hasTokenUsage &&
+            !mayContainSessionTitle(line) &&
+            !line.includes('"stop_reason"') &&
+            !line.includes('"isApiErrorMessage"')
+          ) {
             continue
           }
           let obj: unknown
@@ -137,22 +140,43 @@ export class ClaudeCodeScanner implements AgentScanner {
             }
           }
 
-          if (
+          const realUserInput =
             obj.type === 'user' &&
             isObject(obj.message) &&
             isUserPrompt(obj.message.content) &&
             obj.isMeta !== true &&
             obj.isCompactSummary !== true
-          )
+          if (realUserInput) {
             turn = conversationTurn(
               typeof obj.uuid === 'string' ? obj.uuid : `user:${lineIndex}`,
               obj.isSidechain !== true,
             )
+            if (!subagentFile && turn?.userInitiated)
+              latestTurns.start(sessionId, turn.id, obj.timestamp)
+          }
           if (obj.type === 'user') collectAgentFinalUsage(agentFinalUsages, obj.toolUseResult)
+          const ownerTurn =
+            typeof obj.parentUuid === 'string' && !realUserInput
+              ? (messageTurns.get(obj.parentUuid) ?? turn)
+              : turn
+          if (typeof obj.uuid === 'string' && ownerTurn) messageTurns.set(obj.uuid, ownerTurn)
           if (obj.type !== 'assistant') continue
 
           const msg = obj.message
           if (!isObject(msg)) continue
+          if (!subagentFile && ownerTurn?.userInitiated) {
+            if (obj.isApiErrorMessage === true || obj.error !== undefined)
+              latestTurns.finish(sessionId, 'failed', obj.timestamp, ownerTurn?.id)
+            else if (['end_turn', 'stop_sequence', 'refusal'].includes(String(msg.stop_reason)))
+              latestTurns.finish(sessionId, 'completed', obj.timestamp, ownerTurn?.id)
+            else if (
+              msg.stop_reason === 'max_tokens' ||
+              msg.stop_reason === 'model_context_window_exceeded'
+            )
+              latestTurns.finish(sessionId, 'interrupted', obj.timestamp, ownerTurn?.id)
+            else if (msg.stop_reason === 'pause_turn')
+              latestTurns.finish(sessionId, 'waiting', obj.timestamp, ownerTurn?.id)
+          }
           const usage = msg.usage
           if (!isObject(usage)) continue
 
@@ -181,7 +205,7 @@ export class ClaudeCodeScanner implements AgentScanner {
           const apiCallId = msgId || `${sessionId}:${lineIndex}`
 
           const apiCall: TokenUsageApiCall = {
-            turn,
+            turn: ownerTurn,
             agent: this.agentName,
             apiCallId,
             sessionId,
@@ -276,7 +300,22 @@ export class ClaudeCodeScanner implements AgentScanner {
       session.latestGeneration = generationBySessionId.get(session.sessionId)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
 
-    return { records, sessions, apiCalls, latestGenerations: [...generationBySessionId.values()] }
+    return {
+      records,
+      sessions,
+      apiCalls,
+      latestGenerations: [...generationBySessionId.values()],
+      latestTurns: latestTurns.values(),
+    }
+  }
+}
+
+function isDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory()
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw error
   }
 }
 

@@ -97,13 +97,13 @@ header > div {
 header > div > span {
   display: block;
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 18px;
 }
 header strong {
   display: block;
   font-size: 20px;
-  font-weight: var(--weight-ui);
+  font-weight: var(--weight-semibold);
   line-height: 26px;
   white-space: nowrap;
   overflow: hidden;
@@ -123,7 +123,7 @@ header > div:last-child {
 }
 .composition-labels {
   color: var(--text-soft);
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
   height: 20px;
   line-height: 20px;

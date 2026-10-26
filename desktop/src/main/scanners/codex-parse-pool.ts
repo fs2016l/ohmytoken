@@ -1,4 +1,5 @@
 import { Worker } from 'node:worker_threads'
+import { statSync } from 'node:fs'
 import type { ParseContext, ParsedCodexSession } from './codex.scanner'
 import type { ParserWorkerOptions, ScannerScanContext } from './types'
 import type {
@@ -13,7 +14,10 @@ export interface CodexParseFile {
 
 export interface CodexParseRequest extends CodexParseFile {
   index: number
-  context: Pick<ScannerScanContext, 'mode' | 'sinceMs' | 'scanStartedAtMs' | 'strict'>
+  context: Pick<
+    ScannerScanContext,
+    'mode' | 'sinceMs' | 'scanStartedAtMs' | 'strict' | 'codexScope'
+  >
 }
 
 export interface CodexParseResult {
@@ -23,6 +27,20 @@ export interface CodexParseResult {
 
 export type CodexParseReply =
   { index: number; result: CodexParseResult } | { index: number; error: string }
+
+/**
+ * 压缩日志的解压在进程共用的 libuv 线程池（默认 4 个）中执行；Electron 下线程再多
+ * 只会互相争用，实测 4 个最快。
+ */
+const MAX_PARSER_WORKERS = 4
+
+function fileSize(file: unknown): number {
+  try {
+    return typeof file === 'string' ? statSync(file).size : 0
+  } catch {
+    return 0
+  }
+}
 
 export class ParserWorkerUnavailableError extends Error {
   override name = 'ParserWorkerUnavailableError'
@@ -48,13 +66,18 @@ export async function parseCodexFiles(
       let next = 0
       let completed = 0
       let finished = false
+      // 大文件先开始，避免整轮最后只剩一个大文件在解析；结果仍按原始顺序归并。
+      const order = files
+        .map((entry, index) => ({ index, size: fileSize(entry.file?.sessionFile) }))
+        .sort((left, right) => right.size - left.size || left.index - right.index)
+        .map((entry) => entry.index)
       const fail = (error: Error): void => {
         if (finished) return
         finished = true
         reject(error)
       }
       context.reportProgress?.({ unit: 'files', completed: 0, total: files.length })
-      for (let i = 0; i < Math.min(options.concurrency, 4, files.length); i++) {
+      for (let i = 0; i < Math.min(options.concurrency, MAX_PARSER_WORKERS, files.length); i++) {
         let worker: Worker
         try {
           worker = new Worker(options.entry, {
@@ -74,12 +97,13 @@ export async function parseCodexFiles(
         let activeIndex = -1
         const dispatch = (): void => {
           if (finished || next >= files.length) return
-          activeIndex = next++
+          activeIndex = order[next++]
           const request: CodexParseRequest = {
             ...files[activeIndex],
             index: activeIndex,
             context: {
               mode: context.mode,
+              codexScope: context.codexScope,
               sinceMs: context.sinceMs,
               scanStartedAtMs: context.scanStartedAtMs,
               strict: context.strict,

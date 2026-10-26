@@ -5,21 +5,25 @@ import { enUS, zhCN } from 'date-fns/locale'
 import { useI18n } from '../../i18n/useI18n'
 import { useTheme } from '../../composables/useTheme'
 import { localDate, parseDateInput } from '../../utils/date-range'
+import FloatingTimePicker from './FloatingTimePicker.vue'
 import '../../styles/date-picker.css'
 
 const props = defineProps<{ today: string; invalid?: boolean }>()
 const date = defineModel<string>('date', { required: true })
 const time = defineModel<string>('time', { required: true })
-const calendarOpen = defineModel<boolean>('calendarOpen', { required: true })
+const activePanel = ref<'date' | 'time' | null>(null)
+const calendarOpen = computed(() => activePanel.value === 'date')
 const { label, currentLang } = useI18n()
 const { currentTheme } = useTheme()
 const picker = ref<InstanceType<typeof VueDatePicker> | null>(null)
 const calendarPanel = ref<HTMLElement | null>(null)
 const dateButton = ref<HTMLButtonElement | null>(null)
+const timeButton = ref<HTMLButtonElement | null>(null)
 const timeInput = ref<HTMLInputElement | null>(null)
 const dateId = useId(),
   timeId = useId(),
-  panelId = useId()
+  panelId = useId(),
+  timePanelId = useId()
 const normalizedDate = computed(() => parseDateInput(date.value))
 const dateText = computed({
   get: () => date.value.replaceAll('-', '/'),
@@ -30,19 +34,35 @@ const selection = computed({
   set: (value: Date | null) => {
     if (!value) return
     date.value = localDate(value)
-    closeCalendar()
+    closePanel()
   },
 })
 const validTime = computed(() => /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(time.value))
 
-async function closeCalendar(): Promise<void> {
-  calendarOpen.value = false
+async function closePanel(): Promise<void> {
+  const button = activePanel.value === 'date' ? dateButton.value : timeButton.value
+  activePanel.value = null
   await nextTick()
-  dateButton.value?.focus()
+  button?.focus({ preventScroll: true })
+}
+function escapePanel(event: KeyboardEvent): void {
+  if (!activePanel.value) return
+  event.preventDefault()
+  event.stopPropagation()
+  closePanel()
+}
+async function openCalendar(focus = false): Promise<void> {
+  activePanel.value = 'date'
+  if (!focus) return
+  await nextTick()
+  await nextTick()
+  calendarPanel.value
+    ?.querySelector<HTMLElement>('[role="gridcell"][aria-selected="true"]')
+    ?.focus()
 }
 function chooseToday(): void {
   date.value = props.today
-  closeCalendar()
+  closePanel()
 }
 function segment(): number {
   return Math.min(2, Math.floor((timeInput.value?.selectionStart ?? 0) / 3))
@@ -52,8 +72,13 @@ async function selectSegment(index = segment()): Promise<void> {
   timeInput.value?.setSelectionRange(index * 3, index * 3 + 2)
 }
 function focusTime(): void {
+  activePanel.value = 'time'
   timeInput.value?.focus()
   selectSegment(0)
+}
+function openTime(): void {
+  activePanel.value = 'time'
+  selectSegment()
 }
 function stepTime(index: number, value: number | 'min' | 'max'): void {
   if (!validTime.value) return
@@ -84,127 +109,169 @@ function timeWheel(event: WheelEvent): void {
   event.preventDefault()
   stepTime(segment(), event.deltaY < 0 ? 1 : -1)
 }
-watch(calendarOpen, async (open) => {
+watch([calendarOpen, normalizedDate], async ([open]) => {
   if (!open) return
   const value = selection.value ?? new Date(`${props.today}T00:00:00`)
   await nextTick()
   picker.value?.setMonthYear({ month: value.getMonth(), year: value.getFullYear() })
-  await nextTick()
-  calendarPanel.value
-    ?.querySelector<HTMLElement>('[role="gridcell"][aria-selected="true"]')
-    ?.focus()
 })
 </script>
 
 <template>
-  <div v-if="!calendarOpen" class="baseline-fields">
-    <div class="baseline-input baseline-date-input">
-      <button
-        ref="dateButton"
-        type="button"
-        :aria-label="label('Choose date', '选择日期')"
-        :aria-controls="panelId"
-        :aria-expanded="calendarOpen"
-        @click="calendarOpen = true"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="4" y="5" width="16" height="16" rx="3" />
-          <path d="M8 3v4m8-4v4M4 10h16" />
-        </svg>
-      </button>
-      <input
-        :id="dateId"
-        v-model="dateText"
-        type="text"
-        placeholder="YYYY/MM/DD"
-        maxlength="10"
-        autocomplete="off"
-        spellcheck="false"
-        :aria-label="label('Date', '日期')"
-        :aria-invalid="invalid || Boolean(date && !normalizedDate)"
-        @keydown.alt.down.prevent="calendarOpen = true"
-      />
+  <div class="baseline-picker" @keydown.esc.capture="escapePanel">
+    <div class="baseline-fields">
+      <div class="baseline-input baseline-date-input" :class="{ active: calendarOpen }">
+        <button
+          ref="dateButton"
+          type="button"
+          :aria-label="label('Choose date', '选择日期')"
+          :aria-controls="panelId"
+          :aria-expanded="calendarOpen"
+          @click="openCalendar(true)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="5" width="16" height="16" rx="3" />
+            <path d="M8 3v4m8-4v4M4 10h16" />
+          </svg>
+        </button>
+        <input
+          :id="dateId"
+          v-model="dateText"
+          type="text"
+          placeholder="YYYY/MM/DD"
+          maxlength="10"
+          autocomplete="off"
+          spellcheck="false"
+          :aria-label="label('Date', '日期')"
+          :aria-invalid="invalid || Boolean(date && !normalizedDate)"
+          role="combobox"
+          aria-haspopup="dialog"
+          :aria-controls="panelId"
+          :aria-expanded="calendarOpen"
+          @focus="openCalendar()"
+          @click="openCalendar()"
+          @keydown.alt.down.prevent="openCalendar(true)"
+        />
+      </div>
+      <div class="baseline-input baseline-time-input" :class="{ active: activePanel === 'time' }">
+        <button
+          ref="timeButton"
+          type="button"
+          :aria-label="label('Edit time', '编辑时间')"
+          :aria-controls="timePanelId"
+          :aria-expanded="activePanel === 'time'"
+          @click="focusTime"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </button>
+        <input
+          :id="timeId"
+          ref="timeInput"
+          v-model="time"
+          type="text"
+          placeholder="HH:mm:ss"
+          maxlength="8"
+          autocomplete="off"
+          spellcheck="false"
+          :aria-label="label('Time', '时间')"
+          :aria-invalid="invalid || Boolean(time && !validTime)"
+          role="combobox"
+          aria-haspopup="dialog"
+          :aria-controls="timePanelId"
+          :aria-expanded="activePanel === 'time'"
+          :title="
+            label(
+              'Type a time, or adjust with arrow keys and the mouse wheel',
+              '输入时间，或用方向键和滚轮微调',
+            )
+          "
+          @focus="activePanel = 'time'"
+          @click="openTime"
+          @keydown.alt.down.prevent="focusTime"
+          @keydown.exact="timeKey"
+          @wheel="timeWheel"
+        />
+      </div>
     </div>
-    <div class="baseline-input baseline-time-input">
-      <button type="button" :aria-label="label('Edit time', '编辑时间')" @click="focusTime">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 7v5l3 2" />
-        </svg>
-      </button>
-      <input
-        :id="timeId"
-        ref="timeInput"
-        v-model="time"
-        type="text"
-        placeholder="HH:mm:ss"
-        maxlength="8"
-        autocomplete="off"
-        spellcheck="false"
-        :aria-label="label('Time', '时间')"
-        :aria-invalid="invalid || Boolean(time && !validTime)"
-        :title="
-          label(
-            'Type a time, or adjust with arrow keys and the mouse wheel',
-            '输入时间，或用方向键和滚轮微调',
-          )
-        "
-        @click="selectSegment()"
-        @keydown="timeKey"
-        @wheel="timeWheel"
+    <div
+      v-if="calendarOpen"
+      :id="panelId"
+      ref="calendarPanel"
+      class="baseline-panel"
+      role="dialog"
+      :aria-label="label('Date calendar', '日期日历')"
+    >
+      <VueDatePicker
+        ref="picker"
+        v-model="selection"
+        inline
+        auto-apply
+        :time-config="{ enableTimePicker: false }"
+        :locale="currentLang === 'zh' ? zhCN : enUS"
+        :dark="currentTheme === 'dark'"
+        :min-date="new Date(1970, 0, 1)"
+        :max-date="new Date(`${today}T00:00:00`)"
+        prevent-min-max-navigation
+        :week-start="1"
+        :day-names="currentLang === 'zh' ? ['一', '二', '三', '四', '五', '六', '日'] : undefined"
+        :year-first="currentLang === 'zh'"
+        :formats="{
+          month: currentLang === 'zh' ? 'M 月' : 'MMM',
+          year: currentLang === 'zh' ? 'yyyy 年' : 'yyyy',
+        }"
+        :aria-labels="{
+          menu: label('Choose date', '选择日期'),
+          nextMonth: label('Next month', '下个月'),
+          prevMonth: label('Previous month', '上个月'),
+          openMonthsOverlay: label('Choose month', '选择月份'),
+          openYearsOverlay: label('Choose year', '选择年份'),
+          day: (day) => localDate(day.value).replaceAll('-', '/'),
+        }"
+        :config="{ monthChangeOnScroll: false }"
+        :transitions="false"
+        class="baseline-calendar"
       />
+      <div class="baseline-calendar-footer">
+        <button type="button" class="baseline-back" @click="closePanel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+          {{ label('Hide calendar', '收起日历') }}
+        </button>
+        <button type="button" class="baseline-today" @click="chooseToday">
+          {{ label('Today', '今天') }}
+        </button>
+      </div>
     </div>
-  </div>
-  <div
-    v-else
-    :id="panelId"
-    ref="calendarPanel"
-    class="baseline-panel"
-    @keydown.esc.capture.stop.prevent="closeCalendar"
-  >
-    <VueDatePicker
-      ref="picker"
-      v-model="selection"
-      inline
-      auto-apply
-      :time-config="{ enableTimePicker: false }"
-      :locale="currentLang === 'zh' ? zhCN : enUS"
-      :dark="currentTheme === 'dark'"
-      :min-date="new Date(1970, 0, 1)"
-      :max-date="new Date(`${today}T00:00:00`)"
-      prevent-min-max-navigation
-      :week-start="1"
-      :day-names="currentLang === 'zh' ? ['一', '二', '三', '四', '五', '六', '日'] : undefined"
-      :year-first="currentLang === 'zh'"
-      :formats="{
-        month: currentLang === 'zh' ? 'M 月' : 'MMM',
-        year: currentLang === 'zh' ? 'yyyy 年' : 'yyyy',
-      }"
-      :aria-labels="{
-        menu: label('Choose date', '选择日期'),
-        nextMonth: label('Next month', '下个月'),
-        prevMonth: label('Previous month', '上个月'),
-        openMonthsOverlay: label('Choose month', '选择月份'),
-        openYearsOverlay: label('Choose year', '选择年份'),
-        day: (day) => localDate(day.value).replaceAll('-', '/'),
-      }"
-      :config="{ monthChangeOnScroll: false }"
-      :transitions="false"
-      class="baseline-calendar"
-    />
-    <div class="baseline-calendar-footer">
-      <button type="button" class="baseline-back" @click="closeCalendar">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg>
-        {{ label('Back to edit', '返回编辑') }}
-      </button>
-      <button type="button" class="baseline-today" @click="chooseToday">
-        {{ label('Today', '今天') }}
-      </button>
+    <div
+      v-else-if="activePanel === 'time'"
+      :id="timePanelId"
+      class="baseline-panel"
+      role="dialog"
+      :aria-label="label('Choose time', '选择时间')"
+    >
+      <FloatingTimePicker v-model="time" />
+      <div class="baseline-calendar-footer">
+        <button type="button" class="baseline-back" @click="closePanel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6" /></svg>
+          {{ label('Hide time picker', '收起时间') }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.baseline-picker {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.baseline-panel {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
 .baseline-fields {
   display: grid;
   grid-template-columns: minmax(0, 126fr) minmax(0, 112fr);
@@ -219,7 +286,8 @@ watch(calendarOpen, async (open) => {
   border-radius: 6px;
   background: var(--surface-low);
 }
-.baseline-input:focus-within {
+.baseline-input:focus-within,
+.baseline-input.active {
   border-color: var(--primary-border);
   box-shadow: 0 0 0 2px var(--primary-soft);
 }
@@ -235,9 +303,10 @@ watch(calendarOpen, async (open) => {
   outline: 0;
   background: transparent;
   color: var(--text);
-  font-family: var(--font-number);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
+  font-weight: 400;
 }
 .baseline-input input::placeholder {
   color: var(--text-soft);
@@ -259,7 +328,8 @@ watch(calendarOpen, async (open) => {
   color: var(--text-muted);
   cursor: pointer;
 }
-.baseline-input:focus-within button {
+.baseline-input:focus-within button,
+.baseline-input.active button {
   color: var(--primary);
 }
 .baseline-input svg,
@@ -312,7 +382,7 @@ watch(calendarOpen, async (open) => {
   padding-inline: 3px;
   color: var(--text);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 .baseline-calendar :deep(.dp--calendar-header-separator) {
   display: none;
@@ -320,7 +390,7 @@ watch(calendarOpen, async (open) => {
 .baseline-calendar :deep(.dp--calendar-header-item) {
   height: 22px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
 }
 .baseline-calendar :deep(.dp--calendar-row),
@@ -337,8 +407,9 @@ watch(calendarOpen, async (open) => {
 .baseline-calendar :deep(.dp--cell-inner) {
   width: 28px;
   margin-inline: auto;
-  font-family: var(--font-number);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
+  font-weight: 400;
 }
 .baseline-calendar :deep(.dp--cell-inner.dp--active) {
   background: var(--primary);
@@ -367,7 +438,7 @@ watch(calendarOpen, async (open) => {
   border-radius: 5px;
   color: var(--text-muted);
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 .baseline-calendar-footer .baseline-today {

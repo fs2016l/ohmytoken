@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3'
 import type { ScannerUsageDetails, TokenUsageApiCall } from '../../shared/models'
 import type { ScannerScanContext } from '../scanners/types'
 import { eventTimestampMs } from '../scanners/incremental-utils'
+import { codexRecentStartMs } from '../../shared/codex-scan-scope'
 import { callFromCostRow, type CostRow } from '../cost/cost-cache'
 import {
   aggregateSessionUsage,
@@ -38,12 +39,19 @@ export function persistSessionScan(
   details: ScannerUsageDetails,
 ): void {
   const full = context.mode === 'full' && !context.preserveHistory
+  const recentStart =
+    agent === 'codex' && context.codexScope === 'recent'
+      ? codexRecentStartMs(context.scanStartedAtMs)
+      : undefined
   if (!full) migrateAgentMeterData(db, agent)
   const metadata = full ? new Map() : readSessionMetadata(db, agent)
   const fresh = new Map(
     details.sessions.map((row) => [sessionUsageKey(row.sessionId, row.date, row.model), row]),
   )
   const incoming = new Set(details.apiCalls.map((call) => call.apiCallId))
+  const replaced = new Set(
+    details.apiCallReplacements?.map((replacement) => replacement.previousApiCallId),
+  )
   const complete = new Set(details.completeSessionIds ?? [])
   const changed = new Map<string, TokenUsageApiCall[]>()
   const keyOf = (call: TokenUsageApiCall): string =>
@@ -53,6 +61,7 @@ export function persistSessionScan(
       'usage_cost_cache',
       'usage_api_calls',
       'usage_session_data',
+      'usage_turn_usage',
       'usage_session_projects',
       'usage_sessions',
       'usage_records',
@@ -68,8 +77,10 @@ export function persistSessionScan(
       const calls = decodeMeterData(row)
       const kept = calls.filter(
         (call) =>
+          (recentStart === undefined || eventTimestampMs(call) >= recentStart) &&
           !complete.has(call.sessionId) &&
           !incoming.has(call.apiCallId) &&
+          !replaced.has(call.apiCallId) &&
           !(scanWindow && eventTimestampMs(call) >= since),
       )
       if (kept.length !== calls.length)

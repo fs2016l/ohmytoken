@@ -1,12 +1,15 @@
 import { persistSessionScan, readStoredSessionCallKeys } from './session-scan-storage'
 import { storeLatestGenerationCalls } from './session-generation-storage'
 import { storeLatestTurnFirstTokens } from './session-turn-timing-storage'
+import { storeLatestTurnStates } from './session-latest-turn-storage'
 import type {
   ScanMode,
   ScannerUsageDetails,
   TokenUsageRecord,
   TokenUsageSession,
 } from '../../shared/models'
+import type { ScanHistoryStage } from '../../shared/scan-progress'
+import { codexRecentStartMs, type CodexScanScope } from '../../shared/codex-scan-scope'
 import { formatLocalTimestampFromMs, timestampEpochMs } from '../lib/date-utils'
 import { eventTimestampMs, SCAN_LOOKBACK_MS } from '../scanners/incremental-utils'
 import type { ScannerScanContext } from '../scanners/types'
@@ -58,13 +61,55 @@ export interface AgentScanPlan {
   context: ScannerScanContext
   /** 首次基线会把用户请求的 incremental 提升为 full。 */
   effectiveMode: ScanMode
+  /** recent：首次只提交近期窗口；backfill：补全窗口之前的历史。 */
+  stage?: ScanHistoryStage
+}
+
+/** 近期窗口扫描提交后的状态；下一轮先补全更早历史，再恢复普通增量。 */
+const RECENT_SCAN_MODE = 'recent'
+const CODEX_RECENT_SCAN_MODE = 'codex-recent'
+/** 悬浮窗默认展示最近 5 小时；月初时窗口向前延伸，保证默认视图完整。 */
+const RECENT_SCAN_LOOKBACK_MS = 5 * 60 * 60 * 1000
+
+/** 首次近期扫描的起点：本月 1 日零点（本地时间），月初时再覆盖最近 5 小时。 */
+export function recentScanStartMs(scanStartedAtMs: number): number {
+  const now = new Date(scanStartedAtMs)
+  return Math.min(
+    new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
+    scanStartedAtMs - RECENT_SCAN_LOOKBACK_MS,
+  )
 }
 
 export function buildAgentScanPlan(
   agent: string,
   requestedMode: ScanMode,
   scanStartedAtMs: number,
+  options: { recentFirst?: boolean; codexScope?: CodexScanScope } = {},
 ): AgentScanPlan {
+  if (agent === 'codex' && options.codexScope === 'recent') {
+    const state = getAgentScanState(agent)
+    const sinceMs = codexRecentStartMs(scanStartedAtMs)
+    const rebuild =
+      requestedMode === 'full' ||
+      state?.initialized !== 1 ||
+      state.scanner_revision !== scannerRevisionForAgent(agent) ||
+      state.last_mode !== CODEX_RECENT_SCAN_MODE
+    if (rebuild)
+      return {
+        effectiveMode: 'full',
+        context: { mode: 'full', codexScope: 'recent', sinceMs, scanStartedAtMs },
+      }
+    const watermark = state.event_watermark_ms || state.last_success_ms
+    return {
+      effectiveMode: 'incremental',
+      context: {
+        mode: 'incremental',
+        codexScope: 'recent',
+        sinceMs: Math.max(sinceMs, Math.min(watermark, scanStartedAtMs) - SCAN_LOOKBACK_MS),
+        scanStartedAtMs,
+      },
+    }
+  }
   if (requestedMode === 'full') {
     return {
       effectiveMode: 'full',
@@ -73,22 +118,46 @@ export function buildAgentScanPlan(
   }
 
   const state = getAgentScanState(agent)
+  // 首次扫描先提交本月，让默认视图尽快可用；已有用量的来源不能按窗口截断。
+  // 新来源没有可恢复的证据，证据恢复随后续的历史补扫一起完成。
+  if (
+    options.recentFirst &&
+    !(agent === 'codex' && options.codexScope === 'all') &&
+    (!state || state.initialized !== 1) &&
+    !hasStoredUsage(agent)
+  ) {
+    return {
+      effectiveMode: 'incremental',
+      stage: 'recent',
+      context: {
+        mode: 'incremental',
+        sinceMs: recentScanStartMs(scanStartedAtMs),
+        scanStartedAtMs,
+        deferHistory: true,
+      },
+    }
+  }
+  const backfill = state?.last_mode === RECENT_SCAN_MODE ? { stage: 'backfill' as const } : {}
   if (needsEvidenceRecovery(openDatabase(), agent)) {
     return {
       effectiveMode: 'full',
+      ...backfill,
       context: { mode: 'full', preserveHistory: true, scanStartedAtMs },
     }
   }
   if (
     !state ||
     state.initialized !== 1 ||
-    state.scanner_revision !== scannerRevisionForAgent(agent)
+    state.scanner_revision !== scannerRevisionForAgent(agent) ||
+    state.last_mode === RECENT_SCAN_MODE ||
+    state.last_mode === CODEX_RECENT_SCAN_MODE
   ) {
     const preserveHistory = !!openDatabase()
       .prepare('SELECT 1 FROM usage_session_data WHERE agent = ? LIMIT 1')
       .get(agent)
     return {
       effectiveMode: 'full',
+      ...backfill,
       context: { mode: 'full', preserveHistory, scanStartedAtMs },
     }
   }
@@ -103,6 +172,20 @@ export function buildAgentScanPlan(
     effectiveMode: 'incremental',
     context: { mode: 'incremental', sinceMs, scanStartedAtMs },
   }
+}
+
+function hasStoredUsage(agent: string): boolean {
+  const db = openDatabase()
+  return ['usage_session_data', 'usage_api_calls', 'usage_records'].some(
+    (table) => !!db.prepare(`SELECT 1 FROM ${table} WHERE agent = ? LIMIT 1`).get(agent),
+  )
+}
+
+/** 首次近期扫描后仍有 Agent 等待补全更早的历史。 */
+export function hasPendingHistory(): boolean {
+  return !!openDatabase()
+    .prepare('SELECT 1 FROM scan_agent_state WHERE last_mode = ? LIMIT 1')
+    .get(RECENT_SCAN_MODE)
 }
 
 export function getAgentScanState(agent: string): ScanAgentStateRow | null {
@@ -126,6 +209,7 @@ export function persistAgentScan(
   const persist = db.transaction(() => {
     storeLatestGenerationCalls(db, agent, details.apiCalls, details.latestGenerations)
     storeLatestTurnFirstTokens(db, agent, details.latestTurnFirstTokens)
+    storeLatestTurnStates(db, agent, details.latestTurns)
     const sessionStorage =
       context.storage === 'session' ||
       !!db.prepare('SELECT 1 FROM usage_session_data WHERE agent = ? LIMIT 1').get(agent)
@@ -174,12 +258,22 @@ export function persistAgentScan(
           { session_id: string; date: string; model: string } | undefined
         if (existing) oldRows.push(existing)
       }
+      for (const replacement of details.apiCallReplacements ?? []) {
+        const existing = findExistingByApiCallId.get(agent, replacement.previousApiCallId) as
+          { session_id: string; date: string; model: string } | undefined
+        if (existing) oldRows.push(existing)
+      }
 
       for (const row of oldRows) {
         sessionKeys.add(sessionKey(row.session_id, row.date, row.model))
         recordKeys.add(recordKey(row.date, row.model))
       }
       collectStoredMetadata(agent, oldRows, oldMetadata)
+      if (details.apiCallReplacements?.length) {
+        const remove = db.prepare('DELETE FROM usage_api_calls WHERE agent = ? AND api_call_id = ?')
+        for (const replacement of details.apiCallReplacements)
+          remove.run(agent, replacement.previousApiCallId)
+      }
       if (complete.size) {
         const removeSession = db.prepare(
           'DELETE FROM usage_api_calls WHERE agent = ? AND session_id = ?',
@@ -467,7 +561,9 @@ function commitScanState(
 ): void {
   const db = openDatabase()
   const oldState = getAgentScanState(agent)
-  if (context.mode === 'full') completeEvidenceRecovery(db, agent, context.scanStartedAtMs)
+  const codexRecent = agent === 'codex' && context.codexScope === 'recent'
+  if (context.mode === 'full' && !codexRecent)
+    completeEvidenceRecovery(db, agent, context.scanStartedAtMs)
   // 完整替换后，已不在本轮来源中的旧检查点也失效，避免来源恢复时被错误跳过。
   if (context.mode === 'full' && !context.preserveHistory)
     db.prepare('DELETE FROM scan_source_state WHERE agent = ?').run(agent)
@@ -510,7 +606,7 @@ function commitScanState(
     scannerRevisionForAgent(agent),
     eventWatermark,
     context.scanStartedAtMs,
-    context.mode === 'full' ? context.scanStartedAtMs : previousFullSuccess,
-    context.mode,
+    context.mode === 'full' && !codexRecent ? context.scanStartedAtMs : previousFullSuccess,
+    codexRecent ? CODEX_RECENT_SCAN_MODE : context.deferHistory ? RECENT_SCAN_MODE : context.mode,
   )
 }

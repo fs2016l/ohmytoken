@@ -18,6 +18,7 @@ const SCAN_WORKER_EXIT_TIMEOUT_MS = 5 * 1000
 
 interface ActiveScan {
   mode: ScanMode
+  codexScope?: ScanOptions['codexScope']
   promise: Promise<ScanResult>
 }
 
@@ -74,18 +75,24 @@ function publishProgress(progress: ScanProgress): void {
  */
 export function performScan(options: ScanOptions = {}): Promise<ScanResult> {
   const mode = normalizeMode(options.mode)
-  if (!activeScan) return startScan(mode)
-  if (mode === 'incremental' || activeScan.mode === 'full') return activeScan.promise
+  const normalized = { ...options, mode }
+  if (!activeScan) return startScan(normalized)
+  if (
+    mode === 'incremental' ||
+    (activeScan.mode === 'full' && activeScan.codexScope === options.codexScope)
+  )
+    return activeScan.promise
   if (queuedFullScan) return queuedFullScan
 
   const running = activeScan.promise
-  queuedFullScan = running
+  const queued = running
     .catch(() => undefined)
-    .then(() => startScan('full'))
-    .finally(() => {
-      queuedFullScan = null
+    .then(() => {
+      if (queuedFullScan === queued) queuedFullScan = null
+      return startScan({ ...normalized, mode: 'full' })
     })
-  return queuedFullScan
+  queuedFullScan = queued
+  return queued
 }
 
 /**
@@ -112,7 +119,8 @@ export function resumeBackgroundScan(): void {
   scanStopPromise = null
 }
 
-function startScan(mode: ScanMode): Promise<ScanResult> {
+function startScan(options: ScanOptions & { mode: ScanMode }): Promise<ScanResult> {
+  const { mode } = options
   const scanId = randomUUID()
   publishProgress({
     scanId,
@@ -125,7 +133,7 @@ function startScan(mode: ScanMode): Promise<ScanResult> {
     completedAgents: 0,
     totalAgents: 0,
   })
-  const promise = requestBackgroundScan(mode, scanId).catch((error: Error) => {
+  const promise = requestBackgroundScan(options, scanId).catch((error: Error) => {
     if (latestProgress?.scanId === scanId)
       publishProgress({
         ...latestProgress,
@@ -135,21 +143,29 @@ function startScan(mode: ScanMode): Promise<ScanResult> {
       })
     throw error
   })
-  activeScan = { mode, promise }
+  activeScan = { mode, codexScope: options.codexScope, promise }
   const clearActive = (): void => {
     if (activeScan?.promise === promise) activeScan = null
   }
   void promise.then(clearActive, clearActive)
+  // 首次扫描只提交了本月；本轮结束后立即在后台补全更早的历史，失败时由下次刷新重试。
+  void promise.then(
+    (result) => {
+      if (result.historyPendingAgents?.length && !stopping && !queuedFullScan)
+        void performScan({ ...options, mode: 'incremental' }).catch(() => undefined)
+    },
+    () => undefined,
+  )
   return promise
 }
 
-async function requestBackgroundScan(mode: ScanMode, scanId: string): Promise<ScanResult> {
+async function requestBackgroundScan(options: ScanOptions, scanId: string): Promise<ScanResult> {
   const worker = await ensureScanWorker()
   if (stopping) throw new Error('应用正在退出，无法启动后台扫描')
 
   const requestId = nextRequestId
   nextRequestId += 1
-  const request: ScanWorkerRequest = { type: 'scan', requestId, scanId, options: { mode } }
+  const request: ScanWorkerRequest = { type: 'scan', requestId, scanId, options }
 
   return new Promise<ScanResult>((resolve, reject) => {
     const timeout = setTimeout(() => {

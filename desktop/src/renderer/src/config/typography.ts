@@ -1,4 +1,4 @@
-export const UI_FONT_WEIGHT = 500
+export const UI_FONT_WEIGHT = 400
 
 export const INTERFACE_FONT_IDS = [
   'system',
@@ -52,14 +52,14 @@ export interface FontOption<Id extends string> {
 
 const STANDARD_WEIGHTS: FontWeightProfile = {
   regular: UI_FONT_WEIGHT,
-  medium: UI_FONT_WEIGHT,
-  semibold: UI_FONT_WEIGHT,
-  display: UI_FONT_WEIGHT,
+  medium: 500,
+  semibold: 600,
+  display: 600,
 }
 
 export const DEFAULT_INTERFACE_FONT: InterfaceFont = 'source-han-sans'
 export const DEFAULT_CODE_FONT: CodeFont = 'source-code-pro'
-export const DEFAULT_NUMBER_FONT: NumberFont = 'source-code-pro'
+export const DEFAULT_NUMBER_FONT: NumberFont = 'inter'
 
 export const interfaceFontOptions: readonly FontOption<InterfaceFont>[] = [
   {

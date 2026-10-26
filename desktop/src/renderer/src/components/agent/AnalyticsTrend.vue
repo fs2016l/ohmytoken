@@ -7,6 +7,7 @@ import SegmentedControl from '../base/SegmentedControl.vue'
 import SelectControl from '../base/SelectControl.vue'
 import TrendVisibilityLayers from './TrendVisibilityLayers.vue'
 import type { LegendVisibilityState } from '../../composables/useLegendSelection'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useChartTokens } from '../../composables/useChartTokens'
 import { useCostCurrency } from '../../composables/useCostCurrency'
 import { useI18n } from '../../i18n/useI18n'
@@ -41,6 +42,7 @@ const hidden = defineModel<Record<string, string[]>>('hidden', { required: true 
 const { label } = useI18n(),
   tokens = useChartTokens(),
   { currency, exchange } = useCostCurrency()
+const { getChartText } = useChartTheme()
 const highlighted = ref('')
 const dimensions = computed(() => [
   { value: 'total', label: label('Overview', '总览') },
@@ -304,7 +306,12 @@ const option = computed(() => {
     yAxis: {
       type: 'value',
       splitNumber: 4,
-      axisLabel: { color: tokens.value['--text-soft'], fontSize: 11, formatter: format },
+      axisLabel: {
+        ...getChartText('number'),
+        color: tokens.value['--text-soft'],
+        fontSize: 11,
+        formatter: format,
+      },
       splitLine: { lineStyle: { color: tokens.value['--border'], type: 'dotted' } },
     },
     series,

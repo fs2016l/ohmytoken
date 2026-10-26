@@ -23,12 +23,15 @@ import {
 } from '../../shared/floating-window'
 import { FloatingEdgeController } from './floating-edge-controller'
 import { attachFloatingWindowFrame, type FloatingWindowFrame } from './floating-window-frame'
+import { attachFloatingWindowTopmost, raisePinnedFloatingWindow } from './floating-window-topmost'
+import {
+  initialFloatingWindowBounds,
+  DEFAULT_FLOATING_HEIGHT as DEFAULT_HEIGHT,
+  MIN_FLOATING_WIDTH as MIN_WIDTH,
+  MIN_FLOATING_HEIGHT as MIN_HEIGHT,
+} from './floating-window-bounds'
 
 const stateFile = (): string => join(getAppDataDir(), 'floating-window-state.json')
-const DEFAULT_WIDTH = 444
-const DEFAULT_HEIGHT = 724
-const MIN_WIDTH = 400
-const MIN_HEIGHT = 520
 
 interface FloatingWindowState {
   x?: number
@@ -118,41 +121,6 @@ function saveBounds(): void {
   saveState()
 }
 
-function initialSize(): { width: number; height: number } {
-  const area = screen.getPrimaryDisplay().workArea
-  return {
-    width: Math.min(area.width, 900, Math.max(MIN_WIDTH, state.width ?? DEFAULT_WIDTH)),
-    height: Math.min(area.height, 1100, Math.max(MIN_HEIGHT, state.height ?? DEFAULT_HEIGHT)),
-  }
-}
-
-function isSavedPositionVisible(x: number, y: number, width: number, height: number): boolean {
-  return screen.getAllDisplays().some((display) => {
-    const area = display.workArea
-    return (
-      x < area.x + area.width - 40 &&
-      x + width > area.x + 40 &&
-      y < area.y + area.height - 40 &&
-      y + height > area.y + 40
-    )
-  })
-}
-
-function initialPosition(size: { width: number; height: number }): { x: number; y: number } {
-  if (
-    typeof state.x === 'number' &&
-    typeof state.y === 'number' &&
-    isSavedPositionVisible(state.x, state.y, size.width, size.height)
-  ) {
-    return { x: state.x, y: state.y }
-  }
-  const area = screen.getPrimaryDisplay().workArea
-  return {
-    x: Math.max(area.x, area.x + area.width - size.width - 24),
-    y: Math.max(area.y, Math.min(area.y + 24, area.y + area.height - size.height)),
-  }
-}
-
 async function loadFloatingRenderer(window: BrowserWindow): Promise<void> {
   if (!config) throw new Error('悬浮窗尚未配置')
   if (config.rendererUrl) {
@@ -166,8 +134,8 @@ async function loadFloatingRenderer(window: BrowserWindow): Promise<void> {
 
 function createFloatingWindow(): BrowserWindow {
   if (!config) throw new Error('悬浮窗尚未配置')
-  const size = initialSize()
-  const position = initialPosition(size)
+  const { size, position, maxHeight } = initialFloatingWindowBounds(state, screen)
+  const area = screen.getDisplayMatching({ ...position, ...size }).workArea
   collapsed = false
   expandedHeight = size.height
   const materialOptions = config.materialOptions?.() ?? {}
@@ -190,7 +158,7 @@ function createFloatingWindow(): BrowserWindow {
     minWidth: Math.min(MIN_WIDTH, size.width),
     minHeight: Math.min(MIN_HEIGHT, size.height),
     maxWidth: 900,
-    maxHeight: 1100,
+    maxHeight,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
@@ -212,8 +180,23 @@ function createFloatingWindow(): BrowserWindow {
   )
   floatingFrame = resizeFrame
   blockDevtoolsShortcuts(window)
-  if (state.alwaysOnTop) window.setAlwaysOnTop(true, 'floating')
+  const restoreTopmost = attachFloatingWindowTopmost(window, () => state.alwaysOnTop)
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  let limitWidth = area.width
+  let limitHeight = area.height
+  const restoreLimits = (bounds = window.getBounds()): void => {
+    const workArea = screen.getDisplayMatching(bounds).workArea
+    limitWidth = workArea.width
+    limitHeight = workArea.height
+    window.setMinimumSize(
+      Math.min(MIN_WIDTH, workArea.width),
+      Math.min(collapsed ? 64 : MIN_HEIGHT, workArea.height),
+    )
+    window.setMaximumSize(
+      900,
+      collapsed ? Math.min(bounds.height, workArea.height) : workArea.height,
+    )
+  }
   const edge = new FloatingEdgeController(window, {
     enabled: state.edgeAutoHide,
     display: (bounds) => screen.getDisplayMatching(bounds),
@@ -226,21 +209,27 @@ function createFloatingWindow(): BrowserWindow {
       resizeFrame.setEnabled(!value.hidden && !value.transition)
       if (floatingTransparent)
         config?.materialTransition?.(window, value.hidden || !!value.transition)
+      // Repair native clipping/material changes without overtaking other overlays.
+      if (!value.hidden && value.transition !== 'hiding') restoreTopmost()
       window.webContents.send(IPC.FLOATING_WINDOW_EDGE_CHANGED, value)
     },
-    restoreLimits: () => {
-      const area = screen.getDisplayMatching(window.getBounds()).workArea
-      window.setMinimumSize(
-        Math.min(MIN_WIDTH, area.width),
-        collapsed ? 64 : Math.min(MIN_HEIGHT, area.height),
-      )
-      window.setMaximumSize(900, collapsed ? window.getBounds().height : 1100)
-    },
+    restoreLimits,
   })
   edgeController = edge
-  const displaysChanged = (): void => edge.displaysChanged()
+  const syncSizeLimits = (): void => {
+    if (window.isDestroyed() || edge.adjusting) return
+    const workArea = screen.getDisplayMatching(window.getBounds()).workArea
+    if (workArea.width !== limitWidth || workArea.height !== limitHeight) restoreLimits()
+  }
+  const displaysChanged = (): void => {
+    edge.displaysChanged()
+    syncSizeLimits()
+    saveBounds()
+  }
   screen.on('display-removed', displaysChanged)
   screen.on('display-metrics-changed', displaysChanged)
+  window.on('move', syncSizeLimits)
+  window.on('resized', syncSizeLimits)
   window.on('moved', saveBounds)
   window.on('resized', saveBounds)
   window.on('close', () => {
@@ -299,9 +288,9 @@ export function setFloatingWindowCollapsed(value: boolean, measuredHeight: numbe
   }
   collapsed = value
   const height = value
-    ? Math.min(area.height, Math.max(64, Math.min(480, Math.ceil(measuredHeight))))
+    ? Math.min(area.height, Math.max(64, Math.ceil(measuredHeight)))
     : Math.min(area.height, Math.max(MIN_HEIGHT, expandedHeight))
-  if (!value) window.setMaximumSize(900, 1100)
+  if (!value) window.setMaximumSize(900, area.height)
   window.setMinimumSize(
     Math.min(MIN_WIDTH, area.width),
     value ? 64 : Math.min(MIN_HEIGHT, area.height),
@@ -338,6 +327,7 @@ export function refreshFloatingWindowMaterial(): void {
   floatingWindow.once('ready-to-show', () => {
     if (state.visible && floatingWindow && !floatingWindow.isDestroyed()) {
       floatingWindow.showInactive()
+      raisePinnedFloatingWindow(floatingWindow, state.alwaysOnTop)
       notifyVisibilityChanged(true)
     }
   })
@@ -355,6 +345,7 @@ export function showFloatingWindow(): void {
     edgeController?.reveal()
     floatingWindow.show()
     floatingWindow.focus()
+    raisePinnedFloatingWindow(floatingWindow, state.alwaysOnTop)
     notifyVisibilityChanged(true)
     return
   }
@@ -363,6 +354,7 @@ export function showFloatingWindow(): void {
     if (state.visible && floatingWindow && !floatingWindow.isDestroyed()) {
       floatingWindow.show()
       floatingWindow.focus()
+      raisePinnedFloatingWindow(floatingWindow, state.alwaysOnTop)
       notifyVisibilityChanged(true)
     }
   })
@@ -399,7 +391,6 @@ export function isFloatingWindowVisible(): boolean {
 }
 
 export function isFloatingWindowAlwaysOnTop(): boolean {
-  if (floatingWindow && !floatingWindow.isDestroyed()) return floatingWindow.isAlwaysOnTop()
   return state.alwaysOnTop
 }
 
@@ -407,7 +398,8 @@ export function setFloatingWindowAlwaysOnTop(alwaysOnTop: boolean): boolean {
   state.alwaysOnTop = alwaysOnTop
   saveState()
   if (floatingWindow && !floatingWindow.isDestroyed()) {
-    floatingWindow.setAlwaysOnTop(alwaysOnTop, alwaysOnTop ? 'floating' : 'normal')
+    if (alwaysOnTop) raisePinnedFloatingWindow(floatingWindow, true)
+    else floatingWindow.setAlwaysOnTop(false, 'normal')
   }
   return state.alwaysOnTop
 }

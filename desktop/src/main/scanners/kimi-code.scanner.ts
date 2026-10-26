@@ -17,6 +17,7 @@ import { normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
 import { conversationTurn, kimiConversationTurn, type ConversationTurn } from './conversation-turn'
+import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
 import { readKimiCodeModelNames } from './kimi-code-models'
 import {
   kimiGenerationTimingFiles,
@@ -41,6 +42,7 @@ interface ParsedKimiCodeFile {
 }
 
 export class KimiCodeScanner implements AgentScanner {
+  private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'kimi-code'
 
   isAvailable(): boolean {
@@ -52,6 +54,7 @@ export class KimiCodeScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    this.latestTurns.clear()
     const scanContext = normalizeScanContext(context)
     const apiCallById = new Map<string, TokenUsageApiCall>()
     const titleBySessionId = new Map<string, string>()
@@ -63,8 +66,15 @@ export class KimiCodeScanner implements AgentScanner {
         source.kind === 'kimi-code' ? readKimiCodeModelNames(source.dir) : new Map()
       for (const file of listWireFiles(source.dir)) {
         const timingFiles = source.kind === 'kimi-code' ? kimiGenerationTimingFiles(file) : []
+        const wireChanged = shouldScanFile(file, scanContext)
+        const stateFile = join(kimiCodeSessionDir(file), 'state.json')
+        const stateChanged =
+          source.kind === 'kimi-code' &&
+          existsSync(stateFile) &&
+          shouldScanFile(stateFile, scanContext)
         if (
-          !shouldScanFile(file, scanContext) &&
+          !wireChanged &&
+          !stateChanged &&
           !timingFiles.some((timingFile) => shouldScanFile(timingFile, scanContext))
         )
           continue
@@ -74,9 +84,13 @@ export class KimiCodeScanner implements AgentScanner {
           timings = readKimiGenerationTimings(timingFiles)
           timingByLogDirectory.set(timingKey, timings)
         }
+        // 旧会话可能只改标题。重读该会话的稳定调用以更新全部日期/型号的标题，
+        // 落库仍按原 API ID upsert，不重复累计用量。
+        const fileContext =
+          !wireChanged && stateChanged ? { ...scanContext, mode: 'full' as const } : scanContext
         const parsed =
           source.kind === 'kimi-code'
-            ? this.parseKimiCodeFile(file, source, scanContext, modelNames, timings)
+            ? this.parseKimiCodeFile(file, source, fileContext, modelNames, timings)
             : this.parseLegacyKimiFile(file, source, scanContext)
         for (const call of parsed.apiCalls) mergeKimiCall(apiCallById, call)
         if (parsed.title && parsed.apiCalls[0]) {
@@ -92,7 +106,7 @@ export class KimiCodeScanner implements AgentScanner {
       if (title) session.title = title
     }
     const records = buildRecordsFromSessions(this.agentName, sessions)
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns: this.latestTurns.values() }
   }
 
   private parseKimiCodeFile(
@@ -107,7 +121,7 @@ export class KimiCodeScanner implements AgentScanner {
     const fallbackMtime = fileMtime(file)
     let latestConcreteModel = ''
     let latestModelAlias = ''
-    let title = ''
+    let title = identity.title
     let turn: ConversationTurn | undefined
     let timingRequest: KimiTimingRequest | undefined
     let completedStep: Record<string, unknown> | undefined
@@ -122,6 +136,17 @@ export class KimiCodeScanner implements AgentScanner {
       }
       if (!isObject(value)) continue
       turn = kimiConversationTurn(turn, value, `prompt:${relative(source.dir, file)}:${lineIndex}`)
+      if (['turn.prompt', 'turn.steer'].includes(String(value.type)) && turn?.userInitiated)
+        this.latestTurns.start(identity.sessionId, turn.id, value.time)
+      const endReason =
+        value.type === 'turn.ended' && (!value.agentId || value.agentId === 'main')
+          ? value.reason
+          : isObject(value.event) && value.event.type === 'step.end'
+            ? value.event.finishReason
+            : undefined
+      const status = turnStatusFromReason(endReason)
+      if (status && turn?.userInitiated && (!value.agentId || value.agentId === 'main'))
+        this.latestTurns.finish(identity.sessionId, status, value.time, turn.id)
 
       const lineType = stringValue(value.type)
       if (!title) title = kimiTitle(value)
@@ -232,6 +257,10 @@ export class KimiCodeScanner implements AgentScanner {
       if (!isObject(value) || value.type === 'metadata') continue
       const message = isObject(value.message) ? value.message : null
       if (message?.type === 'TurnBegin') turn = conversationTurn(`prompt:${lineIndex}`)
+      if (message?.type === 'TurnBegin')
+        this.latestTurns.start(sessionId, turn?.id, value.timestamp)
+      if (message?.type === 'TurnEnd')
+        this.latestTurns.finish(sessionId, 'completed', value.timestamp, turn?.id)
       const payload =
         message && message.type === 'StatusUpdate' && isObject(message.payload)
           ? message.payload
@@ -282,11 +311,12 @@ export class KimiCodeScanner implements AgentScanner {
 function kimiCodeIdentity(
   file: string,
   sessionsDir: string,
-): { sessionId: string; projectPath?: string } {
+): { sessionId: string; title: string; projectPath?: string } {
   const agentDir = dirname(file)
   const agentsDir = dirname(agentDir)
+  const sessionDir = kimiCodeSessionDir(file)
+  const state = kimiCodeSessionState(sessionDir)
   if (basename(agentsDir) === 'agents') {
-    const sessionDir = dirname(agentsDir)
     const workspaceDir = dirname(sessionDir)
     const rawWorkspace = basename(workspaceDir)
     let decodedWorkspace = rawWorkspace
@@ -297,24 +327,37 @@ function kimiCodeIdentity(
     }
     const projectPath = isAbsolute(decodedWorkspace)
       ? normalizeCollectedProjectPath(decodedWorkspace)
-      : kimiCodeStateProjectPath(sessionDir)
-    return { sessionId: basename(sessionDir), ...(projectPath ? { projectPath } : {}) }
+      : state.projectPath
+    return {
+      sessionId: basename(sessionDir),
+      title: state.title,
+      ...(projectPath ? { projectPath } : {}),
+    }
   }
   return {
     sessionId: basename(dirname(file)) || relative(sessionsDir, dirname(file)).split(sep).join('/'),
+    ...state,
   }
 }
 
-/** 新版工作区目录是 wd_* 不透明 ID，目录名解码不出路径；改读会话 state.json 的 cwd。 */
-function kimiCodeStateProjectPath(sessionDir: string): string | undefined {
+function kimiCodeSessionDir(file: string): string {
+  const agentDir = dirname(file)
+  const agentsDir = dirname(agentDir)
+  return basename(agentsDir) === 'agents' ? dirname(agentsDir) : agentDir
+}
+
+/** 正式标题（生成或手动改名）与不透明 wd_* 目录的 cwd 都由会话 state.json 提供。 */
+function kimiCodeSessionState(sessionDir: string): { title: string; projectPath?: string } {
   try {
     const value: unknown = JSON.parse(readFileSync(join(sessionDir, 'state.json'), 'utf8'))
-    if (!isObject(value)) return undefined
-    return normalizeCollectedProjectPath(value.cwd) || undefined
+    if (isObject(value)) {
+      const projectPath = normalizeCollectedProjectPath(value.cwd)
+      return { title: stringValue(value.title), ...(projectPath ? { projectPath } : {}) }
+    }
   } catch {
-    // state.json 缺失或半写时保持无项目归属。
-    return undefined
+    // state.json 缺失或半写时，继续使用日志提示作为标题兜底。
   }
+  return { title: '' }
 }
 
 function concreteKimiModel(value: string): string {

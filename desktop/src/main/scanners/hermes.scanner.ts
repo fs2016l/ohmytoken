@@ -21,6 +21,7 @@ import {
 import { normalizeScanContext } from './incremental-utils'
 import { tokenBuckets, tokenCount } from './token-usage'
 import { usageEvidence } from '../cost/usage-evidence'
+import { readHermesLatestTurns } from './database-turn-states'
 
 export class HermesScanner implements AgentScanner {
   readonly agentName = 'hermes'
@@ -38,6 +39,7 @@ export class HermesScanner implements AgentScanner {
   }
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
+    const latestTurns: import('../../shared/models').SessionTurnState[] = []
     const scanContext = normalizeScanContext(context)
     void scanContext
     const records: TokenUsageRecord[] = []
@@ -52,6 +54,7 @@ export class HermesScanner implements AgentScanner {
         db = new Database(dbPath, { readonly: true })
         db.exec('PRAGMA busy_timeout = 5000')
         this.readDb(db, dbPath, apiCalls, seenApiCallIds)
+        latestTurns.push(...readHermesLatestTurns(db))
       } catch (e) {
         throw new Error(`Hermes 扫描失败 (${dbPath}): ${(e as Error).message}`)
       } finally {
@@ -61,7 +64,7 @@ export class HermesScanner implements AgentScanner {
 
     const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
     records.push(...buildRecordsFromSessions(this.agentName, sessions))
-    return { records, sessions, apiCalls }
+    return { records, sessions, apiCalls, latestTurns }
   }
 
   private readDb(

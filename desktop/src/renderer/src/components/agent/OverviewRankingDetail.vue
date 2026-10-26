@@ -4,6 +4,7 @@ import type { UsageAnalytics } from '@shared/analytics'
 import WorkspaceChart from '../base/WorkspaceChart.vue'
 import { usePageResource } from '../../composables/usePageResource'
 import { useI18n } from '../../i18n/useI18n'
+import { useChartTheme } from '../../composables/useChartTheme'
 import { useChartTokens } from '../../composables/useChartTokens'
 import { useChartColorMode } from '../../composables/useChartColorMode'
 import { useVisibleNow } from '../../composables/useVisibleNow'
@@ -26,6 +27,7 @@ const props = defineProps<{
 }>()
 const { label } = useI18n()
 const tokens = useChartTokens()
+const { getChartText } = useChartTheme()
 const { mode } = useChartColorMode()
 const now = useVisibleNow()
 const plot = ref<InstanceType<typeof WorkspaceChart> | null>(null)
@@ -144,6 +146,7 @@ const option = computed(() => ({
       barWidth: 13,
       itemStyle: { color: props.color, borderRadius: [0, 2, 2, 0] },
       label: {
+        ...getChartText('number'),
         show: true,
         position: 'right',
         distance: 8,
@@ -222,7 +225,8 @@ const option = computed(() => ({
   height: 22px;
   padding-right: 4px;
   text-align: right;
-  font: 500 10px/22px var(--font-number);
+  font: 400 11px/22px var(--font-sans);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--text-soft);
 }

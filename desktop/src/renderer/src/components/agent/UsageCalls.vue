@@ -3,7 +3,7 @@ import AnimatedNumber from '../base/AnimatedNumber.vue'
 import DesignIcon from '../base/DesignIcon.vue'
 import { useI18n } from '../../i18n/useI18n'
 defineProps<{
-  calls: number
+  calls: number | null
   complete?: boolean
   turns?: { count: number; complete: boolean }
 }>()
@@ -25,7 +25,7 @@ const { label } = useI18n()
     >
       <DesignIcon class="usage-calls__icon" name="capabilityCode" :size="14" />
       <AnimatedNumber
-        :prefix="complete === false ? '≥' : ''"
+        :prefix="calls !== null && complete === false ? '≥' : ''"
         :value="calls"
         :format="{ compact: true }"
       />

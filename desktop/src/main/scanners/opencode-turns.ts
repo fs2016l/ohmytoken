@@ -8,8 +8,57 @@ interface UserRequest {
   continued?: boolean
 }
 interface TurnReader {
-  (sessionId: string, parentId: unknown): ConversationTurn | undefined
+  (sessionId: string, parentId: unknown, messageId?: string): ConversationTurn | undefined
   observe(sessionId: string, id: string, data: Record<string, unknown>): void
+}
+
+/** V2 uses typed, sequenced messages; compaction and synthetic inputs are separate row types. */
+function nativeTurnReader(
+  db: Database.Database,
+  table: 'message' | 'session_message',
+): (sessionId: string, id: unknown) => ConversationTurn | undefined {
+  const columns = new Set(
+    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map(
+      (row) => row.name,
+    ),
+  )
+  if (
+    table !== 'session_message' ||
+    !['id', 'session_id', 'type', 'seq', 'data'].every((name) => columns.has(name))
+  )
+    return () => undefined
+  const read = db.prepare(`SELECT u.id, u.data FROM session_message m
+    JOIN session_message u ON u.session_id=m.session_id AND u.seq<=m.seq
+    WHERE m.session_id=? AND m.id=? AND m.type IN ('user','assistant')
+      AND json_valid(m.data) AND json_type(m.data,'$.role') IS NULL AND u.type='user'
+    ORDER BY u.seq DESC LIMIT 1`)
+  const cache = new Map<string, ConversationTurn | undefined>()
+  return (sessionId, id) => {
+    if (typeof id !== 'string') return undefined
+    const key = JSON.stringify([sessionId, id])
+    if (cache.has(key)) return cache.get(key)
+    let turn: ConversationTurn | undefined
+    const row = read.get(sessionId, id) as { id: string; data: string } | undefined
+    if (row) {
+      try {
+        const data = JSON.parse(row.data) as Record<string, unknown> | null
+        if (
+          data &&
+          !data.role &&
+          !data.synthetic &&
+          !data.ignored &&
+          ((typeof data.text === 'string' && data.text.trim().length > 0) ||
+            (Array.isArray(data.files) && data.files.length > 0) ||
+            (Array.isArray(data.agents) && data.agents.length > 0))
+        )
+          turn = conversationTurn(row.id)
+      } catch {
+        // An unrecognized user boundary must not assign the next API to an older request.
+      }
+    }
+    cache.set(key, turn)
+    return turn
+  }
 }
 
 /** 按用户消息 ID 读取内容块，自动压缩续跑与重放仍归入原请求。 */
@@ -18,11 +67,18 @@ export function openCodeTurnReader(
   table: 'message' | 'session_message',
   streamedUsers = false,
 ): TurnReader {
+  const readNative = nativeTurnReader(db, table)
+  const native = (
+    sessionId: string,
+    parentId: unknown,
+    messageId?: string,
+  ): ConversationTurn | undefined =>
+    readNative(sessionId, typeof parentId === 'string' ? parentId : messageId)
   const columns = new Set(
     (db.prepare('PRAGMA table_info(part)').all() as Array<{ name: string }>).map((row) => row.name),
   )
   if (!['message_id', 'data', 'id'].every((name) => columns.has(name)))
-    return Object.assign(() => undefined, { observe() {} })
+    return Object.assign(native, { observe() {} })
 
   const readParts = db.prepare('SELECT data FROM part WHERE message_id = ? ORDER BY id')
   const readUser = db.prepare(`SELECT json_extract(data, '$.role') role,
@@ -115,8 +171,9 @@ export function openCodeTurnReader(
   }
 
   return Object.assign(
-    (sessionId: string, parentId: unknown): ConversationTurn | undefined =>
-      typeof parentId === 'string' ? resolve(sessionId, parentId)?.turn : undefined,
+    (sessionId: string, parentId: unknown, messageId?: string): ConversationTurn | undefined =>
+      native(sessionId, parentId, messageId) ??
+      (typeof parentId === 'string' ? resolve(sessionId, parentId)?.turn : undefined),
     {
       observe(sessionId: string, id: string, data: Record<string, unknown>): void {
         if (!streamedUsers) return

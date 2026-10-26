@@ -323,7 +323,8 @@ small {
 }
 b {
   color: var(--text);
-  font-weight: 400;
+  font-family: var(--font-number);
+  font-weight: 500;
 }
 .stacked {
   flex-direction: column;
@@ -337,7 +338,9 @@ b {
 .generation-metrics--floating {
   position: relative;
   display: grid;
-  grid-template-columns: 64px minmax(24px, 1fr) 64px;
+  /* Equal slots keep the flow centered across rows and follow the chosen number face. */
+  grid-template-columns: calc(9ch + 19px) minmax(24px, 1fr) calc(9ch + 19px);
+  font-family: var(--font-number);
   gap: 8px;
   padding: 2px 8px;
   border-radius: 5px;

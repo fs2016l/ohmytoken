@@ -110,7 +110,7 @@ export class WorkBuddyScanner implements AgentScanner {
     applySessionTitles(detailSessions, titleBySessionId)
     records.push(...buildRecordsFromSessions(this.agentName, detailSessions))
 
-    return { records, sessions: detailSessions, apiCalls }
+    return { records, sessions: detailSessions, apiCalls, latestTurns: projectScan.latestTurns }
   }
 
   private loadTraceApiCalls(

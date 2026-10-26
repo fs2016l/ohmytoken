@@ -124,7 +124,15 @@ watch(
     const changedOptions = previous
       ? (
           Object.keys({ ...previous.options, ...snapshot.options }) as (keyof ReplayOptions)[]
-        ).filter((key) => snapshot.options[key] !== previous.options[key])
+        ).filter((key) => {
+          const before = previous.options[key]
+          const after = snapshot.options[key]
+          // Filter arrays are copied into each snapshot; a title edit does not change their values.
+          return Array.isArray(before) && Array.isArray(after)
+            ? before.length !== after.length ||
+                before.some((value, index) => value !== after[index])
+            : before !== after
+        })
       : []
     if (changedOptions.length === 1 && changedOptions[0] === 'title') {
       draw()
