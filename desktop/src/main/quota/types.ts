@@ -26,6 +26,7 @@ export interface DiscoveredConnection {
   quotaIdentity?: string
   credentials?: DiscoveredConnection[]
   antigravityOAuth?: AntigravityOAuthGrant
+  miniMaxCode?: boolean
 }
 
 export interface DiscoveryResult {

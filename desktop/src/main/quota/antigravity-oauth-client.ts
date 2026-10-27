@@ -1,14 +1,15 @@
 import { readFile, stat } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { object, textValue } from './types'
+import { antigravityResourceDirectories } from './antigravity-installations'
 
 interface InstallationOptions {
   home: string
   env: NodeJS.ProcessEnv
   platform: NodeJS.Platform
   audience?: string
+  resourceDirectories?: readonly string[]
 }
 
 export interface AntigravityInstallation {
@@ -322,24 +323,8 @@ export function parseAntigravityAsarVersion(bytes: Buffer): string | undefined {
 export async function readAntigravityInstallation(
   options: InstallationOptions,
 ): Promise<AntigravityInstallation> {
-  const resources =
-    options.platform === 'win32'
-      ? [
-          join(
-            options.env.LOCALAPPDATA || join(options.home, 'AppData', 'Local'),
-            'Programs',
-            'antigravity',
-            'resources',
-          ),
-        ]
-      : options.platform === 'darwin'
-        ? [
-            join(options.home, 'Applications', 'Antigravity.app', 'Contents', 'Resources'),
-            ...(resolve(options.home) === resolve(homedir())
-              ? ['/Applications/Antigravity.app/Contents/Resources']
-              : []),
-          ]
-        : []
+  const resources = await antigravityResourceDirectories(options)
+  let fallback: AntigravityInstallation = {}
   for (const root of resources) {
     const archive = join(root, 'app.asar')
     let clientVersion: string | undefined
@@ -354,6 +339,7 @@ export async function readAntigravityInstallation(
       }
       clientVersion = cached.version
       if (!clientVersion) continue
+      if (!fallback.clientVersion) fallback = { clientVersion }
     } catch {
       continue
     }
@@ -365,7 +351,7 @@ export async function readAntigravityInstallation(
         options.platform === 'win32' ? 'language_server.exe' : 'language_server',
       )
       const file = await stat(binary)
-      if (!file.isFile() || file.size > 256 * 1024 * 1024) return { clientVersion }
+      if (!file.isFile() || file.size > 256 * 1024 * 1024) continue
       const stamp = `${file.size}:${file.mtimeMs}`
       let cached = installationCache.get(binary)
       if (!cached || cached.stamp !== stamp) {
@@ -374,10 +360,10 @@ export async function readAntigravityInstallation(
         installationCache.set(binary, cached)
       }
       const client = cached.clients.find((item) => item.clientId === options.audience)
-      return { clientVersion, ...(client ?? {}) }
+      if (client) return { clientVersion, ...client }
     } catch {
-      return { clientVersion }
+      continue
     }
   }
-  return {}
+  return fallback
 }

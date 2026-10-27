@@ -4,6 +4,9 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'fs'
 import { homedir, platform } from 'os'
 import { basename, dirname, isAbsolute, join, resolve } from 'path'
+import { miniMaxDesktopDataRoots, miniMaxProfileRoots } from './minimax-desktop'
+import { zCodeDatabaseCandidates } from './zcode-storage'
+import { parseJsonConfig } from './json-config'
 
 export function getHome(): string {
   return homedir()
@@ -36,7 +39,26 @@ export function getClaudeProjectsDir(): string {
 
 export function getClaudeProjectsDirCandidates(): string[] {
   const configured = process.env.CLAUDE_CONFIG_DIR?.trim()
+  const initial = configured ? resolveUserPath(configured) : join(homedir(), '.claude')
+  let saved: unknown
+  try {
+    const file = join(initial, 'settings.json')
+    if (statSync(file).size > 1024 * 1024) throw new Error()
+    const bytes = readFileSync(file)
+    if (bytes.length > 1024 * 1024) throw new Error()
+    const settings = parseJsonConfig(bytes.toString('utf8')) as {
+      env?: { CLAUDE_CONFIG_DIR?: unknown }
+    } | null
+    saved = settings?.env?.CLAUDE_CONFIG_DIR
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT' && code !== 'ENOTDIR')
+      throw new Error('Claude Code 用户目录设置不可读，无法确定完整统计来源')
+  }
   return uniquePaths([
+    ...(typeof saved === 'string' && isAbsolute(saved.trim())
+      ? [join(resolveUserPath(saved), 'projects')]
+      : []),
     ...(configured ? [join(resolveUserPath(configured), 'projects')] : []),
     join(homedir(), '.claude', 'projects'),
   ])
@@ -66,8 +88,8 @@ export function getClaudeDesktopSessionRoots(): string[] {
 }
 
 /** Codex 状态根目录：优先使用官方 CODEX_HOME，默认 ~/.codex。 */
-export function getCodexHomeDir(): string {
-  return resolveUserPath(process.env.CODEX_HOME || join(homedir(), '.codex'))
+export function getCodexHomeDir(home = homedir(), env: NodeJS.ProcessEnv = process.env): string {
+  return resolveUserPath(env.CODEX_HOME?.trim() || join(home, '.codex'), home)
 }
 
 /**
@@ -129,40 +151,49 @@ export function getCodexCleanupArchiveDir(): string {
  * OpenCode 数据库候选路径（按优先级）
  * 对应 Java OpenCodeScanner.getDatabasePath()
  */
-export function getOpencodeDbCandidates(): string[] {
-  const configured = process.env.OPENCODE_DB?.trim()
-  const candidates: string[] = configured ? [resolveUserPath(configured)] : []
+export function getOpencodeDbCandidates(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+  osPlatform = platform(),
+): string[] {
+  const directories = getOpencodeDataDirCandidates(home, env, osPlatform)
+  const configured = env.OPENCODE_DB?.trim()
+  const candidates: string[] =
+    configured && configured !== ':memory:' ? [resolve(directories[0], configured)] : []
   const seen = new Set<string>()
-  for (const directory of getOpencodeDataDirCandidates()) {
+  for (const directory of directories) {
     for (const file of listOpencodeDatabases(directory)) {
-      const key = isWindows() ? file.toLowerCase() : file
+      const key = osPlatform === 'win32' ? file.toLowerCase() : file
       if (seen.has(key)) continue
       seen.add(key)
       candidates.push(file)
     }
   }
-  return uniquePaths(candidates)
+  return uniquePaths(candidates, osPlatform === 'win32')
 }
 
 /** OpenCode CLI/桌面端数据根目录，即使数据库未创建也保留作为 JSON 候选。 */
-export function getOpencodeDataDirCandidates(): string[] {
-  const home = homedir()
-  const xdg = process.env.XDG_DATA_HOME?.trim()
+export function getOpencodeDataDirCandidates(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+  osPlatform = platform(),
+): string[] {
+  const xdg = env.XDG_DATA_HOME?.trim()
   const directories = [
-    ...(xdg ? [join(resolveUserPath(xdg), 'opencode')] : []),
+    ...(xdg ? [join(resolveUserPath(xdg, home), 'opencode')] : []),
     join(home, '.local', 'share', 'opencode'),
   ]
-  if (isWindows()) {
-    directories.push(join(getAppData(), 'ai.opencode.desktop'))
-    directories.push(join(getLocalAppData(), 'opencode'))
-  } else if (isMacos()) {
+  if (osPlatform === 'win32') {
+    directories.push(join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'ai.opencode.desktop'))
+    directories.push(join(env.LOCALAPPDATA || join(home, 'AppData', 'Local'), 'opencode'))
+  } else if (osPlatform === 'darwin') {
     directories.push(join(home, 'Library', 'Application Support', 'ai.opencode.desktop'))
     directories.push(join(home, '.config', 'opencode'))
   } else {
     directories.push(join(home, '.config', 'ai.opencode.desktop'))
     directories.push(join(home, '.local', 'share', 'ai.opencode.desktop'))
   }
-  return uniquePaths(directories)
+  return uniquePaths(directories, osPlatform === 'win32')
 }
 
 export function getOpencodeMessageDirCandidates(): string[] {
@@ -185,8 +216,8 @@ function listOpencodeDatabases(directory: string): string[] {
     )
     .map((entry) => join(directory, entry.name))
   return files.sort((left, right) => {
-    const leftDefault = left.endsWith(`${isWindows() ? '\\' : '/'}opencode.db`) ? 0 : 1
-    const rightDefault = right.endsWith(`${isWindows() ? '\\' : '/'}opencode.db`) ? 0 : 1
+    const leftDefault = basename(left) === 'opencode.db' ? 0 : 1
+    const rightDefault = basename(right) === 'opencode.db' ? 0 : 1
     return leftDefault - rightDefault || left.localeCompare(right)
   })
 }
@@ -197,38 +228,25 @@ function listOpencodeDatabases(directory: string): string[] {
  */
 export function getZCodeDbCandidates(): string[] {
   const home = homedir()
-  return [
-    join(home, '.zcode', 'cli', 'db', 'db.sqlite'),
-    join(home, '.zcode', 'cli', 'db', 'zcode.db'),
-  ]
+  return zCodeDatabaseCandidates(home)
 }
 
 /**
- * MiniMax Code 数据根目录：官方覆盖变量优先，其次默认目录、已有 profile 和旧目录。
- * 覆盖目录不排除默认历史数据；只枚举 home 的直接子目录，不递归查找数据库。
+ * MiniMax Code 数据根目录：官方覆盖变量、桌面端自定义目录及迁移前目录、默认历史。
+ * 只枚举已知数据父目录的直接 profile 子目录，不递归查找磁盘。
  */
-export function getMavisDataDirCandidates(): string[] {
-  const home = homedir()
-  const configured = process.env.MINIMAX_DATA_DIR?.trim() || process.env.MAVIS_DATA_DIR?.trim()
-  const roots = configured ? [resolveUserPath(configured)] : []
+export function getMavisDataDirCandidates(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+  osPlatform: NodeJS.Platform = platform(),
+): string[] {
+  const configured = env.MINIMAX_DATA_DIR?.trim() || env.MAVIS_DATA_DIR?.trim()
+  const roots = configured ? [resolveUserPath(configured, home)] : []
+  roots.push(...miniMaxDesktopDataRoots(home, env, osPlatform))
   roots.push(join(home, '.minimax'))
-  try {
-    const profiles = readdirSync(home, { withFileTypes: true })
-      .filter(
-        (entry) =>
-          entry.isDirectory() &&
-          entry.name.startsWith('.minimax-') &&
-          entry.name.length > '.minimax-'.length &&
-          entry.name !== '.minimax-code',
-      )
-      .map((entry) => entry.name)
-      .sort((left, right) => left.localeCompare(right))
-    roots.push(...profiles.map((name) => join(home, name)))
-  } catch {
-    // home 不可枚举时仍保留显式、默认和旧目录候选。
-  }
+  roots.push(...miniMaxProfileRoots(home))
   roots.push(join(home, '.minimax-code'), join(home, '.mavis'))
-  return uniquePaths(roots)
+  return uniquePaths(roots, osPlatform === 'win32')
 }
 
 /** MiniMax Code 新版 runtime 与早期 SQLite 数据库候选，逐根目录按版本排序。 */
@@ -260,8 +278,17 @@ export function getMavisConfigCandidates(dbPath?: string): string[] {
 }
 
 /** ~/.workbuddy */
+export function getWorkBuddyDirCandidates(): string[] {
+  const configured =
+    process.env.WORKBUDDY_CONFIG_DIR?.trim() || process.env.CODEBUDDY_CONFIG_DIR?.trim()
+  return uniquePaths([
+    ...(configured ? [resolveUserPath(configured)] : []),
+    join(homedir(), '.workbuddy'),
+  ])
+}
+
 export function getWorkBuddyDir(): string {
-  return join(homedir(), '.workbuddy')
+  return getWorkBuddyDirCandidates()[0]
 }
 
 /** ~/.workbuddy/workbuddy.db */
@@ -374,18 +401,23 @@ export interface KimiCodeSessionsSource {
 }
 
 /** Kimi Code 新版与旧 Kimi CLI 会话目录；二者统一归入独立的 kimi-code Agent。 */
-export function getKimiCodeSessionsSources(): KimiCodeSessionsSource[] {
-  const configuredCodeHome = process.env.KIMI_CODE_HOME?.trim()
+export function getKimiCodeSessionsSources(
+  home = homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): KimiCodeSessionsSource[] {
+  const configuredCodeHome = env.KIMI_CODE_HOME?.trim()
   const codeHome = configuredCodeHome
-    ? resolveUserPath(configuredCodeHome)
-    : join(homedir(), '.kimi-code')
-  const configuredShareDir = process.env.KIMI_SHARE_DIR?.trim()
+    ? resolveUserPath(configuredCodeHome, home)
+    : join(home, '.kimi-code')
+  const configuredShareDir = env.KIMI_SHARE_DIR?.trim()
   const legacyHome = configuredShareDir
-    ? resolveUserPath(configuredShareDir)
-    : join(homedir(), '.kimi')
+    ? resolveUserPath(configuredShareDir, home)
+    : join(home, '.kimi')
   return uniqueSources([
     { dir: join(codeHome, 'sessions'), kind: 'kimi-code' },
+    { dir: join(home, '.kimi-code', 'sessions'), kind: 'kimi-code' },
     { dir: join(legacyHome, 'sessions'), kind: 'kimi-cli' },
+    { dir: join(home, '.kimi', 'sessions'), kind: 'kimi-cli' },
   ])
 }
 
@@ -657,13 +689,13 @@ export function getUsageDbFile(): string {
   return join(getAppDataDir(), 'usage.db')
 }
 
-function resolveUserPath(value: string): string {
+export function resolveUserPath(value: string, home = homedir()): string {
   const trimmed = value.trim()
   const expanded =
     trimmed === '~'
-      ? homedir()
+      ? home
       : trimmed.startsWith('~/') || trimmed.startsWith('~\\')
-        ? join(homedir(), trimmed.substring(2))
+        ? join(home, trimmed.substring(2))
         : trimmed
   return resolve(expanded)
 }
@@ -678,10 +710,10 @@ function uniqueSources<T extends { dir: string }>(sources: T[]): T[] {
   })
 }
 
-function uniquePaths(paths: string[]): string[] {
+function uniquePaths(paths: string[], windows = isWindows()): string[] {
   const seen = new Set<string>()
   return paths.filter((path) => {
-    const key = isWindows() ? path.toLowerCase() : path
+    const key = windows ? path.toLowerCase() : path
     if (seen.has(key)) return false
     seen.add(key)
     return true

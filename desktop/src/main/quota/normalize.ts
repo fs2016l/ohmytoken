@@ -111,6 +111,7 @@ function parseMiniMax(body: JsonObject, plan: TokenPlanInformation): TokenPlanWi
   const groups = rows(body.model_remains ?? data.model_remains)
   if (!groups.length) throw new Error('invalid_response')
   returnedTier(plan, data.plan_name ?? body.plan_name)
+  plan.expiresAt = timestamp(object(body.minimax_code_membership).token_plan_expires_at)
   const general = groups.find((row) => row.model_name === 'general')
   // 状态 1 正常、2 已耗尽、3 不限量；两个窗口都不限量且总量为 0 的通道不属于当前套餐。
   const counts = (row: JsonObject, prefix: string): Partial<TokenPlanWindowUsage> => {

@@ -5,6 +5,7 @@ import { userInfo } from 'node:os'
 import { accountDigest } from './accounts'
 import { requestQuotaJson } from './transport'
 import { object, textValue, type DiscoveredConnection } from './types'
+import { getZCodeDataRoot } from '../lib/zcode-storage'
 
 interface AccountLookupOptions {
   home: string
@@ -38,11 +39,7 @@ export function readZcodeCredential(value: unknown, secret: string): string | un
 
 async function loadLogin(options: AccountLookupOptions): Promise<string | undefined> {
   try {
-    const path = join(
-      options.env.ZCODE_HOME || join(options.home, '.zcode'),
-      'v2',
-      'credentials.json',
-    )
+    const path = join(getZCodeDataRoot(options.home, options.env), 'v2', 'credentials.json')
     if ((await stat(path)).size > 1024 * 1024) return undefined
     const entries = object(JSON.parse(await readFile(path, 'utf8')))
     const username = options.username ?? userInfo().username

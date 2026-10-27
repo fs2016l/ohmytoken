@@ -141,6 +141,8 @@ export class QuotaRefreshController {
         if (rediscover) {
           // Re-read the source Agent's login before a manual retry. Broadcast connection
           // metadata as well as quota so every window drops the previous expired state.
+          const previous = this.state.inventory.connections.find((row) => row.id === id)
+          const previousIds = new Set(this.state.inventory.connections.map((row) => row.id))
           const inventory = await this.deps.discover()
           const ids = new Set(inventory.connections.map((row) => row.id))
           const snapshots = new Map(inventory.snapshots.map((row) => [row.connectionId, row]))
@@ -153,6 +155,25 @@ export class QuotaRefreshController {
               snapshots.set(latest.connectionId, latest)
           }
           this.state.inventory = { ...inventory, snapshots: [...snapshots.values()] }
+          if (!ids.has(id)) {
+            const replacements = previous?.providerId
+              ? inventory.connections.filter(
+                  (row) =>
+                    !previousIds.has(row.id) &&
+                    row.providerId === previous.providerId &&
+                    row.region === previous.region &&
+                    row.authType === previous.authType &&
+                    row.scope === previous.scope &&
+                    (!previous.sources?.length ||
+                      previous.sources.some((source) => row.sources?.includes(source))),
+                )
+              : []
+            // A rotated opaque credential has a new ID. Follow only an unambiguous
+            // replacement from the same provider and source; never query the removed ID.
+            this.publish()
+            if (replacements.length === 1) await this.refreshConnection(replacements[0].id)
+            return
+          }
           this.publish()
         }
         const snapshot = await this.deps.query(id)

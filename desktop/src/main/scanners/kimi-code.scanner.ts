@@ -44,9 +44,14 @@ interface ParsedKimiCodeFile {
 export class KimiCodeScanner implements AgentScanner {
   private readonly latestTurns = new LatestTurnTracker()
   readonly agentName = 'kimi-code'
+  private readonly home: string | undefined
+
+  constructor(home?: string) {
+    this.home = home
+  }
 
   isAvailable(): boolean {
-    return getKimiCodeSessionsSources().some((source) => existsSync(source.dir))
+    return getKimiCodeSessionsSources(this.home).some((source) => existsSync(source.dir))
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -60,7 +65,7 @@ export class KimiCodeScanner implements AgentScanner {
     const titleBySessionId = new Map<string, string>()
     const timingByLogDirectory = new Map<string, KimiTimingIndex>()
 
-    for (const source of getKimiCodeSessionsSources()) {
+    for (const source of getKimiCodeSessionsSources(this.home)) {
       if (!existsSync(source.dir)) continue
       const modelNames =
         source.kind === 'kimi-code' ? readKimiCodeModelNames(source.dir) : new Map()
@@ -93,7 +98,11 @@ export class KimiCodeScanner implements AgentScanner {
             ? this.parseKimiCodeFile(file, source, fileContext, modelNames, timings)
             : this.parseLegacyKimiFile(file, source, scanContext)
         for (const call of parsed.apiCalls) mergeKimiCall(apiCallById, call)
-        if (parsed.title && parsed.apiCalls[0]) {
+        if (
+          parsed.title &&
+          parsed.apiCalls[0] &&
+          !titleBySessionId.has(parsed.apiCalls[0].sessionId)
+        ) {
           titleBySessionId.set(parsed.apiCalls[0].sessionId, parsed.title)
         }
       }

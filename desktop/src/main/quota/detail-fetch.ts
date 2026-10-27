@@ -19,7 +19,7 @@ export function detailSources(connection: DiscoveredConnection): QuotaDetailSour
     case 'deepseek':
       return []
     case 'minimax':
-      return ['minimax-billing']
+      return connection.miniMaxCode ? [] : ['minimax-billing']
     case 'anthropic':
       return ['claude-extra']
     case 'xai':

@@ -54,7 +54,12 @@ export class ClaudeCodeScanner implements AgentScanner {
   }
 
   isAvailable(): boolean {
-    return this.projectRoots().some((dir) => isDirectory(dir) && listJsonlFiles(dir).length > 0)
+    try {
+      return this.projectRoots().some((dir) => isDirectory(dir) && listJsonlFiles(dir).length > 0)
+    } catch {
+      // Let scanDetailed report the source error without committing a partial rebuild.
+      return true
+    }
   }
 
   private projectRoots(): readonly string[] {

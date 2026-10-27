@@ -1,12 +1,24 @@
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import Database from 'better-sqlite3'
+import { parseDocument } from 'yaml'
+import { parseJsonConfig } from '../lib/json-config'
 import type { TokenPlanProviderId } from '../../shared/token-plan'
+import {
+  getMavisDataDirCandidates,
+  getCodexHomeDir,
+  getOpencodeDataDirCandidates,
+  getOpencodeDbCandidates,
+  resolveUserPath,
+} from '../lib/paths'
+import { getZCodeDataRoot } from '../lib/zcode-storage'
 import { groupQuotaAccounts } from './accounts'
 import { kimiCodeHomes, kimiRegion } from './kimi-login'
 import { discoverAntigravityGrants } from './antigravity-credentials'
 import { readDeepSeekCredentials } from './deepseek-credentials'
+import { readMiniMaxCodeCredentials } from './minimax-code-credentials'
+import { readOpenCodeCredentials } from './opencode-credentials'
 import {
   jwtClaims,
   object,
@@ -89,50 +101,16 @@ function digest(value: string): string {
 }
 
 export function parseConfigJson(text: string): JsonObject {
-  let cleaned = ''
-  let quoted = false
-  let escaped = false
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i]
-    if (quoted) {
-      cleaned += char
-      if (escaped) escaped = false
-      else if (char === '\\') escaped = true
-      else if (char === '"') quoted = false
-    } else if (char === '"') {
-      quoted = true
-      cleaned += char
-    } else if (char === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\n') i++
-      cleaned += '\n'
-    } else if (char === '/' && text[i + 1] === '*') {
-      i += 2
-      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++
-      i++
-      cleaned += ' '
-    } else cleaned += char
-  }
-  let normalized = ''
-  let comma = -1
-  quoted = false
-  escaped = false
-  for (const char of cleaned) {
-    if (quoted) {
-      if (escaped) escaped = false
-      else if (char === '\\') escaped = true
-      else if (char === '"') quoted = false
-    } else if (char === '"') {
-      quoted = true
-      comma = -1
-    } else if (char === ',') comma = normalized.length
-    else if (!/\s/.test(char)) {
-      if ((char === '}' || char === ']') && comma >= 0)
-        normalized = normalized.slice(0, comma) + normalized.slice(comma + 1)
-      comma = -1
-    }
-    normalized += char
-  }
-  return object(JSON.parse(normalized.replace(/^\uFEFF/, '')))
+  return object(parseJsonConfig(text))
+}
+
+function parseConfigYaml(source: string): JsonObject {
+  const document = parseDocument(source, { prettyErrors: false, uniqueKeys: true })
+  if (document.errors.length || document.warnings.length) throw new Error('invalid_config')
+  const value: unknown = document.toJS({ maxAliasCount: 0 })
+  if (value === null) return {}
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid_config')
+  return object(value)
 }
 
 export async function discoverQuotaConnections(
@@ -145,14 +123,25 @@ export async function discoverQuotaConnections(
     if (!result.issues.some((item) => item.source === source && item.reason === reason))
       result.issues.push({ source, reason })
   }
-  const read = async (path: string, source: string): Promise<JsonObject> => {
+  const read = async (
+    path: string,
+    source: string,
+    format: 'json' | 'yaml' = 'json',
+  ): Promise<JsonObject> => {
     if (!result.checkedSources.includes(source)) result.checkedSources.push(source)
     try {
       if ((await stat(path)).size > 1024 * 1024) {
         issue(source, 'invalid_config')
         return {}
       }
-      return parseConfigJson(await readFile(path, 'utf8'))
+      const bytes = await readFile(path)
+      if (bytes.length > 1024 * 1024) {
+        issue(source, 'invalid_config')
+        return {}
+      }
+      return format === 'yaml'
+        ? parseConfigYaml(bytes.toString('utf8'))
+        : parseConfigJson(bytes.toString('utf8'))
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && code !== 'ENOTDIR')
@@ -188,6 +177,7 @@ export async function discoverQuotaConnections(
       accountId ?? '',
       fields.organizationId ?? '',
       fields.projectId ?? '',
+      ...(fields.miniMaxCode ? ['minimax-code-login'] : []),
     ].join(':')
     // 先收集凭据，随后按可确认的账户身份合并。
     const id = digest(`${scope}:${fingerprint}`).slice(0, 32)
@@ -267,6 +257,7 @@ export async function discoverQuotaConnections(
     config: JsonObject,
     auth: JsonObject = {},
     selections: JsonObject = {},
+    preferAuth = false,
   ): void => {
     environment(source, object(config.env))
     const entries = object(config.provider ?? object(config.models).providers)
@@ -288,9 +279,14 @@ export async function discoverQuotaConnections(
       }
       const destination = providerDestination(
         settings.baseURL ?? entry.baseUrl ?? entry.baseURL,
-        id,
+        source === 'OpenCode' ? (textValue(entry.canonical) ?? id) : id,
       )
-      const key = settings.apiKey ?? entry.apiKey ?? login.key
+      const key =
+        preferAuth && login.type === 'oauth'
+          ? undefined
+          : preferAuth
+            ? (login.key ?? settings.apiKey ?? entry.apiKey)
+            : (settings.apiKey ?? entry.apiKey ?? login.key)
       if (!destination) {
         if (key || login.access) issue(source, 'unsupported')
         continue
@@ -330,33 +326,83 @@ export async function discoverQuotaConnections(
     object((await read(join(claudeHome, 'settings.json'), 'Claude Code')).env),
   )
 
-  const codexHome = resolve(env.CODEX_HOME || join(home, '.codex'))
+  const codexHome = getCodexHomeDir(home, env)
   const codex = await read(join(codexHome, 'auth.json'), 'Codex')
   const tokens = object(codex.tokens)
   add('Codex', hosts['api.openai.com'], tokens.access_token, 'oauth', {
     accountId: textValue(tokens.account_id),
   })
 
-  const configRoot = env.XDG_CONFIG_HOME || join(home, '.config')
-  const dataRoot = env.XDG_DATA_HOME || join(home, '.local', 'share')
-  const opencodeConfig = await read(join(configRoot, 'opencode', 'opencode.json'), 'OpenCode')
-  const opencodeJsonc = await read(join(configRoot, 'opencode', 'opencode.jsonc'), 'OpenCode')
-  const override = env.OPENCODE_CONFIG ? await read(resolve(env.OPENCODE_CONFIG), 'OpenCode') : {}
+  const configRoot = env.OPENCODE_CONFIG_DIR?.trim()
+    ? resolveUserPath(env.OPENCODE_CONFIG_DIR, home)
+    : join(
+        env.XDG_CONFIG_HOME ? resolveUserPath(env.XDG_CONFIG_HOME, home) : join(home, '.config'),
+        'opencode',
+      )
+  const opencodeConfig = await read(join(configRoot, 'opencode.json'), 'OpenCode')
+  const opencodeJsonc = await read(join(configRoot, 'opencode.jsonc'), 'OpenCode')
+  const override = env.OPENCODE_CONFIG
+    ? await read(resolveUserPath(env.OPENCODE_CONFIG, home), 'OpenCode')
+    : {}
+  let inline: JsonObject = {}
+  if (env.OPENCODE_CONFIG_CONTENT) {
+    try {
+      inline = parseConfigJson(env.OPENCODE_CONFIG_CONTENT)
+    } catch {
+      issue('OpenCode', 'invalid_config')
+    }
+  }
+  const ocProviderConfig: JsonObject = {}
+  const ocEnvironment: JsonObject = {}
+  for (const config of [opencodeConfig, opencodeJsonc, override, inline]) {
+    Object.assign(ocEnvironment, object(config.env))
+    for (const entries of [object(config.provider), object(config.providers)]) {
+      for (const [id, value] of Object.entries(entries)) {
+        const previous = object(ocProviderConfig[id])
+        const entry = object(value)
+        ocProviderConfig[id] = {
+          ...previous,
+          ...entry,
+          options: {
+            ...object(previous.options),
+            ...object(entry.options),
+            ...object(entry.settings),
+          },
+        }
+      }
+    }
+  }
   const ocConfig = {
     ...opencodeConfig,
     ...opencodeJsonc,
     ...override,
-    provider: {
-      ...object(opencodeConfig.provider),
-      ...object(opencodeJsonc.provider),
-      ...object(override.provider),
-    },
+    ...inline,
+    env: ocEnvironment,
+    provider: ocProviderConfig,
   }
-  const ocPaths = [join(dataRoot, 'opencode'), join(home, '.local', 'share', 'opencode')]
-  if (options.platform === 'win32')
-    ocPaths.push(join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'ai.opencode.desktop'))
-  for (const path of new Set(ocPaths))
-    providers('OpenCode', ocConfig, await read(join(path, 'auth.json'), 'OpenCode'))
+  const ocPaths = getOpencodeDataDirCandidates(home, env, options.platform)
+  const ocDatabases = getOpencodeDbCandidates(home, env, options.platform)
+  const ocDatabaseOverride = env.OPENCODE_DB?.trim()
+  const ocInMemory = ocDatabaseOverride === ':memory:'
+  const comparablePath = (path: string): string =>
+    options.platform === 'win32' ? path.toLowerCase() : path
+  // Statistics retain historical copies; authentication follows only the current data root.
+  const ocCredentials = readOpenCodeCredentials(
+    ocDatabaseOverride
+      ? ocInMemory
+        ? []
+        : ocDatabases.slice(0, 1)
+      : ocDatabases.filter((path) => comparablePath(dirname(path)) === comparablePath(ocPaths[0])),
+  )
+  result.issues.push(...ocCredentials.issues)
+  if (ocInMemory) issue('OpenCode', 'unsupported')
+  if (ocCredentials.authoritative || ocInMemory) {
+    providers('OpenCode', ocConfig)
+    for (const entry of ocCredentials.entries)
+      providers('OpenCode', ocConfig, { [entry.provider]: entry.auth }, {}, true)
+  } else
+    for (const path of env.XDG_DATA_HOME?.trim() ? ocPaths.slice(0, 1) : ocPaths)
+      providers('OpenCode', ocConfig, await read(join(path, 'auth.json'), 'OpenCode'))
   if (env.OPENCODE_AUTH_CONTENT) {
     try {
       providers('OpenCode', ocConfig, parseConfigJson(env.OPENCODE_AUTH_CONTENT))
@@ -365,10 +411,14 @@ export async function discoverQuotaConnections(
     }
   }
 
-  const zcodeHome = resolve(env.ZCODE_HOME || join(home, '.zcode'))
-  const zcode = await read(join(zcodeHome, 'v2', 'config.json'), 'ZCode')
-  const zcodeSettings = await read(join(zcodeHome, 'v2', 'setting.json'), 'ZCode')
-  providers('ZCode', zcode, {}, object(zcodeSettings.modelProviderFamilySelectedKeys))
+  try {
+    const zcodeHome = getZCodeDataRoot(home, env)
+    const zcode = await read(join(zcodeHome, 'v2', 'config.json'), 'ZCode')
+    const zcodeSettings = await read(join(home, '.zcode', 'v2', 'setting.json'), 'ZCode')
+    providers('ZCode', zcode, {}, object(zcodeSettings.modelProviderFamilySelectedKeys))
+  } catch {
+    issue('ZCode', 'invalid_config')
+  }
 
   const mmx = await read(
     join(env.MMX_CONFIG_DIR || join(home, '.mmx'), 'config.json'),
@@ -384,8 +434,30 @@ export async function discoverQuotaConnections(
     add('MiniMax CLI', mmxDestination, object(mmx.oauth).access_token, 'oauth', {
       expiresAt: timestamp(object(mmx.oauth).expires_at) ?? undefined,
     })
-  for (const path of [join(home, '.mavis', 'config.json'), join(home, '.minimax', 'config.json')]) {
-    providers('MiniMax Code', await read(path, 'MiniMax Code'))
+  const miniMaxRoots = getMavisDataDirCandidates(home, env, options.platform)
+  const miniMaxLogin = await readMiniMaxCodeCredentials(home, env, options.platform, miniMaxRoots)
+  result.issues.push(...miniMaxLogin.issues)
+  for (const credential of miniMaxLogin.credentials)
+    add(
+      'MiniMax Code',
+      { providerId: 'minimax', region: credential.region },
+      credential.token,
+      'oauth',
+      { miniMaxCode: true, expiresAt: credential.expiresAt },
+    )
+  for (const root of miniMaxRoots) {
+    providers('MiniMax Code', await read(join(root, 'config.json'), 'MiniMax Code'))
+    const config = await read(join(root, 'config.yaml'), 'MiniMax Code', 'yaml')
+    providers('MiniMax Code', config)
+    providers('MiniMax Code', { provider: object(config.custom_provider) })
+    const api = object(config.minimax_api)
+    if (api.apiKey) {
+      // 缺省端点取决于 MiniMax 构建的地区，不能将未知地区的 Key 发往猜测的端点。
+      const destination = providerDestination(api.baseURL)
+      if (destination?.providerId === 'minimax')
+        add('MiniMax Code', destination, api.apiKey, 'api-key')
+      else issue('MiniMax Code', 'unsupported')
+    }
   }
   for (const root of kimiCodeHomes(home, env)) {
     const kimi = await read(join(root, 'credentials', 'kimi-code.json'), 'Kimi Code')

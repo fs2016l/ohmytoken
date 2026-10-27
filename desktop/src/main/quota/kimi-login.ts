@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { resolveUserPath } from '../lib/paths'
 
 type Region = 'cn' | 'global'
 
@@ -11,12 +12,9 @@ export function kimiRegion(value: unknown): Region | undefined {
 export function kimiCodeHomes(home: string, env: NodeJS.ProcessEnv): string[] {
   return [
     ...new Set(
-      [
-        env.KIMI_CODE_HOME,
-        env.KIMI_SHARE_DIR,
-        join(home, '.kimi-code'),
-        join(home, '.kimi'),
-      ].filter((path): path is string => Boolean(path)),
+      [env.KIMI_CODE_HOME, env.KIMI_SHARE_DIR, join(home, '.kimi-code'), join(home, '.kimi')]
+        .filter((path): path is string => Boolean(path?.trim()))
+        .map((path) => resolveUserPath(path, home)),
     ),
   ]
 }

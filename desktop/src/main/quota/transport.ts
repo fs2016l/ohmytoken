@@ -3,6 +3,7 @@ import { object, textValue } from './types'
 import { isQuotaRegionError, QuotaQueryError } from './query-error'
 import { assertQuotaRegionAllowed, withQuotaRegionCheck } from './region-guard'
 import { fetchAntigravityQuota } from './antigravity-fetch'
+import { fetchMiniMaxCodeQuota } from './minimax-code-fetch'
 
 export { QuotaQueryError } from './query-error'
 
@@ -10,6 +11,9 @@ const HOSTS = new Set([
   'www.minimaxi.com',
   'api.minimaxi.com',
   'api.minimax.io',
+  'platform.minimax.io',
+  'agent.minimaxi.com',
+  'agent.minimax.io',
   'open.bigmodel.cn',
   'bigmodel.cn',
   'api.z.ai',
@@ -186,6 +190,8 @@ async function fetchQuota(
   const cn = connection.public.region === 'cn'
   switch (connection.public.providerId) {
     case 'minimax': {
+      if (connection.miniMaxCode)
+        return fetchMiniMaxCodeQuota(connection, fetcher, requestQuotaJson)
       const response = await request(
         cn
           ? 'https://www.minimaxi.com/v1/token_plan/remains'

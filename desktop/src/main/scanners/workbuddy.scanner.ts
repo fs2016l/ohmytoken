@@ -25,7 +25,7 @@ import type {
   TokenUsageApiCall,
   TokenUsageRecord,
 } from './types'
-import { getWorkBuddyDb, getWorkBuddyProjectsDir, getWorkBuddyTracesDir } from '../lib/paths'
+import { getWorkBuddyDb, getWorkBuddyTracesDir, getWorkBuddyDirCandidates } from '../lib/paths'
 import { formatDateFromMs } from '../lib/date-utils'
 import Database from 'better-sqlite3'
 import {
@@ -41,6 +41,7 @@ import { normalizeScanContext } from './incremental-utils'
 import { loadWorkBuddyProjectScan, normalizeWorkBuddyModel } from './workbuddy-jsonl'
 import { extractProjectPath, normalizeCollectedProjectPath } from './project-path'
 import { tokenBuckets, tokenCount } from './token-usage'
+import { mergeLatestTurnStates } from './latest-turn-tracker'
 
 /** better-sqlite3 查询值类型 */
 type DbValue = number | string | bigint | Uint8Array | null
@@ -62,10 +63,8 @@ export class WorkBuddyScanner implements AgentScanner {
   readonly agentName = 'workbuddy'
 
   isAvailable(): boolean {
-    return (
-      existsSync(getWorkBuddyDb()) ||
-      existsSync(getWorkBuddyProjectsDir()) ||
-      existsSync(getWorkBuddyTracesDir())
+    return getWorkBuddyDirCandidates().some((root) =>
+      ['workbuddy.db', 'projects', 'traces'].some((name) => existsSync(join(root, name))),
     )
   }
 
@@ -78,23 +77,48 @@ export class WorkBuddyScanner implements AgentScanner {
     const scanContext = normalizeScanContext(context)
 
     // 1. 从 sessions 表获取 session 信息（id → date, model）
-    const sessions = await this.loadSessions()
-    const projectScan = loadWorkBuddyProjectScan(this.agentName, sessions, scanContext)
-    const traceApiCallEntries = this.loadTraceApiCalls(sessions, scanContext)
-    const apiCalls = reconcileApiCallSources(
-      projectScan.apiCalls,
-      traceApiCallEntries,
-      projectScan.coveredRootSessionIds,
+    const roots = getWorkBuddyDirCandidates()
+    const sessions = new Map<string, SessionInfo>()
+    for (const root of roots)
+      for (const [id, session] of await this.loadSessions(join(root, 'workbuddy.db')))
+        if (!sessions.has(id)) sessions.set(id, session)
+    const projects = roots.map((root) =>
+      loadWorkBuddyProjectScan(this.agentName, sessions, scanContext, join(root, 'projects')),
     )
-    const coveredDetailedSessions = new Set(projectScan.coveredRootSessionIds)
+    const uniqueCalls = (calls: TokenUsageApiCall[]): TokenUsageApiCall[] => {
+      const seen = new Map<string, TokenUsageApiCall>()
+      for (const call of calls) {
+        const previous = seen.get(call.apiCallId)
+        if (previous && previous.sessionId !== call.sessionId)
+          throw new Error('WorkBuddy 多个目录的同一调用标识指向不同会话')
+        if (!previous) seen.set(call.apiCallId, call)
+      }
+      return [...seen.values()]
+    }
+    const coveredRoots = new Set(projects.flatMap((batch) => [...batch.coveredRootSessionIds]))
+    const traceApiCallEntries = roots.flatMap((root) =>
+      this.loadTraceApiCalls(sessions, scanContext, join(root, 'traces')),
+    )
+    const traceByCall = new Map(traceApiCallEntries.map((entry) => [entry.apiCall, entry]))
+    const traceEntries = uniqueCalls(traceApiCallEntries.map((entry) => entry.apiCall)).map(
+      (call) => traceByCall.get(call)!,
+    )
+    const apiCalls = reconcileApiCallSources(
+      uniqueCalls(projects.flatMap((batch) => batch.apiCalls)),
+      traceEntries,
+      coveredRoots,
+    )
+    const coveredDetailedSessions = new Set(coveredRoots)
     for (const apiCall of apiCalls) {
       coveredDetailedSessions.add(apiCall.rootSessionId ?? apiCall.sessionId)
       coveredDetailedSessions.add(apiCall.sessionId)
     }
     apiCalls.push(
-      ...this.loadSessionUsageApiCalls(sessions).filter(
-        (apiCall) => !coveredDetailedSessions.has(apiCall.sessionId),
-      ),
+      ...uniqueCalls(
+        roots.flatMap((root) =>
+          this.loadSessionUsageApiCalls(sessions, join(root, 'workbuddy.db')),
+        ),
+      ).filter((apiCall) => !coveredDetailedSessions.has(apiCall.sessionId)),
     )
     // project JSONL 已在解析时按事件窗口过滤。trace 是会持续改写的累计快照：
     // 只要文件 mtime 命中窗口，就保留其原始 startedAt 与稳定文件 ID做 upsert；
@@ -110,16 +134,17 @@ export class WorkBuddyScanner implements AgentScanner {
     applySessionTitles(detailSessions, titleBySessionId)
     records.push(...buildRecordsFromSessions(this.agentName, detailSessions))
 
-    return { records, sessions: detailSessions, apiCalls, latestTurns: projectScan.latestTurns }
+    const latestTurns = mergeLatestTurnStates(projects.flatMap((batch) => batch.latestTurns))
+    return { records, sessions: detailSessions, apiCalls, latestTurns }
   }
 
   private loadTraceApiCalls(
     sessions: Map<string, SessionInfo>,
     context: ScannerScanContext,
+    tracesDir = getWorkBuddyTracesDir(),
   ): TraceApiCallEntry[] {
     void context
     const entries: TraceApiCallEntry[] = []
-    const tracesDir = getWorkBuddyTracesDir()
     if (!existsSync(tracesDir)) return entries
 
     let pidDirs: Dirent[] = []
@@ -243,8 +268,8 @@ export class WorkBuddyScanner implements AgentScanner {
    */
   private loadSessionUsageApiCalls(
     sessions: ReadonlyMap<string, SessionInfo>,
+    dbPath = getWorkBuddyDb(),
   ): TokenUsageApiCall[] {
-    const dbPath = getWorkBuddyDb()
     if (!existsSync(dbPath)) return []
     let db: Database.Database | null = null
     try {
@@ -298,9 +323,8 @@ export class WorkBuddyScanner implements AgentScanner {
    *  - 文件存在但读取失败（DB 损坏）→ 抛 Error('WorkBuddy DB 不可读')，
    *    让 scan.service 的 errors 数组捕获并反馈给 UI，避免用户误以为无数据
    */
-  private async loadSessions(): Promise<Map<string, SessionInfo>> {
+  private async loadSessions(dbPath = getWorkBuddyDb()): Promise<Map<string, SessionInfo>> {
     const sessions = new Map<string, SessionInfo>()
-    const dbPath = getWorkBuddyDb()
 
     // 文件不存在视为正常（用户未使用 WorkBuddy），返回空 map
     if (!existsSync(dbPath)) return sessions

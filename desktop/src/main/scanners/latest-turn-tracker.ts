@@ -1,6 +1,21 @@
 import type { SessionTurnState, SessionTurnStatus } from '../../shared/models'
 import { timestampEpochMs } from '../lib/date-utils'
 
+/** Merge migrated lifecycle snapshots by native turn time; earlier sources win exact ties. */
+export function mergeLatestTurnStates(states: readonly SessionTurnState[]): SessionTurnState[] {
+  const latest = new Map<string, SessionTurnState>()
+  for (const state of states) {
+    const previous = latest.get(state.sessionId)
+    if (
+      !previous ||
+      state.startedAtMs > previous.startedAtMs ||
+      (state.turnId === previous.turnId && state.updatedAtMs > previous.updatedAtMs)
+    )
+      latest.set(state.sessionId, state)
+  }
+  return [...latest.values()]
+}
+
 export function turnStatusFromReason(reason: unknown): SessionTurnStatus | undefined {
   const value = String(reason ?? '').toLowerCase()
   if (['completed', 'complete', 'end_turn', 'stop', 'success', 'succeeded', 'done'].includes(value))

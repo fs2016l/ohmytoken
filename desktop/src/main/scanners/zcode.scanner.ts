@@ -34,6 +34,7 @@ import type {
 import { normalizeZCodeTokenBuckets } from './zcode-usage'
 import { zCodeGenerationTiming } from './zcode-generation-timing'
 import { zCodeTurnReader, type ZCodeTurnReader } from './zcode-turns'
+import { mergeLatestTurnStates } from './latest-turn-tracker'
 
 type DbValue = number | string | bigint | Uint8Array | null | undefined
 type QueryParam = string | number | bigint | null
@@ -41,12 +42,16 @@ type QueryParam = string | number | bigint | null
 export class ZCodeScanner implements AgentScanner {
   readonly agentName = 'zcode'
 
-  private resolveDbPath(): string | null {
-    return getZCodeDbCandidates().find(existsSync) ?? null
+  private resolveDbPaths(): string[] {
+    return getZCodeDbCandidates().filter(existsSync)
   }
 
   isAvailable(): boolean {
-    return this.resolveDbPath() !== null
+    try {
+      return this.resolveDbPaths().length > 0
+    } catch {
+      return true
+    }
   }
 
   async scan(context?: ScannerScanContext): Promise<TokenUsageRecord[]> {
@@ -55,9 +60,52 @@ export class ZCodeScanner implements AgentScanner {
 
   async scanDetailed(context?: ScannerScanContext): Promise<ScannerUsageDetails> {
     const scanContext = normalizeScanContext(context)
-    const dbPath = this.resolveDbPath()
-    if (!dbPath) return { records: [], sessions: [], apiCalls: [] }
+    const paths = this.resolveDbPaths()
+    if (!paths.length) return { records: [], sessions: [], apiCalls: [] }
+    if (paths.length === 1) return this.scanDatabase(paths[0], scanContext)
+    const calls = new Map<string, TokenUsageApiCall>()
+    const metadata = new Map<string, TokenUsageSession>()
+    const turns: NonNullable<ScannerUsageDetails['latestTurns']> = []
+    for (const path of paths) {
+      const details = this.scanDatabase(path, scanContext)
+      for (const call of details.apiCalls) {
+        const previous = calls.get(call.apiCallId)
+        if (previous && previous.sessionId !== call.sessionId)
+          throw new Error('ZCode 多个数据库的同一调用标识指向不同会话')
+        if (!previous) calls.set(call.apiCallId, call)
+      }
+      for (const session of details.sessions)
+        if (!metadata.has(session.sessionId)) metadata.set(session.sessionId, session)
+      turns.push(...(details.latestTurns ?? []))
+    }
+    const apiCalls = [...calls.values()]
+    const sessions = buildSessionsFromApiCalls(this.agentName, apiCalls)
+    for (const session of sessions) {
+      const meta = metadata.get(session.sessionId)
+      if (meta)
+        for (const key of [
+          'title',
+          'parentSessionId',
+          'rootSessionId',
+          'subAgentName',
+          'projectPath',
+        ] as const)
+          if (meta[key]) session[key] = meta[key]
+    }
+    const usedSessionIds = new Set(sessions.map((session) => session.sessionId))
+    sessions.push(...[...metadata.values()].filter((meta) => !usedSessionIds.has(meta.sessionId)))
+    return {
+      records: buildRecordsFromSessions(
+        this.agentName,
+        sessions.filter((session) => session.totalTokens > 0),
+      ),
+      sessions,
+      apiCalls,
+      latestTurns: mergeLatestTurnStates(turns),
+    }
+  }
 
+  private scanDatabase(dbPath: string, scanContext: ScannerScanContext): ScannerUsageDetails {
     let db: Database.Database | null = null
     try {
       db = new Database(dbPath, { readonly: true })
