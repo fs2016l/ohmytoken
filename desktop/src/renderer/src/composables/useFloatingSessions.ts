@@ -145,6 +145,7 @@ export function useFloatingSessions() {
   const latestPool = ref<FloatingSessionItem[]>([])
   const liveSessions = ref(new Map<string, FloatingSessionItem>())
   const tokenDeltas = ref(new Map<string, number>())
+  const latestTurnTokenDeltas = ref(new Map<string, number>())
   const isRefreshing = ref(false)
   const loadFailed = ref(false)
   const unavailableKeys = ref(new Set<string>())
@@ -339,10 +340,21 @@ export function useFloatingSessions() {
       }
 
       const nextDeltas = new Map<string, number>()
+      const nextTurnDeltas = new Map<string, number>()
       for (const [key, session] of freshMap) {
         const previous = previousTotals.get(key)
         if (previous != null && session.totalTokens > previous) {
           nextDeltas.set(key, session.totalTokens - previous)
+        }
+        const turn = session.latestTurn
+        if (previous != null && turn?.usageAvailable) {
+          const previousTurn = liveSessions.value.get(key)?.latestTurn
+          const previousTurnTotal =
+            previousTurn?.sessionId === turn.sessionId && previousTurn.turnId === turn.turnId
+              ? previousTurn.totalTokens
+              : 0
+          if (turn.totalTokens > previousTurnTotal)
+            nextTurnDeltas.set(key, turn.totalTokens - previousTurnTotal)
         }
         previousTotals.set(key, session.totalTokens)
       }
@@ -358,6 +370,7 @@ export function useFloatingSessions() {
         pinnedRecords.value.filter((item) => !freshMap.has(item.key)).map((item) => item.key),
       )
       tokenDeltas.value = nextDeltas
+      latestTurnTokenDeltas.value = nextTurnDeltas
       pinnedRecords.value = pinnedRecords.value.map((record) => {
         const fresh = freshMap.get(record.key)
         return fresh ? { ...record, snapshot: fresh } : record
@@ -402,6 +415,7 @@ export function useFloatingSessions() {
     pinnedSessions,
     latestSessions,
     tokenDeltas,
+    latestTurnTokenDeltas,
     isRefreshing,
     loadFailed,
     hasSessions,

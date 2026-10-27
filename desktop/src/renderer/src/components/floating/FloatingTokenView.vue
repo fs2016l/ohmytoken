@@ -53,6 +53,7 @@ const {
   pinnedSessions,
   latestSessions,
   tokenDeltas,
+  latestTurnTokenDeltas,
   missingPinned,
   unavailableKeys,
   favoriteError,
@@ -321,7 +322,9 @@ onUnmounted(() => {
           pinned
           :dragging="dragging === session.key"
           :drop-position="dropTarget?.key === session.key ? dropTarget.position : null"
-          :delta="tokenDeltas.get(session.key)"
+          :delta="
+            (pinnedTurnScope === 'latest' ? latestTurnTokenDeltas : tokenDeltas).get(session.key)
+          "
           :now="now"
           :unavailable="unavailableKeys.has(session.key)"
           @drag-start="dragging = $event"
@@ -370,7 +373,9 @@ onUnmounted(() => {
           :key="session.key"
           :session="session"
           :pinned="false"
-          :delta="tokenDeltas.get(session.key)"
+          :delta="
+            (latestTurnScope === 'latest' ? latestTurnTokenDeltas : tokenDeltas).get(session.key)
+          "
           :now="now"
         />
         <p v-if="!latestSessions.length" class="floating-empty">

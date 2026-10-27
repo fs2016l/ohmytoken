@@ -43,6 +43,13 @@ import { usageEvidence } from '../cost/usage-evidence'
 import { kimiConversationTurn, type ConversationTurn } from './conversation-turn'
 import { LatestTurnTracker, turnStatusFromReason } from './latest-turn-tracker'
 import { kimiWireGenerationTiming } from './kimi-wire-timing'
+import {
+  kimiGenerationTimingFiles,
+  kimiTimingRequest,
+  matchKimiGenerationTiming,
+  readKimiGenerationTimings,
+  type KimiTimingIndex,
+} from './kimi-generation-timing'
 import { readKimiWorkSessionTitles, readKimiWorkTitleOverrides } from './kimiwork-session-titles'
 
 interface ParsedKimiSession {
@@ -88,16 +95,26 @@ export class KimiWorkScanner implements AgentScanner {
 
     const parsedFiles: ParsedKimiSession[] = []
     const nativeTitles = new Map<string, string>()
+    const timingByLogDirectory = new Map<string, KimiTimingIndex>()
     for (const source of this.sessionSources().filter((candidate) => existsSync(candidate.dir))) {
       for (const [sessionId, title] of readKimiWorkSessionTitles(source.dir))
         if (!nativeTitles.has(sessionId)) nativeTitles.set(sessionId, title)
-      const wireFiles = listWireJsonlFiles(source.dir).filter((file) =>
-        shouldScanFile(file, scanContext),
-      )
-      for (const file of wireFiles) {
+      for (const file of listWireJsonlFiles(source.dir)) {
+        const timingFiles = kimiGenerationTimingFiles(file)
+        if (
+          !shouldScanFile(file, scanContext) &&
+          !timingFiles.some((timingFile) => shouldScanFile(timingFile, scanContext))
+        )
+          continue
         const resolved = resolveKimiSessionMeta(file, source)
         if (resolved === null) continue
-        parsedFiles.push(this.parseWireFile(file, source.dir, resolved, scanContext))
+        const timingKey = timingFiles[0] ? dirname(timingFiles[0]) : file
+        let timings = timingByLogDirectory.get(timingKey)
+        if (!timings) {
+          timings = readKimiGenerationTimings(timingFiles)
+          timingByLogDirectory.set(timingKey, timings)
+        }
+        parsedFiles.push(this.parseWireFile(file, source.dir, resolved, scanContext, timings))
       }
     }
     const merged = mergeKimiWorkSessions(parsedFiles)
@@ -117,6 +134,7 @@ export class KimiWorkScanner implements AgentScanner {
     sessionsDir: string,
     resolved: ResolvedKimiSession,
     context: ScannerScanContext,
+    timings: KimiTimingIndex = new Map(),
   ): ParsedKimiSession {
     const apiCalls: TokenUsageApiCall[] = []
     const sessionId = resolved.sessionId
@@ -124,6 +142,10 @@ export class KimiWorkScanner implements AgentScanner {
     let projectPath = resolved.projectPath || ''
     let turn: ConversationTurn | undefined
     let completedStep: Record<string, unknown> | undefined
+    let request: Record<string, unknown> | undefined
+    let pendingUsage:
+      | { value: Record<string, unknown>; call: TokenUsageApiCall; request?: typeof request }
+      | undefined
     try {
       for (const { line, lineIndex } of readUtf8Lines(file)) {
         if (line.length === 0) continue
@@ -144,11 +166,34 @@ export class KimiWorkScanner implements AgentScanner {
           continue
         }
         if (!isObject(obj)) continue
-        if (obj.type === 'llm.request' || obj.type === 'turn.prompt' || obj.type === 'turn.steer')
+        if (obj.type === 'llm.request' || obj.type === 'turn.prompt' || obj.type === 'turn.steer') {
           completedStep = undefined
+          pendingUsage = undefined
+          request = obj.type === 'llm.request' ? obj : undefined
+        }
         if (obj.type === 'context.append_loop_event' && isObject(obj.event)) {
-          if (obj.event.type === 'step.end') completedStep = obj
-          else if (obj.event.type === 'step.start') completedStep = undefined
+          if (obj.event.type === 'step.end') {
+            if (pendingUsage) {
+              const timing = pendingUsage.request
+                ? kimiWireGenerationTiming(obj, pendingUsage.value, pendingUsage.request)
+                : undefined
+              if (timing) pendingUsage.call.generationTiming = timing
+              if (
+                timing &&
+                !isApiCallInWindow(pendingUsage.call, context) &&
+                context.sinceMs !== undefined &&
+                typeof obj.time === 'number' &&
+                obj.time >= context.sinceMs
+              )
+                apiCalls.push(pendingUsage.call)
+              pendingUsage = undefined
+              completedStep = undefined
+            } else completedStep = obj
+          } else if (obj.event.type === 'step.start' || obj.event.type === 'step.begin') {
+            completedStep = undefined
+            pendingUsage = undefined
+            request = undefined
+          }
         }
         turn = kimiConversationTurn(turn, obj, `prompt:${relative(sessionsDir, file)}:${lineIndex}`)
         if (['turn.prompt', 'turn.steer'].includes(String(obj.type)) && turn?.userInitiated)
@@ -169,6 +214,9 @@ export class KimiWorkScanner implements AgentScanner {
         if (obj.usageScope === 'session') continue
         const timing = kimiWireGenerationTiming(completedStep, obj)
         completedStep = undefined
+        pendingUsage = undefined
+        const timingRequest = request
+        request = undefined
 
         const model: string = typeof obj.model === 'string' ? obj.model : 'unknown'
         const time = toLong(obj.time)
@@ -204,10 +252,18 @@ export class KimiWorkScanner implements AgentScanner {
           hour: hourFromTimestamp(timestamp),
           model,
           evidence: usageEvidence(),
-          ...(timing ? { generationTiming: timing } : {}),
+          generationTiming:
+            timing ??
+            matchKimiGenerationTiming(
+              timings,
+              timingRequest ? kimiTimingRequest(timingRequest, file) : undefined,
+              obj,
+              buckets.outputTokens,
+            ),
           // inputOther 与 inputCacheRead 独立，total 包含 cacheRead/cacheWrite。
           ...buckets,
         }
+        if (!timing) pendingUsage = { value: obj, call: apiCall, request: timingRequest }
         // wire.jsonl 可能长期追加；边读边丢弃窗口外调用，内存只随本次窗口增长。
         if (isApiCallInWindow(apiCall, context)) apiCalls.push(apiCall)
       }

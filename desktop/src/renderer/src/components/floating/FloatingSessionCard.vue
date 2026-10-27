@@ -150,7 +150,7 @@ const relativeActivity = computed(() => {
       :sample="session.latestGeneration"
       :turn-first-token="session.latestTurnFirstToken"
       :agent="session.agent"
-      :token-delta="session.turnScope === 'latest' ? undefined : delta"
+      :token-delta="delta"
       :motion-available="!unavailable && !dragging"
       floating
     />

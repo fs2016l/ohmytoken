@@ -230,6 +230,8 @@ const frameStyle = computed(() => {
     width: view.width + 'px',
     height: view.height + 'px',
     clipPath: overlay.value.modal ? 'none' : `path("${path}")`,
+    // A dialog's top layer stays inside its iframe; lift the frame above native header controls too.
+    zIndex: overlay.value.modal ? 200 : 30,
   }
 })
 watch(

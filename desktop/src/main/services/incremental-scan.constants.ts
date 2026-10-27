@@ -46,7 +46,8 @@ const AGENT_SCANNER_REVISIONS: Readonly<Record<string, number>> = {
   // 及其 semantics.origin 回填对话次数，不改变 Token 计量。
   zcode: 6,
   // 从桌面端逻辑会话索引及手动重命名回填标题，替换内核中的技能注入提示。
-  kimiwork: 6,
+  // 版本 7 兼容先用量后 step.end 的原生计时，并按请求关联响应日志。
+  kimiwork: 7,
   // 回填新版带 PID / MODEL_REQUEST 标记、逐调用 messageId 的原生计时。
   workbuddy: 7,
   // 读取助手消息已有的原生单次生成计时，保留会话累计用量口径。
