@@ -1,6 +1,15 @@
 export type DiagnosticReportType = 'crash' | 'renderer' | 'update' | 'ipc' | 'manual'
 export type DiagnosticSeverity = 'warning' | 'error' | 'fatal'
 
+export interface DiagnosticRuntimeSnapshot {
+  appVersion: string
+  platform: string
+  arch: string
+  osVersion: string
+  electronVersion: string
+  environment: 'production' | 'development'
+}
+
 export interface DiagnosticErrorPayload {
   reportType?: DiagnosticReportType
   source: string
@@ -11,6 +20,8 @@ export interface DiagnosticErrorPayload {
   stack?: string
   context?: Record<string, unknown>
   occurredAt?: number
+  /** Captured by the main process at occurrence time, including for delayed uploads. */
+  runtime?: DiagnosticRuntimeSnapshot
 }
 
 export interface DiagnosticUploadOptions {

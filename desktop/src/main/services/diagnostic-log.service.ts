@@ -9,15 +9,23 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'fs'
-import { homedir } from 'os'
+import { homedir, release } from 'os'
 import { join } from 'path'
-import { app, dialog, shell, type BrowserWindow, type MessageBoxOptions } from 'electron'
+import {
+  app,
+  dialog,
+  powerMonitor,
+  shell,
+  type BrowserWindow,
+  type MessageBoxOptions,
+} from 'electron'
 import type {
   DiagnosticErrorPayload,
   DiagnosticUploadOptions,
   DiagnosticManualUploadResult,
   DiagnosticUploadResult,
   DiagnosticUploadState,
+  DiagnosticRuntimeSnapshot,
 } from '../../shared/diagnostics'
 import type { AgentRequestIdentity } from '../../shared/agent-client'
 import { agentIdentityHeaders } from '../../shared/agent-client'
@@ -26,9 +34,11 @@ import { getAccessToken } from './auth.service'
 import { ensureAgentClientRegistered } from './client-registration.service'
 import {
   redactDiagnosticText as redactText,
+  summarizeDiagnosticError,
   type DiagnosticRedactionOptions,
 } from './diagnostic-redaction'
 import { resolveDesktopApiUrl } from './runtime-config.service'
+import { classifyProcessExit, type ProcessExitDetails } from './diagnostic-policy'
 
 const MAX_LOG_FILE_BYTES = 5 * 1024 * 1024
 const MAX_MANUAL_UPLOAD_LOG_BYTES = MAX_LOG_FILE_BYTES
@@ -63,6 +73,7 @@ let currentLogBytes = 0
 let initialized = false
 let consoleInstalled = false
 let globalHandlersInstalled = false
+let shuttingDown = false
 let getMainWindow: MainWindowGetter = () => null
 let lastError: DiagnosticErrorPayload | null = null
 let diagnosticUploadState: StoredDiagnosticUploadState = createDefaultDiagnosticUploadState()
@@ -516,7 +527,7 @@ export function registerGlobalDiagnosticHandlers(): void {
 export function initializeDiagnosticLogging(windowGetter: MainWindowGetter): void {
   if (initialized) return
   getMainWindow = windowGetter
-  logDirectory = join(app.getPath('userData'), 'logs')
+  logDirectory = join(app.getPath('userData'), app.isPackaged ? 'logs' : 'logs-development')
   logFile = join(logDirectory, 'agent.log')
 
   try {
@@ -534,26 +545,11 @@ export function initializeDiagnosticLogging(windowGetter: MainWindowGetter): voi
 
   recordDiagnosticEvent('app', 'started', '应用启动')
 
+  app.on('before-quit', markDiagnosticShutdown)
+  powerMonitor.on('shutdown', markDiagnosticShutdown)
+
   app.on('child-process-gone', (_event, details) => {
-    if (details.reason === 'clean-exit') return
-    reportDiagnosticError(
-      {
-        reportType: 'crash',
-        source: 'electron-child',
-        stage: details.type,
-        severity: details.reason === 'crashed' ? 'fatal' : 'error',
-        summary: 'Electron 子进程异常退出',
-        message: `${details.type} process ${details.reason} (exitCode=${details.exitCode})`,
-        context: {
-          type: details.type,
-          reason: details.reason,
-          exitCode: details.exitCode,
-          serviceName: details.serviceName,
-          name: details.name,
-        },
-      },
-      { autoUpload: true, persistPending: true },
-    )
+    reportProcessExit('electron-child', details)
   })
 
   const pending = readPendingError()
@@ -565,6 +561,52 @@ export function initializeDiagnosticLogging(windowGetter: MainWindowGetter): voi
   }
   if (pending) {
     setTimeout(() => scheduleAutomaticUpload(pending), 1_500)
+  }
+}
+
+export function markDiagnosticShutdown(): void {
+  shuttingDown = true
+}
+
+export function isDiagnosticShutdown(): boolean {
+  return shuttingDown
+}
+
+/** Returns whether this exit needs attention/recovery, rather than being an expected shutdown. */
+export function reportProcessExit(
+  source: 'electron-child' | 'renderer-process',
+  details: ProcessExitDetails,
+): boolean {
+  const classification = classifyProcessExit(details, process.platform, shuttingDown)
+  const message = `${details.type ?? 'renderer'} process ${details.reason} (exitCode=${details.exitCode})`
+  const context = { ...details, category: classification.category }
+  if (!classification.unexpected) {
+    recordDiagnosticEvent(source, classification.category, message, context)
+    return false
+  }
+  reportDiagnosticError(
+    {
+      reportType: 'crash',
+      source,
+      stage: details.type ?? details.reason,
+      severity: classification.severity,
+      summary: details.reason === 'killed' ? '应用进程被终止' : '应用进程异常退出',
+      message,
+      context,
+    },
+    { autoUpload: true, persistPending: true },
+  )
+  return true
+}
+
+function captureRuntimeSnapshot(): DiagnosticRuntimeSnapshot {
+  return {
+    appVersion: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    osVersion: release(),
+    electronVersion: process.versions.electron,
+    environment: app.isPackaged ? 'production' : 'development',
   }
 }
 
@@ -588,6 +630,7 @@ export function reportDiagnosticError(
     stage: error.stage ? redactDiagnosticText(error.stage).slice(0, 64) : undefined,
     severity: error.severity ?? 'error',
     occurredAt: error.occurredAt ?? Date.now(),
+    runtime: captureRuntimeSnapshot(),
     summary: error.summary ? redactDiagnosticText(error.summary).slice(0, 500) : undefined,
     message: redactDiagnosticText(error.message).slice(0, 4_000),
     stack: error.stack ? redactDiagnosticText(error.stack).slice(0, 128_000) : undefined,
@@ -621,6 +664,7 @@ function readFullCurrentLog(): string {
 }
 
 function automaticSummary(error: DiagnosticErrorPayload): string {
+  if (error.context?.category === 'terminated') return '自动诊断：应用进程被终止'
   switch (error.reportType) {
     case 'renderer':
       return '自动诊断：界面运行异常'
@@ -651,8 +695,18 @@ function automaticContext(error: DiagnosticErrorPayload): Record<string, unknown
   const safeContext: Record<string, unknown> = {
     uploadMode: 'automatic',
     fingerprint: fingerprint(error),
+    ...(error.runtime ? { runtime: error.runtime } : {}),
   }
-  for (const key of ['type', 'reason', 'exitCode', 'errorCode', 'statusCode']) {
+  for (const key of [
+    'type',
+    'reason',
+    'exitCode',
+    'errorCode',
+    'statusCode',
+    'serviceName',
+    'name',
+    'category',
+  ]) {
     const value = context[key]
     if (
       value === null ||
@@ -667,6 +721,20 @@ function automaticContext(error: DiagnosticErrorPayload): Record<string, unknown
 }
 
 function shouldAutomaticallyUpload(error: DiagnosticErrorPayload, options: ReportOptions): boolean {
+  if (!app.isPackaged || error.runtime?.environment === 'development') return false
+  // Older pending reports lack a runtime snapshot; do not resend a recognisable development stack.
+  if (!error.runtime && /\/@fs\/|\/node_modules\/\.vite\//.test(error.stack ?? '')) return false
+  if (
+    (error.source === 'electron-child' || error.source === 'renderer-process') &&
+    typeof error.context?.reason === 'string' &&
+    typeof error.context.exitCode === 'number' &&
+    !classifyProcessExit(
+      { reason: error.context.reason, exitCode: error.context.exitCode },
+      error.runtime?.platform ?? process.platform,
+      shuttingDown,
+    ).unexpected
+  )
+    return false
   const eligibleType =
     error.reportType === 'crash' || error.reportType === 'renderer' || error.reportType === 'update'
   const enabled = options.autoUpload ?? eligibleType
@@ -739,7 +807,8 @@ function buildDiagnosticReportBody(
       stage: (error.stage ?? 'runtime').slice(0, 64),
       severity: error.severity ?? 'error',
       summary: automaticSummary(error),
-      errorMessage: `Automatic diagnostic fingerprint: ${String(context.fingerprint)}`,
+      errorMessage:
+        summarizeDiagnosticError(redactDiagnosticText(error.message)) || 'Application error',
       stackTrace: minimizeAutomaticStack(error.stack),
       contextJson: safeJson(context),
       occurredAt: error.occurredAt ?? Date.now(),
@@ -753,6 +822,7 @@ function buildDiagnosticReportBody(
     originalStage: error.stage,
     ...(options.note ? { userNote: options.note.slice(0, 2_000) } : {}),
     uploadMode: 'manual',
+    ...(error.runtime ? { runtime: error.runtime } : {}),
   })
 
   return {
@@ -859,6 +929,7 @@ function manualUploadError(): DiagnosticErrorPayload {
       summary: '用户手动上传诊断日志',
       message: '用户主动从设置页上传本机诊断日志',
       occurredAt: Date.now(),
+      runtime: captureRuntimeSnapshot(),
     }
   )
 }

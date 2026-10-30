@@ -3,6 +3,19 @@ export interface DiagnosticRedactionOptions {
   appDirectories?: string[]
 }
 
+/** A useful automatic error summary, without URLs, local paths or full multiline payloads. */
+export function summarizeDiagnosticError(
+  value: string,
+  options: DiagnosticRedactionOptions = {},
+): string {
+  return redactDiagnosticText(value, options)
+    .split(/\r?\n/, 1)[0]
+    .replace(/\b(?:https?|file):\/\/[^\s)"']+/gi, '<URL>')
+    .replace(/[A-Za-z]:[\\/][^\r\n"'<>|]+/g, '<PATH>')
+    .replace(/\/(?:Users|home|tmp|var|opt|mnt|workspace)(?:\/[^\s"'<>]+)+/g, '<PATH>')
+    .slice(0, 500)
+}
+
 const QUOTED_SECRET_PATTERN =
   /(["']?\b(?:access[_-]?token|refresh[_-]?token|id[_-]?token|token|authorization|password|passwd|secret|client[_-]?secret|api[_ -]?key|code[_-]?verifier|code[_-]?challenge|session[_-]?id|cookie|set-cookie|private[_ -]?key)\b["']?\s*[=:]\s*)(["'])(.*?)\2/gi
 const QUOTED_AUTH_PARAMETER_PATTERN = /(["']?\b(?:code|state)\b["']?\s*[=:]\s*)(["'])(.*?)\2/gi

@@ -21,6 +21,7 @@ interface TrayConfiguration {
   toggleFloatingWindow: () => void
   openWebsite: () => Promise<void>
   requestQuit: () => void
+  onError?: (error: unknown) => void
 }
 
 const DEFAULT_PREFERENCES: TrayPreferences = { closeBehavior: 'ask', language: 'zh' }
@@ -37,14 +38,31 @@ export function configureTray(options: TrayConfiguration): void {
 
 export function initializeTray(): void {
   if ((tray && !tray.isDestroyed()) || !configuration) return
-  const iconPath = configuration.getIconPath()
-  const image = nativeImage.createFromPath(iconPath)
-  if (process.platform === 'darwin') image.setTemplateImage(true)
-  tray = new Tray(image, process.platform === 'win32' ? trayGuid() : undefined)
-  tray.on('click', showMainWindow)
-  tray.on('double-click', showMainWindow)
-  rebuildTrayMenu()
-  configureTrayLifecycle()
+  try {
+    const iconPath = configuration.getIconPath()
+    const image = nativeImage.createFromPath(iconPath)
+    if (process.platform === 'darwin') image.setTemplateImage(true)
+    // Electron rejects an explicitly supplied undefined GUID on macOS/Linux.
+    tray = process.platform === 'win32' ? new Tray(image, trayGuid()) : new Tray(image)
+    tray.on('click', showMainWindow)
+    tray.on('double-click', showMainWindow)
+    rebuildTrayMenu()
+    configureTrayLifecycle()
+  } catch (error) {
+    try {
+      destroyTray()
+    } catch (cleanupError) {
+      tray = null
+      console.error('[tray] Cleanup failed', cleanupError)
+    }
+    // Tray availability must never prevent IPC, authentication or updates from starting.
+    console.error('[tray] Initialization failed', error)
+    try {
+      configuration.onError?.(error)
+    } catch (reportError) {
+      console.error('[tray] Reporting initialization failure failed', reportError)
+    }
+  }
 }
 
 export function refreshTrayIcon(): void {

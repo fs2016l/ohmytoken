@@ -1,5 +1,5 @@
 import { is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, nativeImage, shell } from 'electron'
+import { app, BrowserWindow, dialog, nativeImage, shell } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { IPC } from './ipc/channels'
@@ -11,10 +11,14 @@ import { getAccessToken } from './services/auth.service'
 import { ensureAgentClientRegistered } from './services/client-registration.service'
 import {
   initializeDiagnosticLogging,
+  isDiagnosticShutdown,
+  markDiagnosticShutdown,
   recordDiagnosticEvent,
   registerGlobalDiagnosticHandlers,
   reportDiagnosticError,
+  reportProcessExit,
 } from './services/diagnostic-log.service'
+import { createRendererRecovery } from './services/renderer-recovery'
 import {
   closeFloatingWindow,
   configureFloatingWindow,
@@ -51,6 +55,7 @@ import {
   destroyTray,
   handleMainWindowClose,
   initializeTray,
+  getTrayLanguage,
   refreshTrayIcon,
   refreshTrayMenu,
 } from './services/tray.service'
@@ -126,6 +131,45 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
 
+function attachRendererDiagnostics(window: BrowserWindow, windowKind: 'main' | 'floating'): void {
+  const rendererRecovery = createRendererRecovery({
+    canRecover: () => !isQuitting && !isDiagnosticShutdown() && !window.isDestroyed(),
+    reload: () => {
+      recordDiagnosticEvent('renderer', 'recovery', '重新加载异常退出的界面')
+      window.webContents.reload()
+    },
+    onError: (error) => {
+      console.error('[renderer] Recovery failed', error)
+    },
+    onExhausted: () => {
+      const zh = getTrayLanguage() === 'zh'
+      void dialog
+        .showMessageBox(window, {
+          type: 'error',
+          title: zh ? '界面恢复失败' : 'Unable to restore the window',
+          message: zh
+            ? '界面连续出现异常，是否重新加载？'
+            : 'The window has failed repeatedly. Reload it?',
+          buttons: zh ? ['重新加载', '退出应用'] : ['Reload', 'Quit app'],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then(({ response }) => {
+          if (window.isDestroyed() || isQuitting || isDiagnosticShutdown()) return
+          if (response === 0) rendererRecovery.retry()
+          else app.quit()
+        })
+        .catch((error) => console.error('[renderer] Recovery dialog failed', error))
+    },
+  })
+  window.on('closed', rendererRecovery.dispose)
+  window.on('session-end', markDiagnosticShutdown)
+  window.webContents.on('render-process-gone', (_event, details) => {
+    if (reportProcessExit('renderer-process', { ...details, name: windowKind }))
+      rendererRecovery.recover()
+  })
+}
+
 function createWindow(): void {
   idleWindowReleased = false
   const savedState = loadWindowState()
@@ -173,6 +217,7 @@ function createWindow(): void {
 
   // 上次是最大化状态则恢复最大化
   const createdWindow = mainWindow
+  attachRendererDiagnostics(createdWindow, 'main')
   attachWindowMaterial(createdWindow, 'main')
   let cancelIdleRelease: (() => void) | undefined
   let releaseCheck: Promise<boolean> | undefined
@@ -228,22 +273,6 @@ function createWindow(): void {
   mainWindow.on('close', (event) => {
     if (isQuitting || !mainWindow) return
     handleMainWindowClose(event, mainWindow)
-  })
-
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    if (details.reason === 'clean-exit') return
-    reportDiagnosticError(
-      {
-        reportType: 'crash',
-        source: 'renderer-process',
-        stage: details.reason,
-        severity: details.reason === 'crashed' ? 'fatal' : 'error',
-        summary: 'Agent 界面进程异常退出',
-        message: `renderer process ${details.reason} (exitCode=${details.exitCode})`,
-        context: { reason: details.reason, exitCode: details.exitCode },
-      },
-      { autoUpload: true, persistPending: true },
-    )
   })
 
   mainWindow.webContents.on(
@@ -323,7 +352,10 @@ if (!gotLock) {
       getIconPath: getAppIconPath,
       getMainWindow,
       materialOptions: () => windowMaterialOptions('floating'),
-      windowCreated: (window) => attachWindowMaterial(window, 'floating'),
+      windowCreated: (window) => {
+        attachWindowMaterial(window, 'floating')
+        attachRendererDiagnostics(window, 'floating')
+      },
       materialTransition: suspendFloatingWindowMaterial,
       openWorkspace: (path) => {
         lastMainHash = `#${path}`
@@ -364,6 +396,19 @@ if (!gotLock) {
         await shell.openExternal(runtimeConfig.websiteUrl)
       },
       requestQuit: () => app.quit(),
+      onError: (error) =>
+        reportDiagnosticError(
+          {
+            reportType: 'crash',
+            source: 'tray',
+            stage: 'tray-initialize',
+            severity: 'error',
+            summary: '托盘初始化失败',
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+          { autoUpload: true, persistPending: true },
+        ),
     })
 
     // 先创建窗口：registerIpcHandlers 通过 getter 动态获取主窗口引用
