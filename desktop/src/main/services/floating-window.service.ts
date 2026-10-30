@@ -440,7 +440,9 @@ export function registerFloatingWindowIpc(): void {
     if (!isFloatingResizeDirection(direction)) throw new TypeError('Invalid resize direction')
     if (collapsed && direction !== 'left' && direction !== 'right') return false
     const started = floatingFrame?.beginResize(direction) ?? false
-    if (started) edgeController?.setResizing(true)
+    // Windows only queues its native mouse-down message; a quick release can
+    // cancel it before resizing starts. Its will-resize event sets the flag.
+    if (started && process.platform === 'darwin') edgeController?.setResizing(true)
     return started
   })
   ipcMain.handle(IPC.FLOATING_WINDOW_SHOW, () => showFloatingWindow())
