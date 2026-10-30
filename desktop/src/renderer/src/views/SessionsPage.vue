@@ -429,6 +429,10 @@ async function retry(): Promise<void> {
 .session-sidebar {
   scrollbar-gutter: auto;
 }
+.session-sidebar :deep(.scroll-region-content) {
+  display: grid;
+  min-height: 100%;
+}
 .workspace-error {
   flex: none;
   margin-bottom: 12px;

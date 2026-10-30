@@ -33,8 +33,6 @@ export function applicationMenuTemplate(
           click: () => actions.openSettings('general'),
         },
         { type: 'separator' },
-        { role: 'services', label: label('服务', 'Services'), submenu: [] },
-        { type: 'separator' },
         { role: 'hide', label: label('隐藏 ohmytoken', 'Hide ohmytoken') },
         { role: 'hideOthers', label: label('隐藏其他', 'Hide Others') },
         { role: 'unhide', label: label('显示全部', 'Show All') },

@@ -224,6 +224,25 @@ onBeforeUnmount(() => clearTimeout(copyTimer))
 </template>
 <style src="./workspace-detail.css" />
 <style scoped>
+.session-detail {
+  min-height: 0;
+}
+.session-detail .detail-context {
+  margin-bottom: 12px;
+}
+.session-detail .detail-metrics {
+  margin-block: 12px;
+}
+.session-detail .detail-generation,
+.session-detail .detail-participation {
+  margin-bottom: 12px;
+}
+.session-detail .detail-meta {
+  margin-top: 12px;
+}
+.session-detail :is(h3, .detail-caption, .copy-feedback, .detail-metrics > div > span) {
+  line-height: var(--leading-caption);
+}
 .session-detail-empty {
   min-height: 240px;
   font-size: 13px;
