@@ -61,10 +61,11 @@ if (process.platform === 'darwin') {
     '-I',
     headers,
     'native/window-material/window-material-mac.mm',
+    'native/window-material/floating-frame-mac.mm',
     '-o',
     join(destination, 'window_material.node'),
   ])
-  console.log(`macOS vibrancy mask module ready (${arch}).`)
+  console.log(`macOS window material and resize module ready (${arch}).`)
   process.exit(0)
 }
 const vswhere = join(

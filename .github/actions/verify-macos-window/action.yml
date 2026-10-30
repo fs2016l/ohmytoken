@@ -1,0 +1,134 @@
+name: Verify macOS window interaction
+description: Exercise the compiled window bridge with app-local AppKit events before signing
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: desktop
+      run: |
+        set -euo pipefail
+        npm run build:window-material
+        probe_dir="${RUNNER_TEMP}/macos-window-verification"
+        mkdir -p "$probe_dir"
+        cat > "$probe_dir/events.mm" <<'OBJC'
+        #include <node_api.h>
+        #import <AppKit/AppKit.h>
+        #include <cstring>
+        napi_value send(napi_env env, napi_callback_info info) {
+          size_t count = 4, length = 0;
+          napi_value args[4];
+          napi_get_cb_info(env, info, &count, args, nullptr, nullptr);
+          void* bytes = nullptr;
+          napi_get_buffer_info(env, args[0], &bytes, &length);
+          void* pointer = nullptr;
+          std::memcpy(&pointer, bytes, sizeof(pointer));
+          NSWindow* window = ((__bridge NSView*)pointer).window;
+          int32_t kind = 0;
+          double x = 0, y = 0;
+          napi_get_value_int32(env, args[1], &kind);
+          napi_get_value_double(env, args[2], &x);
+          napi_get_value_double(env, args[3], &y);
+          NSPoint point = NSMakePoint(x, NSMaxY(NSScreen.screens.firstObject.frame) - y);
+          NSEvent* event;
+          if (kind == 3) {
+            event = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint
+              modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+              windowNumber:window.windowNumber context:nil characters:@"\x1b"
+              charactersIgnoringModifiers:@"\x1b" isARepeat:NO keyCode:53];
+          } else {
+            NSEventType type = kind == 0 ? NSEventTypeLeftMouseDown :
+              kind == 1 ? NSEventTypeLeftMouseDragged : NSEventTypeLeftMouseUp;
+            event = [NSEvent mouseEventWithType:type location:[window convertPointFromScreen:point]
+              modifierFlags:0 timestamp:NSProcessInfo.processInfo.systemUptime
+              windowNumber:window.windowNumber context:nil eventNumber:1 clickCount:1 pressure:1];
+          }
+          [NSApp sendEvent:event];
+          napi_value result;
+          napi_get_undefined(env, &result);
+          return result;
+        }
+        napi_value init(napi_env env, napi_value exports) {
+          napi_value function;
+          napi_create_function(env, "send", NAPI_AUTO_LENGTH, send, nullptr, &function);
+          napi_set_named_property(env, exports, "send", function);
+          return exports;
+        }
+        NAPI_MODULE(events, init)
+        OBJC
+        electron_version="$(node -p 'require("electron/package.json").version')"
+        xcrun clang++ -std=c++17 -fobjc-arc -dynamiclib -undefined dynamic_lookup \
+          -framework AppKit -DNAPI_VERSION=8 \
+          -I "$HOME/.electron-gyp/$electron_version/include/node" \
+          "$probe_dir/events.mm" -o "$probe_dir/events.node"
+        cat > "$probe_dir/verify.cjs" <<'JS'
+        const { app, BrowserWindow, Menu } = require('electron')
+        const assert = require('node:assert/strict')
+        const { join } = require('node:path')
+        const native = require(process.env.OMT_FRAME_MODULE)
+        const input = require('./events.node')
+        app.setPath('userData', join(__dirname, 'profile'))
+        const pause = () => new Promise(resolve => setTimeout(resolve, 40))
+        const timeout = setTimeout(() => { console.error('Window verification timed out'); app.exit(1) }, 30000)
+        app.whenReady().then(async () => {
+          Menu.setApplicationMenu(null)
+          const window = new BrowserWindow({ x: 160, y: 140, width: 444, height: 520,
+            minWidth: 320, minHeight: 240, maxWidth: 900, maxHeight: 900,
+            frame: false, transparent: true, hasShadow: false, show: false,
+            webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } })
+          await window.loadURL('data:text/html,<body style="margin:12px;background:gray">Window verification</body>')
+          window.showInactive()
+          await pause()
+          const handle = window.getNativeWindowHandle()
+          native.setFloatingFrame(handle, 12, true)
+          assert.equal(window.isResizable(), false, 'native shadow gutter must not retain a resize band')
+          assert.deepEqual(window.getMinimumSize(), [320, 240])
+          assert.deepEqual(window.getMaximumSize(), [900, 900])
+          assert.equal(native.beginFloatingResize(handle, 8), false, 'a drag requires a mouse-down in this window')
+          let ended = 0
+          window.on('resized', () => ended++)
+          const start = window.getBounds()
+          for (let direction = 1; direction <= 8; direction++) {
+            window.setBounds(start)
+            const left = [1, 4, 7].includes(direction), right = [2, 5, 8].includes(direction)
+            const top = [3, 4, 5].includes(direction), bottom = [6, 7, 8].includes(direction)
+            const x = start.x + (left ? 12 : right ? start.width - 12 : start.width / 2)
+            const y = start.y + (top ? 12 : bottom ? start.height - 12 : start.height / 2)
+            input.send(handle, 0, x, y)
+            await pause()
+            assert.equal(native.beginFloatingResize(handle, direction), true, `direction ${direction} starts`)
+            input.send(handle, 1, x + 20, y + 15)
+            input.send(handle, 2, x + 20, y + 15)
+            await pause()
+            assert.deepEqual(window.getBounds(), {
+              x: start.x + (left ? 20 : 0), y: start.y + (top ? 15 : 0),
+              width: start.width + (left ? -20 : right ? 20 : 0),
+              height: start.height + (top ? -15 : bottom ? 15 : 0),
+            }, `direction ${direction} preserves the opposite edge`)
+          }
+          assert.ok(ended >= 8, 'Electron must receive resize completion to save bounds')
+          window.setBounds(start)
+          const x = start.x + 12, y = start.y + 12
+          input.send(handle, 0, x, y)
+          assert.equal(native.beginFloatingResize(handle, 4), true)
+          input.send(handle, 1, x + 2000, y + 2000)
+          assert.deepEqual(window.getSize(), [320, 240], 'minimum size')
+          assert.equal(window.getBounds().x + 320, start.x + start.width)
+          input.send(handle, 1, x - 2000, y - 2000)
+          assert.deepEqual(window.getSize(), [900, 900], 'maximum size')
+          input.send(handle, 3, x, y)
+          assert.deepEqual(window.getBounds(), start, 'Escape restores the pre-drag frame')
+          input.send(handle, 2, x, y)
+          native.setFloatingFrame(handle, 12, false)
+          input.send(handle, 0, x, y)
+          assert.equal(native.beginFloatingResize(handle, 1), false, 'hidden/transitioning panel cannot resize')
+          input.send(handle, 2, x, y)
+          assert.throws(() => native.beginFloatingResize(handle, NaN), /direction/)
+          assert.throws(() => native.setFloatingFrame(Buffer.alloc(1), 12, true), /handle/)
+          window.destroy()
+          clearTimeout(timeout)
+          console.log('macOS native resize passed: 8 directions, limits, Escape, completion, disabled state and cleanup')
+          app.quit()
+        }).catch(error => { console.error(error); app.exit(1) })
+        JS
+        OMT_FRAME_MODULE="$PWD/resources/window-material/darwin-$(node -p process.arch)/window_material.node" \
+          ./node_modules/.bin/electron "$probe_dir/verify.cjs"

@@ -4,6 +4,7 @@ import { dirname, join } from 'path'
 import { createHash } from 'crypto'
 import type { CloseBehavior } from '../../shared/models'
 import { IPC } from '../ipc/channels'
+import { applicationMenuTemplate, type SettingsSection } from './application-menu'
 
 export type CloseDecision = Exclude<CloseBehavior, 'ask'> | 'cancel'
 type AppLanguage = 'zh' | 'en'
@@ -21,6 +22,7 @@ interface TrayConfiguration {
   toggleFloatingWindow: () => void
   openWebsite: () => Promise<void>
   requestQuit: () => void
+  openSettings: (section: SettingsSection) => void
   onError?: (error: unknown) => void
 }
 
@@ -34,6 +36,7 @@ let lifecycleConfigured = false
 
 export function configureTray(options: TrayConfiguration): void {
   configuration = options
+  rebuildApplicationMenu()
 }
 
 export function initializeTray(): void {
@@ -166,6 +169,7 @@ function showMainWindow(): void {
 }
 
 export function refreshTrayMenu(): void {
+  rebuildApplicationMenu()
   rebuildTrayMenu()
 }
 
@@ -185,7 +189,7 @@ function requestUpdateCheck(): void {
 
 function toggleFloatingWindow(): void {
   configuration?.toggleFloatingWindow()
-  rebuildTrayMenu()
+  refreshTrayMenu()
 }
 
 async function openOfficialWebsite(): Promise<void> {
@@ -194,6 +198,22 @@ async function openOfficialWebsite(): Promise<void> {
   } catch (error) {
     console.warn(`[tray] 打开官网失败: ${(error as Error).message}`)
   }
+}
+
+function rebuildApplicationMenu(): void {
+  if (process.platform !== 'darwin' || !configuration) return
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      applicationMenuTemplate(loadPreferences().language, configuration.isFloatingWindowVisible(), {
+        openSettings: (section) => configuration?.openSettings(section),
+        showMainWindow,
+        toggleFloatingWindow,
+        checkForUpdates: requestUpdateCheck,
+        openWebsite: () => void openOfficialWebsite(),
+        quit: () => configuration?.requestQuit(),
+      }),
+    ),
+  )
 }
 
 function rebuildTrayMenu(): void {
@@ -276,7 +296,7 @@ function updatePreferences(patch: Partial<TrayPreferences>): void {
   } catch (error) {
     console.warn(`[tray] 保存偏好失败: ${(error as Error).message}`)
   }
-  rebuildTrayMenu()
+  refreshTrayMenu()
   if (patch.closeBehavior && patch.closeBehavior !== previous.closeBehavior) {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {

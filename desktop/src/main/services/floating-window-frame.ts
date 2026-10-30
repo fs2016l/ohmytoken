@@ -18,7 +18,7 @@ export interface FloatingWindowFrame {
   beginResize: (direction: FloatingResizeDirection) => boolean
 }
 
-/** The renderer supplies the hit area and cursor; Windows performs the drag. */
+/** The renderer supplies the visible hit area; the platform bridge performs the drag. */
 export function attachFloatingWindowFrame(
   window: BrowserWindow,
   inset: number,
@@ -28,14 +28,17 @@ export function attachFloatingWindowFrame(
     setEnabled: () => {},
     beginResize: () => false,
   }
-  if (process.platform !== 'win32' || !inset) return fallback
+  if (!['win32', 'darwin'].includes(process.platform) || !inset) return fallback
   try {
     const root = app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources')
     native ??= createRequire(__filename)(
-      join(root, 'window-material', `win32-${process.arch}`, 'window_material.node'),
+      join(root, 'window-material', `${process.platform}-${process.arch}`, 'window_material.node'),
     ) as FloatingFrameBridge
     const bridge = native
-    if (typeof bridge.beginFloatingResize !== 'function')
+    if (
+      typeof bridge.beginFloatingResize !== 'function' ||
+      typeof bridge.setFloatingFrame !== 'function'
+    )
       throw new Error('The native resize module needs rebuilding')
     const handle = window.getNativeWindowHandle()
     let enabled = true

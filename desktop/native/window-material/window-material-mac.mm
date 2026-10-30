@@ -2,6 +2,9 @@
 #import <AppKit/AppKit.h>
 #include <cstring>
 
+napi_value setFloatingFrameMac(napi_env env, napi_callback_info info);
+napi_value beginFloatingResizeMac(napi_env env, napi_callback_info info);
+
 namespace {
 napi_value fail(napi_env env, const char* message) {
   napi_throw_error(env, "WINDOW_MATERIAL", message);
@@ -95,6 +98,8 @@ static napi_value init(napi_env env, napi_value exports) {
   napi_property_descriptor properties[] = {
     {"status", nullptr, status, nullptr, nullptr, nullptr, napi_default, nullptr},
     {"setVibrancyGeometry", nullptr, setVibrancyGeometry, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"setFloatingFrame", nullptr, setFloatingFrameMac, nullptr, nullptr, nullptr, napi_default, nullptr},
+    {"beginFloatingResize", nullptr, beginFloatingResizeMac, nullptr, nullptr, nullptr, napi_default, nullptr},
   };
   napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
   return exports;

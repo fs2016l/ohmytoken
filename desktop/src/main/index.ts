@@ -26,6 +26,7 @@ import {
   refreshFloatingWindowIcon,
   destroyFloatingWindowForAppQuit,
   isFloatingWindowVisible,
+  openMainWorkspace,
   registerFloatingWindowIpc,
   shouldRestoreFloatingWindow,
   showFloatingWindow,
@@ -396,6 +397,7 @@ if (!gotLock) {
         await shell.openExternal(runtimeConfig.websiteUrl)
       },
       requestQuit: () => app.quit(),
+      openSettings: (section) => openMainWorkspace(`/settings/${section}`),
       onError: (error) =>
         reportDiagnosticError(
           {

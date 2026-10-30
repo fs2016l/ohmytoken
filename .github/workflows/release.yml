@@ -283,6 +283,9 @@ jobs:
       - name: Download Electron runtime
         run: npx --no-install install-electron
 
+      - name: Verify macOS window interaction
+        uses: ./.github/actions/verify-macos-window
+
       - name: Build application
         run: npm run build
 

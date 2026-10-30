@@ -232,6 +232,11 @@ function createFloatingWindow(): BrowserWindow {
   window.on('resized', syncSizeLimits)
   window.on('moved', saveBounds)
   window.on('resized', saveBounds)
+  // Native macOS dragging can leave the window at its size limit. Keep the
+  // docked panel visible until AppKit delivers the end of the resize gesture.
+  window.on('will-resize', () => edge.setResizing(true))
+  window.on('resized', () => edge.setResizing(false))
+  window.on('blur', () => edge.setResizing(false))
   window.on('close', () => {
     saveBounds()
     if (!closingForAppQuit) {
@@ -390,6 +395,12 @@ export function isFloatingWindowVisible(): boolean {
   )
 }
 
+/** Trusted main-process commands share the pending navigation used when restoring a window. */
+export function openMainWorkspace(path: string): void {
+  pendingWorkspacePath = path
+  config?.openWorkspace(path)
+}
+
 export function isFloatingWindowAlwaysOnTop(): boolean {
   return state.alwaysOnTop
 }
@@ -428,7 +439,9 @@ export function registerFloatingWindowIpc(): void {
     requireFloatingSender(event)
     if (!isFloatingResizeDirection(direction)) throw new TypeError('Invalid resize direction')
     if (collapsed && direction !== 'left' && direction !== 'right') return false
-    return floatingFrame?.beginResize(direction) ?? false
+    const started = floatingFrame?.beginResize(direction) ?? false
+    if (started) edgeController?.setResizing(true)
+    return started
   })
   ipcMain.handle(IPC.FLOATING_WINDOW_SHOW, () => showFloatingWindow())
   ipcMain.handle(IPC.FLOATING_WINDOW_CLOSE, () => closeFloatingWindow())
@@ -483,8 +496,7 @@ export function registerFloatingWindowIpc(): void {
   })
   ipcMain.handle(IPC.FLOATING_WINDOW_OPEN_WORKSPACE, (event, destination: unknown) => {
     requireFloatingSender(event)
-    pendingWorkspacePath = floatingWorkspacePath(destination)
-    config?.openWorkspace(pendingWorkspacePath)
+    openMainWorkspace(floatingWorkspacePath(destination))
   })
   ipcMain.handle(IPC.WORKSPACE_NAVIGATION_TAKE, (event) => {
     if (event.sender !== config?.getMainWindow()?.webContents) return null

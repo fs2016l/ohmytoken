@@ -43,6 +43,7 @@ export class FloatingEdgeController {
   private movedAt = 0
   private leaveSince: number | null = null
   private interacting = false
+  private resizing = false
   private timer: ReturnType<typeof setInterval> | undefined
   private animationTimer: ReturnType<typeof setInterval> | undefined
   private animationStartedAt = 0
@@ -186,6 +187,11 @@ export class FloatingEdgeController {
     this.leaveSince = null
     if (value && this.state.transition === 'hiding') this.reveal()
   }
+  setResizing(value: boolean): void {
+    this.resizing = value
+    this.leaveSince = null
+    if (value && this.state.transition === 'hiding') this.reveal()
+  }
   reanchor(): void {
     if (this.adjusting || !this.state.edge) return
     const bounds = this.window.getBounds(),
@@ -208,7 +214,7 @@ export class FloatingEdgeController {
     if (this.state.transition) {
       if (
         this.state.transition === 'hiding' &&
-        (this.interacting || containsPoint(this.normal, this.options.cursor()))
+        (this.interacting || this.resizing || containsPoint(this.normal, this.options.cursor()))
       )
         this.reveal()
       else this.advanceAnimation(now)
@@ -238,7 +244,7 @@ export class FloatingEdgeController {
       if (inside) this.reveal()
       return
     }
-    if (inside || this.interacting) this.leaveSince = null
+    if (inside || this.interacting || this.resizing) this.leaveSince = null
     else {
       this.leaveSince ??= now
       if (now - this.leaveSince >= 500) this.hide()
