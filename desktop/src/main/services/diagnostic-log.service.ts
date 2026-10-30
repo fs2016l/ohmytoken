@@ -800,7 +800,7 @@ function buildDiagnosticReportBody(
   error: DiagnosticErrorPayload,
 ): Record<string, unknown> {
   if (mode === 'automatic') {
-    const context = automaticContext(error)
+    const context = { ...automaticContext(error), uploadRuntime: captureRuntimeSnapshot() }
     return {
       reportType: error.reportType ?? 'crash',
       source: error.source.slice(0, 64),
@@ -815,15 +815,24 @@ function buildDiagnosticReportBody(
     }
   }
 
-  const manualContext = sanitizeDiagnosticValue({
-    ...(error.context ?? {}),
+  const uploadMetadata = {
     originalReportType: error.reportType,
     originalSource: error.source,
     originalStage: error.stage,
     ...(options.note ? { userNote: options.note.slice(0, 2_000) } : {}),
     uploadMode: 'manual',
-    ...(error.runtime ? { runtime: error.runtime } : {}),
-  })
+    runtime: error.runtime,
+    uploadRuntime: captureRuntimeSnapshot(),
+  }
+  let contextJson = redactDiagnosticText(
+    safeJson(sanitizeDiagnosticValue({ ...(error.context ?? {}), ...uploadMetadata })),
+  )
+  if (contextJson.length > 65_535) {
+    // Keep valid JSON and both version snapshots when optional context exceeds the API limit.
+    contextJson = redactDiagnosticText(
+      safeJson(sanitizeDiagnosticValue({ ...uploadMetadata, contextTruncated: true })),
+    )
+  }
 
   return {
     reportType: options.reportType ?? 'manual',
@@ -834,7 +843,7 @@ function buildDiagnosticReportBody(
     errorMessage: redactDiagnosticText(error.message).slice(0, 4_000),
     stackTrace: error.stack ? redactDiagnosticText(error.stack).slice(0, 128_000) : undefined,
     logContent: readFullCurrentLog(),
-    contextJson: redactDiagnosticText(safeJson(manualContext)).slice(0, 65_535),
+    contextJson,
     occurredAt: error.occurredAt ?? Date.now(),
   }
 }
